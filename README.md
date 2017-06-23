@@ -1,4 +1,6 @@
-# smallset
+# david-set
 
 This is a set that is optimized to be space and time efficient for
-small numbers of elements.
+small or large numbers of elements that implement the `Copy` trait.
+
+Eventually it will need a better name.

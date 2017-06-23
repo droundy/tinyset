@@ -1,8 +1,8 @@
 [package]
-name = "smallset"
+name = "david-set"
 version = "0.1.0"
 authors = ["David Roundy <daveroundy@gmail.com>"]
 
-description = "Sets optimized for small numbers of elements"
+description = "Set optimized for small or large numbers of Copy elements"
 license = "MPL-2.0"
-repository = "https://github.com/droundy/smallset"
+repository = "https://github.com/droundy/david-set"

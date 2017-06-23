@@ -1,17 +1,16 @@
 #![feature(test)]
 
 extern crate test;
-extern crate smallset;
+extern crate david_set;
 
 use test::Bencher;
 use std::collections::HashSet;
-use smallset::SmallSet;
 
 macro_rules! missing_bench {
     ($i: expr, $name_small: ident, $name_hash: ident) => {
         #[bench]
         fn $name_small(b: &mut Bencher) {
-            let set: SmallSet<usize> = (0..$i).collect();
+            let set: david_set::Set<usize> = (0..$i).collect();
             let not_here = $i+1;
             b.iter(|| set.contains(&not_here));
         }
@@ -42,7 +41,7 @@ macro_rules! present_bench {
         #[bench]
         fn $name_small(b: &mut Bencher) {
             let here = $i-1;
-            let set: SmallSet<usize> = (0..$i).collect();
+            let set: david_set::Set<usize> = (0..$i).collect();
             b.iter(|| set.contains(&here));
         }
         #[bench]
@@ -72,7 +71,7 @@ macro_rules! collect_bench {
         #[bench]
         fn $name_small(b: &mut Bencher) {
             b.iter(|| {
-                let s: SmallSet<usize> = (0..$i).collect();
+                let s: david_set::Set<usize> = (0..$i).collect();
                 s
             });
         }

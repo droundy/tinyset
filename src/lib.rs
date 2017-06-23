@@ -1,4 +1,4 @@
-//! smallset is a collection that is efficient for small numbers of
+//! david-set is a collection that is efficient for small numbers of
 //! elements, while still scaling well for large numbers.  It is
 //! basically interchangeable with `HashSet`, although it requires
 //! that its elements implement the `Copy` trait, since it is
@@ -7,8 +7,8 @@
 //! # Example
 //!
 //! ```
-//! use smallset::SmallSet;
-//! let mut s: SmallSet<usize> = SmallSet::new();
+//! use david_set::Set;
+//! let mut s: Set<usize> = Set::new();
 //! s.insert(1);
 //! assert!(s.contains(&1));
 //! ```
@@ -25,14 +25,14 @@ pub const CAPACITY: usize = 8;
 /// A set that is a `HashSet` when it has many elements, but is just
 /// an array for small set sizes.
 ///
-/// As with the `HashSet` type, a `SmallSet` requires that the
+/// As with the `HashSet` type, a `Set` requires that the
 /// elements implement the Eq and Hash traits.  This can frequently be
 /// achieved by using #[derive(PartialEq, Eq, Hash)]. In addition,
-/// `SmallSet` requires that the elements implement the `Copy` trait,
-/// and really they should be pretty small, since SmallSet always
+/// `Set` requires that the elements implement the `Copy` trait,
+/// and really they should be pretty small, since Set always
 /// stores room for `CAPACITY` elements.
 #[derive(Debug, Clone)]
-pub struct SmallSet<T: Copy + Eq + Hash> {
+pub struct Set<T: Copy + Eq + Hash> {
     inner: SS<T>,
 }
 
@@ -52,17 +52,17 @@ enum It<'a, T: 'a+Copy+Eq+Hash> {
     Large(std::collections::hash_set::Iter<'a, T>),
 }
 
-impl<T: Copy+Eq+Hash> SmallSet<T> {
+impl<T: Copy+Eq+Hash> Set<T> {
     /// Creates an empty set..
-    pub fn new() -> SmallSet<T> {
-        SmallSet { inner: SS::Small(0, unsafe { std::mem::uninitialized() }) }
+    pub fn new() -> Set<T> {
+        Set { inner: SS::Small(0, unsafe { std::mem::uninitialized() }) }
     }
     /// Creates an empty set with the specified capacity.
-    pub fn with_capacity(cap: usize) -> SmallSet<T> {
+    pub fn with_capacity(cap: usize) -> Set<T> {
         if cap > CAPACITY {
-            SmallSet { inner: SS::Large(HashSet::with_capacity(cap)) }
+            Set { inner: SS::Large(HashSet::with_capacity(cap)) }
         } else {
-            SmallSet::new()
+            Set::new()
         }
     }
     /// Returns the number of elements in the set.
@@ -86,7 +86,7 @@ impl<T: Copy+Eq+Hash> SmallSet<T> {
                 for i in 0..len {
                     s.insert(arr[i]);
                 }
-                *self = SmallSet { inner: SS::Large(s) }
+                *self = Set { inner: SS::Large(s) }
             },
         }
     }
@@ -121,7 +121,7 @@ impl<T: Copy+Eq+Hash> SmallSet<T> {
                     s.insert(arr[i]);
                 }
                 s.insert(elem);
-                *self = SmallSet { inner: SS::Large(s) };
+                *self = Set { inner: SS::Large(s) };
                 true
             },
         }
@@ -158,11 +158,11 @@ impl<T: Copy+Eq+Hash> SmallSet<T> {
     }
 }
 
-impl<T: Hash+Copy+Eq> std::iter::FromIterator<T> for SmallSet<T> {
+impl<T: Hash+Copy+Eq> std::iter::FromIterator<T> for Set<T> {
     fn from_iter<I: IntoIterator<Item=T>>(iter: I) -> Self {
         let iter = iter.into_iter();
         let (sz,_) = iter.size_hint();
-        let mut c = SmallSet::with_capacity(sz);
+        let mut c = Set::with_capacity(sz);
         for i in iter {
             c.insert(i);
         }
@@ -192,7 +192,7 @@ mod tests {
     use super::*;
     #[test]
     fn it_works() {
-        let mut ss: SmallSet<usize> = SmallSet::new();
+        let mut ss: Set<usize> = Set::new();
         ss.insert(5);
         assert!(ss.contains(&5));
         assert!(!ss.contains(&4));
@@ -207,9 +207,9 @@ mod tests {
     }
     #[test]
     fn size_unwasted() {
-        println!("small size: {}", std::mem::size_of::<SmallSet<usize>>());
+        println!("small size: {}", std::mem::size_of::<Set<usize>>());
         println!(" hash size: {}", std::mem::size_of::<HashSet<usize>>());
-        assert!(std::mem::size_of::<SmallSet<usize>>() <=
+        assert!(std::mem::size_of::<Set<usize>>() <=
                 2*std::mem::size_of::<HashSet<usize>>());
     }
 }
