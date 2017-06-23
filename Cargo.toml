@@ -1,6 +1,8 @@
 [package]
 name = "smallset"
 version = "0.1.0"
-authors = ["droundy <roundyd@physics.oregonstate.edu>"]
+authors = ["David Roundy <daveroundy@gmail.com>"]
 
-[dependencies]
+description = "Sets optimized for small numbers of elements"
+license = "MPL-2.0"
+repository = "https://github.com/droundy/smallset"

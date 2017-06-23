@@ -1,3 +1,20 @@
+//! smallset is a collection that is efficient for small numbers of
+//! elements, while still scaling well for large numbers.  It is
+//! basically interchangeable with `HashSet`, although it requires
+//! that its elements implement the `Copy` trait, since it is
+//! optimized for small elements.
+//!
+//! # Example
+//!
+//! ```
+//! use smallset::SmallSet;
+//! let mut s: SmallSet<usize> = SmallSet::new();
+//! s.insert(1);
+//! assert!(s.contains(&1));
+//! ```
+
+// #![deny(missing_docs)]
+
 use std::collections::HashSet;
 use std::hash::Hash;
 
@@ -40,6 +57,9 @@ impl<T: Copy+Eq+Hash> SmallSet<T> {
             SS::Small(len, _) => len,
         }
     }
+    /// Reserves capacity for at least `additional` more elements to be
+    /// inserted in the HashSet. The collection may reserve more space
+    /// to avoid frequent reallocations.
     pub fn reserve(&mut self, additional: usize) {
         match self.inner {
             SS::Large(ref mut s) => {
@@ -55,6 +75,11 @@ impl<T: Copy+Eq+Hash> SmallSet<T> {
             },
         }
     }
+    /// Adds a value to the set.
+    ///
+    /// If the set did not have this value present, `true` is returned.
+    ///
+    /// If the set did have this value present, `false` is returned.
     pub fn insert(&mut self, elem: T) -> bool {
         match self.inner {
             SS::Large(ref mut s) => {
@@ -86,6 +111,7 @@ impl<T: Copy+Eq+Hash> SmallSet<T> {
             },
         }
     }
+    /// Returns true if the set contains a value.
     pub fn contains(&self, elem: &T) -> bool {
         match self.inner {
             SS::Large(ref s) => {
@@ -101,6 +127,7 @@ impl<T: Copy+Eq+Hash> SmallSet<T> {
             },
         }
     }
+    /// Returns an iterator over the set.
     pub fn iter(&self) -> Iter<T> {
         Iter {
             inner:
