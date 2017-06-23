@@ -1,0 +1,6 @@
+[package]
+name = "smallset"
+version = "0.1.0"
+authors = ["droundy <roundyd@physics.oregonstate.edu>"]
+
+[dependencies]
