@@ -17,6 +17,7 @@
 
 use std::collections::HashSet;
 use std::hash::Hash;
+use std::borrow::Borrow;
 
 /// The number of elements stored in an array before moving up to the
 /// `HashSet` implementation.
@@ -126,15 +127,39 @@ impl<T: Copy+Eq+Hash> Set<T> {
             },
         }
     }
+    /// Removes an element, and returns true if that element was present.
+    pub fn remove<Q: ?Sized>(&mut self, value: &Q) -> bool
+        where
+        T: Borrow<Q>, Q: Hash + Eq,
+    {
+        match self.inner {
+            SS::Large(ref mut s) => s.remove(value),
+            SS::Small(ref mut len, ref mut arr) => {
+                for i in 0..*len {
+                    if arr[i].borrow() == value {
+                        *len -= 1;
+                        for j in i..*len {
+                            arr[j] = arr[j+1];
+                        }
+                        return true;
+                    }
+                }
+                false
+            },
+        }
+    }
     /// Returns true if the set contains a value.
-    pub fn contains(&self, elem: &T) -> bool {
+    pub fn contains<Q: ?Sized>(&self, value: &Q) -> bool
+        where
+        T: Borrow<Q>, Q: Hash + Eq,
+    {
         match self.inner {
             SS::Large(ref s) => {
-                s.contains(elem)
+                s.contains(value)
             },
             SS::Small(len, ref arr) => {
                 for i in 0 .. len {
-                    if arr[i] == *elem {
+                    if arr[i].borrow() == value {
                         return true;
                     }
                 }

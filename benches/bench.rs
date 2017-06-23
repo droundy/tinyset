@@ -36,6 +36,36 @@ missing_bench!(9, missing_smallset_09, missing_hashset_09);
 missing_bench!(10, missing_smallset_10, missing_hashset_10);
 missing_bench!(99, missing_smallset_99, missing_hashset_99);
 
+macro_rules! remove_missing_bench {
+    ($i: expr, $name_small: ident, $name_hash: ident) => {
+        #[bench]
+        fn $name_small(b: &mut Bencher) {
+            let mut set: david_set::Set<usize> = (0..$i).collect();
+            let not_here = $i+1;
+            b.iter(|| set.remove(&not_here));
+        }
+        #[bench]
+        fn $name_hash(b: &mut Bencher) {
+            let mut set: HashSet<usize> = (0..$i).collect();
+            let not_here = $i+1;
+            b.iter(|| set.remove(&not_here));
+        }
+    };
+}
+
+remove_missing_bench!(0, remove_missing_smallset_00, remove_missing_hashset_00);
+remove_missing_bench!(1, remove_missing_smallset_01, remove_missing_hashset_01);
+remove_missing_bench!(2, remove_missing_smallset_02, remove_missing_hashset_02);
+remove_missing_bench!(3, remove_missing_smallset_03, remove_missing_hashset_03);
+remove_missing_bench!(4, remove_missing_smallset_04, remove_missing_hashset_04);
+remove_missing_bench!(5, remove_missing_smallset_05, remove_missing_hashset_05);
+remove_missing_bench!(6, remove_missing_smallset_06, remove_missing_hashset_06);
+remove_missing_bench!(7, remove_missing_smallset_07, remove_missing_hashset_07);
+remove_missing_bench!(8, remove_missing_smallset_08, remove_missing_hashset_08);
+remove_missing_bench!(9, remove_missing_smallset_09, remove_missing_hashset_09);
+remove_missing_bench!(10, remove_missing_smallset_10, remove_missing_hashset_10);
+remove_missing_bench!(99, remove_missing_smallset_99, remove_missing_hashset_99);
+
 macro_rules! present_bench {
     ($i: expr, $name_small: ident, $name_hash: ident) => {
         #[bench]
