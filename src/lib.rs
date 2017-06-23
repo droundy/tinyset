@@ -13,13 +13,24 @@
 //! assert!(s.contains(&1));
 //! ```
 
-// #![deny(missing_docs)]
+#![deny(missing_docs)]
 
 use std::collections::HashSet;
 use std::hash::Hash;
 
+/// The number of elements stored in an array before moving up to the
+/// `HashSet` implementation.
 pub const CAPACITY: usize = 8;
 
+/// A set that is a `HashSet` when it has many elements, but is just
+/// an array for small set sizes.
+///
+/// As with the `HashSet` type, a `SmallSet` requires that the
+/// elements implement the Eq and Hash traits.  This can frequently be
+/// achieved by using #[derive(PartialEq, Eq, Hash)]. In addition,
+/// `SmallSet` requires that the elements implement the `Copy` trait,
+/// and really they should be pretty small, since SmallSet always
+/// stores room for `CAPACITY` elements.
 #[derive(Debug, Clone)]
 pub struct SmallSet<T: Copy + Eq + Hash> {
     inner: SS<T>,
@@ -31,6 +42,7 @@ enum SS<T: Copy+Eq+Hash> {
     Large(HashSet<T>),
 }
 
+/// An iterator for sets.
 pub struct Iter<'a, T: 'a+Copy+Eq+Hash> {
     inner: It<'a, T>,
 }
@@ -41,9 +53,11 @@ enum It<'a, T: 'a+Copy+Eq+Hash> {
 }
 
 impl<T: Copy+Eq+Hash> SmallSet<T> {
+    /// Creates an empty set..
     pub fn new() -> SmallSet<T> {
         SmallSet { inner: SS::Small(0, unsafe { std::mem::uninitialized() }) }
     }
+    /// Creates an empty set with the specified capacity.
     pub fn with_capacity(cap: usize) -> SmallSet<T> {
         if cap > CAPACITY {
             SmallSet { inner: SS::Large(HashSet::with_capacity(cap)) }
@@ -51,6 +65,7 @@ impl<T: Copy+Eq+Hash> SmallSet<T> {
             SmallSet::new()
         }
     }
+    /// Returns the number of elements in the set.
     pub fn len(&self) -> usize {
         match self.inner {
             SS::Large(ref s) => s.len(),
