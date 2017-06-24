@@ -336,6 +336,70 @@ impl<'a, 'b, T: Eq+Hash+Copy> std::ops::Sub<&'b Set<T>> for &'a Set<T> {
     }
 }
 
+impl<T: Eq+Hash+Copy> Extend<T> for Set<T> {
+    /// Adds a bunch of elements to the set
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use david_set::Set;
+    ///
+    /// let mut a: Set<u32> = vec![1, 2, 3].into_iter().collect();
+    /// a.extend(vec![3, 4, 5]);
+    ///
+    /// let mut i = 0;
+    /// let expected = [1, 2, 3, 4, 5];
+    /// for x in &a {
+    ///     assert!(expected.contains(x));
+    ///     i += 1;
+    /// }
+    /// assert_eq!(i, expected.len());
+    /// ```
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        let iter = iter.into_iter();
+        let (sz,_) = iter.size_hint();
+        self.reserve(sz);
+        for i in iter {
+            self.insert(i);
+        }
+    }
+}
+
+impl<'a, 'b, T: Eq+Hash+Copy> std::ops::BitOr<&'b Set<T>> for &'a Set<T> {
+    type Output = Set<T>;
+
+    /// Returns the union of `self` and `rhs` as a new `Set<T>`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use david_set::Set;
+    ///
+    /// let a: Set<u32> = vec![1, 2, 3].into_iter().collect();
+    /// let b: Set<u32> = vec![3, 4, 5].into_iter().collect();
+    ///
+    /// let set = &a | &b;
+    ///
+    /// let mut i = 0;
+    /// let expected = [1, 2, 3, 4, 5];
+    /// for x in &set {
+    ///     assert!(expected.contains(x));
+    ///     i += 1;
+    /// }
+    /// assert_eq!(i, expected.len());
+    /// ```
+    fn bitor(self, rhs: &Set<T>) -> Set<T> {
+        let mut s: Set<T> = Set::with_capacity(self.len() + rhs.len());
+        for &x in self.iter() {
+            s.insert(x);
+        }
+        for &x in rhs.iter() {
+            s.insert(x);
+        }
+        s
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
