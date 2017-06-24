@@ -1,8 +1,9 @@
 //! david-set is a collection that is efficient for small numbers of
 //! elements, while still scaling well for large numbers.  It is
 //! basically interchangeable with `HashSet`, although it requires
-//! that its elements implement the `Copy` trait, since it is
-//! optimized for small elements.
+//! that its elements implement the `Copy` trait, since otherwise I
+//! would have to learn to write correct `unsafe` code, which would be
+//! scary.
 //!
 //! # Example
 //!
@@ -41,6 +42,16 @@ pub struct Set<T: Copy + Eq + Hash> {
 enum SS<T: Copy+Eq+Hash> {
     Small(usize, [T;CAPACITY]),
     Large(HashSet<T>),
+}
+
+/// An iterator for consuming sets.
+pub struct IntoIter<T: Copy+Eq+Hash> {
+    inner: IntoIt<T>,
+}
+
+enum IntoIt<T: Copy+Eq+Hash> {
+    Small(std::vec::IntoIter<T>),
+    Large(std::collections::hash_set::IntoIter<T>),
 }
 
 /// An iterator for sets.
@@ -181,6 +192,22 @@ impl<T: Copy+Eq+Hash> Set<T> {
             }
         }
     }
+    /// Clears the set, returning all elements in an iterator.
+    pub fn drain(&mut self) -> IntoIter<T> {
+        let mut s = Set::new();
+        std::mem::swap(&mut s, self);
+        IntoIter {
+            inner:
+            match s.inner {
+                SS::Large(s) => {
+                    IntoIt::Large(s.into_iter())
+                },
+                SS::Small(len, ref arr) => {
+                    IntoIt::Small(Vec::from(&arr[0..len]).into_iter())
+                },
+            }
+        }
+    }
 }
 
 impl<T: Hash+Copy+Eq> std::iter::FromIterator<T> for Set<T> {
@@ -195,7 +222,6 @@ impl<T: Hash+Copy+Eq> std::iter::FromIterator<T> for Set<T> {
     }
 }
 
-
 impl<'a, T: 'a+Eq+Hash+Copy> Iterator for Iter<'a, T> {
     type Item = &'a T;
     fn next(&mut self) -> Option<&'a T> {
@@ -208,6 +234,61 @@ impl<'a, T: 'a+Eq+Hash+Copy> Iterator for Iter<'a, T> {
         match self.inner {
             It::Large(ref it) => it.size_hint(),
             It::Small(ref it) => it.size_hint(),
+        }
+    }
+}
+
+impl<T: Eq+Hash+Copy> Iterator for IntoIter<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<T> {
+        match self.inner {
+            IntoIt::Large(ref mut it) => it.next(),
+            IntoIt::Small(ref mut it) => it.next(),
+        }
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match self.inner {
+            IntoIt::Large(ref it) => it.size_hint(),
+            IntoIt::Small(ref it) => it.size_hint(),
+        }
+    }
+}
+
+impl<T: Eq+Hash+Copy> IntoIterator for Set<T> {
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+
+    /// Creates a consuming iterator, that is, one that moves each value out
+    /// of the set in arbitrary order. The set cannot be used after calling
+    /// this.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use david_set::Set;
+    /// let mut set: Set<u32> = Set::new();
+    /// set.insert(2);
+    /// set.insert(5);
+    ///
+    /// // Not possible to collect to a Vec<String> with a regular `.iter()`.
+    /// let v: Vec<_> = set.into_iter().collect();
+    ///
+    /// // Will print in an arbitrary order.
+    /// for x in &v {
+    ///     println!("{}", x);
+    /// }
+    /// ```
+    fn into_iter(self) -> IntoIter<T> {
+        IntoIter {
+            inner:
+            match self.inner {
+                SS::Large(s) => {
+                    IntoIt::Large(s.into_iter())
+                },
+                SS::Small(len, arr) => {
+                    IntoIt::Small(Vec::from(&arr[0..len]).into_iter())
+                },
+            }
         }
     }
 }
