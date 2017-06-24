@@ -254,6 +254,15 @@ impl<T: Eq+Hash+Copy> Iterator for IntoIter<T> {
     }
 }
 
+impl<'a, T: Eq+Hash+Copy> IntoIterator for &'a Set<T> {
+    type Item = &'a T;
+    type IntoIter = Iter<'a, T>;
+
+    fn into_iter(self) -> Iter<'a, T> {
+        self.iter()
+    }
+}
+
 impl<T: Eq+Hash+Copy> IntoIterator for Set<T> {
     type Item = T;
     type IntoIter = IntoIter<T>;
@@ -290,6 +299,40 @@ impl<T: Eq+Hash+Copy> IntoIterator for Set<T> {
                 },
             }
         }
+    }
+}
+
+impl<'a, 'b, T: Eq+Hash+Copy> std::ops::Sub<&'b Set<T>> for &'a Set<T> {
+    type Output = Set<T>;
+
+    /// Returns the difference of `self` and `rhs` as a new `Set<T>`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use david_set::Set;
+    ///
+    /// let a: Set<u32> = vec![1, 2, 3].into_iter().collect();
+    /// let b: Set<u32> = vec![3, 4, 5].into_iter().collect();
+    ///
+    /// let set = &a - &b;
+    ///
+    /// let mut i = 0;
+    /// let expected = [1, 2];
+    /// for x in &set {
+    ///     assert!(expected.contains(x));
+    ///     i += 1;
+    /// }
+    /// assert_eq!(i, expected.len());
+    /// ```
+    fn sub(self, rhs: &Set<T>) -> Set<T> {
+        let mut s = Set::with_capacity(self.len());
+        for v in self.iter() {
+            if !rhs.contains(v) {
+                s.insert(*v);
+            }
+        }
+        s
     }
 }
 
