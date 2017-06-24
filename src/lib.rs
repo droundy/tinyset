@@ -107,7 +107,7 @@ impl<T: Copy+Eq+Hash> Set<T> {
                         return false;
                     }
                 }
-                if *len < CAPACITY-1 {
+                if *len < CAPACITY {
                     arr[*len] = elem;
                     *len += 1;
                     return true;
