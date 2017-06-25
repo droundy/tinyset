@@ -6,3 +6,15 @@ authors = ["David Roundy <daveroundy@gmail.com>"]
 description = "Set optimized for small or large numbers of Copy elements"
 license = "MPL-2.0"
 repository = "https://github.com/droundy/david-set"
+
+[dev-dependencies]
+
+rand = "^0.3.15"
+
+[[bin]]
+
+name = "bench"
+
+[dependencies]
+
+rand = "^0.3.15"

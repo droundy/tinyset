@@ -426,3 +426,27 @@ mod tests {
                 2*std::mem::size_of::<HashSet<usize>>());
     }
 }
+
+/// Trait for any type that can be converted to a `usize`.  This could
+/// actually be a hash function, but we will assume that it is *fast*,
+/// so I'm not calling it `Hash`.
+pub trait Cast {
+    /// Convert to a `usize`.
+    fn cast(self) -> usize;
+}
+
+impl Cast for usize {
+    fn cast(self) -> usize { self }
+}
+impl Cast for u64 {
+    fn cast(self) -> usize { self as usize }
+}
+impl Cast for u32 {
+    fn cast(self) -> usize { self as usize }
+}
+impl Cast for u16 {
+    fn cast(self) -> usize { self as usize }
+}
+impl Cast for u8 {
+    fn cast(self) -> usize { self as usize }
+}
