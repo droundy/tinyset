@@ -39,14 +39,6 @@ macro_rules! time_me {
     }};
 }
 
-fn sorted<T: IntoIterator>(iter: T) -> Vec<T::Item>
-    where T::Item: Ord + Eq
-{
-    let mut v: Vec<_> = iter.into_iter().collect();
-    v.sort();
-    v
-}
-
 macro_rules! bench_contains {
     ($set: ident, $item: ident, $size: expr, $iters: expr) => {{
         let (set, my_stack, my_size, my_alloc) = initialize!($set, $item, $size);
@@ -62,14 +54,14 @@ macro_rules! bench_contains {
 
 macro_rules! bench_all_contains {
     ($item: ident, $iters: expr, $maxsz: expr) => {{
-        print!("{:10} {:>5}", "contains", "size");
+        print!("{:10}\n---------\n{:>5}", "contains", "size");
         print!("{:^8}(stac/heap/allo)", "set/hash");
         print!("{:^8}(stac/heap/allo)", "vec/hash");
         print!("{:^8}(stac/heap/allo)", "btree");
         println!();
         for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
                                   .filter(|&x|x<$maxsz)) {
-            print!("{:10} {:5}","", size);
+            print!("{:5}",size);
 
             let (total_true, hash_time, hash_stack, hash_size, hash_total)
                 = bench_contains!(HashSet, $item, size, $iters);
@@ -124,14 +116,14 @@ macro_rules! bench_remove_insert {
 
 macro_rules! bench_all_remove_insert {
     ($item: ident, $iters: expr, $maxsz: expr) => {{
-        print!("{:10} {:>5}", "remove/ins", "size");
+        print!("{:10}\n---------\n{:>5}", "remove/ins", "size");
         print!("{:^8}(stac/heap/allo)", "set/hash");
         print!("{:^8}(stac/heap/allo)", "vec/hash");
         print!("{:^8}(stac/heap/allo)", "btree");
         println!();
         for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
                                   .filter(|&x|x<$maxsz)) {
-            print!("{:10} {:5}","", size);
+            print!("{:5}",size);
             let (hash_time, hash_stack, hash_size, hash_total)
                 = bench_remove_insert!(HashSet, $item, size, $iters);
 
@@ -183,14 +175,4 @@ fn main() {
 
 fn duration_to_f64(t: Duration) -> f64 {
     t.as_secs() as f64 + (t.subsec_nanos() as f64)*1e-9
-}
-
-fn pretty_time(t: f64) -> String {
-    if t < 1e-7 {
-        format!("{:7.2} ns", t/1e-9)
-    } else if t < 1e-4 {
-        format!("{:7.2} us", t/1e-6)
-    } else {
-        format!("{:7.2} ms", t/1e-3)
-    }
 }
