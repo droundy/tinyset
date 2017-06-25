@@ -6,6 +6,7 @@ use std::time::{Instant, Duration};
 use rand::{XorShiftRng, SeedableRng, Rand};
 
 use std::collections::HashSet;
+use std::collections::BTreeSet;
 use david_set::Set;
 
 macro_rules! initialize {
@@ -52,9 +53,9 @@ fn sorted<T: IntoIterator>(iter: T) -> Vec<T::Item>
 
 fn main() {
     let iters = 10000000;
-    println!("{:10} {:>5} {:>8} {:>15} {:>15}",
-             "contains", "size", "set/hash", "set (s)", "hash (s)");
-    for size in 0..20 {
+    println!("{:10} {:>5} {:>8} {:>8} {:>15} {:>15}",
+             "contains", "size", "set/hash", "btree/hash", "set (s)", "hash (s)");
+    for size in (0..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)) {
         let (set, mut unused, _) = initialize!(Set, usize, size);
         //println!("size {} {:?}", set.len(), sorted(&set));
         let set_time = time_me!({unused = unused+1; set.contains(&unused)}, iters);
@@ -62,12 +63,15 @@ fn main() {
         let (set, mut unused, _) = initialize!(HashSet, usize, size);
         let hash_time = time_me!({unused = unused+1; set.contains(&unused)}, iters);
 
-        println!("{:10} {:5} {:8.5} {:15.6} {:15.6}",
-                 "", size, set_time/hash_time, set_time, hash_time);
+        let (set, mut unused, _) = initialize!(BTreeSet, usize, size);
+        let btree_time = time_me!({unused = unused+1; set.contains(&unused)}, iters);
+
+        println!("{:10} {:5} {:8.5} {:8.5} {:15.6} {:15.6}",
+                 "", size, set_time/hash_time, btree_time/hash_time, set_time, hash_time);
     }
-    println!("{:10} {:>5} {:>8} {:>15} {:>15}",
-             "remove/insert", "size", "set/hash", "set (s)", "hash (s)");
-    for size in 1..20 {
+    println!("{:10}{:>6}{:>9}{:>9}{:>16}{:>16}",
+             "remove/insert", "size", "set/hash", "btree/hash", "set (s)", "hash (s)");
+    for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)) {
         let (mut set, _, _) = initialize!(Set, usize, size);
         let mut next = 0;
         let set_time = time_me!({
@@ -75,19 +79,29 @@ fn main() {
                 set.insert(next);
             }
             next += 1;
+            next %= 2*size;
         }, iters);
 
         let (mut set, _, _) = initialize!(HashSet, usize, size);
-        let mut rng = XorShiftRng::from_seed([1,2,3,4]);
         let hash_time = time_me!({
             if set.remove(&next) {
                 set.insert(next);
             }
             next += 1;
+            next %= 2*size;
         }, iters);
 
-        println!("{:10} {:5} {:8.5} {:15.6} {:15.6}",
-                 "", size, set_time/hash_time, set_time, hash_time);
+        let (mut set, _, _) = initialize!(BTreeSet, usize, size);
+        let btree_time = time_me!({
+            if set.remove(&next) {
+                set.insert(next);
+            }
+            next += 1;
+            next %= 2*size;
+        }, iters);
+
+        println!("{:10} {:5} {:8.5} {:8.5} {:15.6} {:15.6}",
+                 "", size, set_time/hash_time, btree_time/hash_time, set_time, hash_time);
     }
 }
 
