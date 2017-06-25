@@ -9,6 +9,7 @@ use rand::{XorShiftRng, SeedableRng, Rand};
 use std::collections::HashSet;
 use std::collections::BTreeSet;
 use david_set::Set;
+use david_set::VecSet;
 
 macro_rules! initialize {
     ($set: ident, $item: ident, $num: expr) => {{
@@ -24,11 +25,7 @@ macro_rules! initialize {
         }
         let net_alloced = david_allocator::net_allocation() - before;
         let total_alloced = david_allocator::total_allocation() - before_total;
-        let mut unused = $item::rand(&mut rng);
-        while set.contains(&unused) {
-            unused = $item::rand(&mut rng);
-        }
-        (set, unused, std::mem::size_of::<$set<$item>>(), net_alloced, total_alloced)
+        (set, std::mem::size_of::<$set<$item>>(), net_alloced, total_alloced)
     }};
 }
 
@@ -50,103 +47,138 @@ fn sorted<T: IntoIterator>(iter: T) -> Vec<T::Item>
     v
 }
 
+macro_rules! bench_contains {
+    ($set: ident, $item: ident, $size: expr, $iters: expr) => {{
+        let (set, my_stack, my_size, my_alloc) = initialize!($set, $item, $size);
+        let mut total = 0;
+        let mut i = 0;
+        let my_time = time_me!({
+            i = (i+1)%(2*$size as $item);
+            if set.contains(&i) { total += 1; }
+        }, $iters);
+        (total, my_time, my_stack, my_size, my_alloc)
+    }};
+}
+
+macro_rules! bench_all_contains {
+    ($item: ident, $iters: expr, $maxsz: expr) => {{
+        print!("{:10} {:>5}", "contains", "size");
+        print!("{:^8}(stac/heap/allo)", "set/hash");
+        print!("{:^8}(stac/heap/allo)", "vec/hash");
+        print!("{:^8}(stac/heap/allo)", "btree");
+        println!();
+        for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
+                                  .filter(|&x|x<$maxsz)) {
+            print!("{:10} {:5}","", size);
+
+            let (total_true, hash_time, hash_stack, hash_size, hash_total)
+                = bench_contains!(HashSet, $item, size, $iters);
+            let (total, my_time, my_stack, my_size, my_total)
+                = bench_contains!(Set, $item, size, $iters);
+            if total != total_true {
+                println!("serious problem!");
+            }
+            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+                   my_time/hash_time,
+                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   (my_size as f64/hash_size as f64),
+                   (my_total as f64/hash_total as f64));
+
+            let (total, my_time, my_stack, my_size, my_total)
+                = bench_contains!(VecSet, $item, size, $iters);
+            if total != total_true {
+                println!("serious problem!");
+            }
+            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+                   my_time/hash_time,
+                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   (my_size as f64/hash_size as f64),
+                   (my_total as f64/hash_total as f64));
+
+            let (total, my_time, my_stack, my_size, my_total)
+                = bench_contains!(BTreeSet, $item, size, $iters);
+            if total != total_true {
+                println!("serious problem!");
+            }
+            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+                   my_time/hash_time,
+                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   (my_size as f64/hash_size as f64),
+                   (my_total as f64/hash_total as f64));
+            println!();
+        }
+    }};
+}
+
+macro_rules! bench_remove_insert {
+    ($set: ident, $item: ident, $size: expr, $iters: expr) => {{
+        let (mut set, my_stack, my_size, my_alloc) = initialize!($set, $item, $size);
+        let mut i = 0;
+        let my_time = time_me!({
+            i = (i+1)%(2*$size as $item);
+            if set.remove(&i) { set.insert(i); }
+        }, $iters);
+        (my_time, my_stack, my_size, my_alloc)
+    }};
+}
+
+macro_rules! bench_all_remove_insert {
+    ($item: ident, $iters: expr, $maxsz: expr) => {{
+        print!("{:10} {:>5}", "remove/ins", "size");
+        print!("{:^8}(stac/heap/allo)", "set/hash");
+        print!("{:^8}(stac/heap/allo)", "vec/hash");
+        print!("{:^8}(stac/heap/allo)", "btree");
+        println!();
+        for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
+                                  .filter(|&x|x<$maxsz)) {
+            print!("{:10} {:5}","", size);
+            let (hash_time, hash_stack, hash_size, hash_total)
+                = bench_remove_insert!(HashSet, $item, size, $iters);
+
+            let (my_time, my_stack, my_size, my_total)
+                = bench_remove_insert!(Set, $item, size, $iters);
+            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+                   my_time/hash_time,
+                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   (my_size as f64/hash_size as f64),
+                   (my_total as f64/hash_total as f64));
+
+            let (my_time, my_stack, my_size, my_total)
+                = bench_remove_insert!(VecSet, $item, size, $iters);
+            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+                   my_time/hash_time,
+                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   (my_size as f64/hash_size as f64),
+                   (my_total as f64/hash_total as f64));
+
+            let (my_time, my_stack, my_size, my_total)
+                = bench_remove_insert!(BTreeSet, $item, size, $iters);
+            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+                   my_time/hash_time,
+                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   (my_size as f64/hash_size as f64),
+                   (my_total as f64/hash_total as f64));
+            println!();
+        }
+    }};
+}
+
 fn main() {
     let iters = 10000000;
-    println!("{:10} {:>5} {:>8} ({:>4}/{:>4}/{:>4}) {:>8} ({:4}/{:4}/{:4})",
-             "contains", "size",
-             "set/hash", "stac", "heap","allo",
-             "btree/hash", "stac", "heap","allo");
-    for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)) {
-        let (set, mut unused, set_stack, set_size, set_total)
-            = initialize!(Set, usize, size);
-        //println!("size {} {:?}", set.len(), sorted(&set));
-        let mut total = 0;
-        let set_time = time_me!({
-            unused = (unused+1)%(2*size);
-            if set.contains(&unused) { total += 1; }
-        }, iters);
-        let set_total_true = total;
 
-        let (set, mut unused, hash_stack, hash_size, hash_total)
-            = initialize!(HashSet, usize, size);
-        let mut total = 0;
-        let hash_time = time_me!({
-            unused = (unused+1)%(2*size);
-            if set.contains(&unused) { total += 1; }
-        }, iters);
-        if total != set_total_true {
-            println!("serious problem with hash!");
-        }
+    println!("\n==============\n    u8\n==============");
+    let maxsz = 250;
+    bench_all_contains!(u8, iters, maxsz);
+    bench_all_remove_insert!(u8, iters, maxsz);
 
-        let (set, mut unused, btree_stack, btree_size, btree_total)
-            = initialize!(BTreeSet, usize, size);
-        let mut total = 0;
-        let btree_time = time_me!({
-            unused = (unused+1)%(2*size);
-            if set.contains(&unused) { total += 1; }
-        }, iters);
-        if total != set_total_true {
-            println!("serious problem with btree!");
-        }
+    let maxsz = 10*iters;
+    println!("\n==============\n    u32\n==============");
+    bench_all_contains!(u32, iters, maxsz);
+    bench_all_remove_insert!(u32, iters, maxsz);
 
-        println!("{:10} {:5} {:8.5} ({:4.2}/{:4.2}/{:4.2}) {:8.5} ({:4.2}/{:4.2}/{:4.2})",
-                 "", size,
-                 set_time/hash_time,
-                 ((set_stack+set_size) as f64/(hash_stack + hash_size) as f64),
-                 (set_size as f64/hash_size as f64),
-                 (set_total as f64/hash_total as f64),
-                 btree_time/hash_time,
-                 ((btree_stack+btree_size) as f64/(hash_stack + hash_size) as f64),
-                 (btree_size as f64/hash_size as f64),
-                 (btree_total as f64/hash_total as f64));
-    }
-    println!("{:10} {:>5} {:>8} ({:>4}/{:>4}/{:>4}) {:>8} ({:4}/{:4}/{:4})",
-             "remove/ins", "size",
-             "set/hash", "stac", "heap","allo",
-             "btree/hash", "stac", "heap","allo");
-    for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)) {
-        let (mut set, _, set_stack, set_size, set_total)
-            = initialize!(Set, usize, size);
-        let mut next = 0;
-        let set_time = time_me!({
-            if set.remove(&next) {
-                set.insert(next);
-            }
-            next += 1;
-            next %= 2*size;
-        }, iters);
-
-        let (mut set, _, hash_stack, hash_size, hash_total)
-            = initialize!(HashSet, usize, size);
-        let hash_time = time_me!({
-            if set.remove(&next) {
-                set.insert(next);
-            }
-            next += 1;
-            next %= 2*size;
-        }, iters);
-
-        let (mut set, _, btree_stack, btree_size, btree_total)
-            = initialize!(BTreeSet, usize, size);
-        let btree_time = time_me!({
-            if set.remove(&next) {
-                set.insert(next);
-            }
-            next += 1;
-            next %= 2*size;
-        }, iters);
-
-        println!("{:10} {:5} {:8.5} ({:4.2}/{:4.2}/{:4.2}) {:8.5} ({:4.2}/{:4.2}/{:4.2})",
-                 "", size,
-                 set_time/hash_time,
-                 ((set_stack+set_size) as f64/(hash_stack + hash_size) as f64),
-                 (set_size as f64/hash_size as f64),
-                 (set_total as f64/hash_total as f64),
-                 btree_time/hash_time,
-                 ((btree_stack+btree_size) as f64/(hash_stack + hash_size) as f64),
-                 (btree_size as f64/hash_size as f64),
-                 (btree_total as f64/hash_total as f64));
-    }
+    println!("\n==============\n    usize\n==============");
+    bench_all_contains!(usize, iters, maxsz);
+    bench_all_remove_insert!(usize, iters, maxsz);
 }
 
 fn duration_to_f64(t: Duration) -> f64 {
