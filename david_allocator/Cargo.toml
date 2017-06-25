@@ -1,0 +1,7 @@
+[package]
+name = "david_allocator"
+version = "0.0.1"
+authors = ["David Roundy <daveroundy@gmail.com>"]
+
+description = "Tracing allocator"
+
