@@ -53,24 +53,46 @@ fn sorted<T: IntoIterator>(iter: T) -> Vec<T::Item>
 
 fn main() {
     let iters = 10000000;
-    println!("{:10} {:>5} {:>8} {:>8} {:>15} {:>15}",
-             "contains", "size", "set/hash", "btree/hash", "set (s)", "hash (s)");
-    for size in (0..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)) {
+    println!("{:10}{:>6}{:>9}{:>9}{:>11}{:>11}{:>11}",
+             "contains", "size", "set/hash", "btree/hash",
+             "set (s)", "btree (s)", "hash (s)");
+    for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)) {
         let (set, mut unused, _) = initialize!(Set, usize, size);
         //println!("size {} {:?}", set.len(), sorted(&set));
-        let set_time = time_me!({unused = unused+1; set.contains(&unused)}, iters);
+        let mut total = 0;
+        let set_time = time_me!({
+            unused = (unused+1)%(2*size);
+            if set.contains(&unused) { total += 1; }
+        }, iters);
+        let set_total = total;
 
         let (set, mut unused, _) = initialize!(HashSet, usize, size);
-        let hash_time = time_me!({unused = unused+1; set.contains(&unused)}, iters);
+        let mut total = 0;
+        let hash_time = time_me!({
+            unused = (unused+1)%(2*size);
+            if set.contains(&unused) { total += 1; }
+        }, iters);
+        if total != set_total {
+            println!("serious problem with hash!");
+        }
 
         let (set, mut unused, _) = initialize!(BTreeSet, usize, size);
-        let btree_time = time_me!({unused = unused+1; set.contains(&unused)}, iters);
+        let mut total = 0;
+        let btree_time = time_me!({
+            unused = (unused+1)%(2*size);
+            if set.contains(&unused) { total += 1; }
+        }, iters);
+        if total != set_total {
+            println!("serious problem with btree!");
+        }
 
-        println!("{:10} {:5} {:8.5} {:8.5} {:15.6} {:15.6}",
-                 "", size, set_time/hash_time, btree_time/hash_time, set_time, hash_time);
+        println!("{:10} {:5} {:8.5} {:8.5} {:10.6} {:10.6} {:10.6}",
+                 "", size, set_time/hash_time, btree_time/hash_time,
+                 set_time, btree_time, hash_time);
     }
-    println!("{:10}{:>6}{:>9}{:>9}{:>16}{:>16}",
-             "remove/insert", "size", "set/hash", "btree/hash", "set (s)", "hash (s)");
+    println!("{:10}{:>6}{:>9}{:>9}{:>11}{:>11}{:>11}",
+             "remove/insert", "size", "set/hash", "btree/hash",
+             "set (s)", "btree (s)", "hash (s)");
     for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)) {
         let (mut set, _, _) = initialize!(Set, usize, size);
         let mut next = 0;
@@ -100,8 +122,9 @@ fn main() {
             next %= 2*size;
         }, iters);
 
-        println!("{:10} {:5} {:8.5} {:8.5} {:15.6} {:15.6}",
-                 "", size, set_time/hash_time, btree_time/hash_time, set_time, hash_time);
+        println!("{:10} {:5} {:8.5} {:8.5} {:10.6} {:10.6} {:10.6}",
+                 "", size, set_time/hash_time, btree_time/hash_time,
+                 set_time, btree_time, hash_time);
     }
 }
 
