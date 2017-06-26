@@ -1,6 +1,7 @@
 extern crate david_allocator;
 extern crate david_set;
 extern crate rand;
+extern crate smallset;
 
 use std::time::{Instant, Duration};
 
@@ -11,9 +12,11 @@ use std::collections::BTreeSet;
 use david_set::Set;
 use david_set::VecSet;
 
+type SmallSet<T> = smallset::SmallSet<[T; 8]>;
+
 macro_rules! initialize {
     ($set: ident, $item: ident, $num: expr) => {{
-        let mut rng = XorShiftRng::from_seed([1,2,3,4]);
+        let mut rng = XorShiftRng::from_seed([$num as u32,$num as u32,3,4]);
         let before = david_allocator::net_allocation();
         let before_total = david_allocator::total_allocation();
         let mut set = $set::<$item>::new();
@@ -55,9 +58,10 @@ macro_rules! bench_contains {
 macro_rules! bench_all_contains {
     ($item: ident, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>5}", "contains", "size");
-        print!("{:^8}(stac/heap/allo)", "set/hash");
-        print!("{:^8}(stac/heap/allo)", "vec/hash");
+        print!("{:^8}(stac/heap/allo)", "set");
+        print!("{:^8}(stac/heap/allo)", "vecset");
         print!("{:^8}(stac/heap/allo)", "btree");
+        print!("{:^8}(stac/heap/allo)", "smallset");
         println!();
         for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
                                   .filter(|&x|x<$maxsz)) {
@@ -97,7 +101,18 @@ macro_rules! bench_all_contains {
                    ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
                    (my_size as f64/hash_size as f64),
                    (my_total as f64/hash_total as f64));
-            println!();
+
+            let (total, my_time, my_stack, my_size, my_total)
+                = bench_contains!(SmallSet, $item, size, $iters);
+            if total != total_true {
+                println!("serious problem!");
+            }
+            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+                   my_time/hash_time,
+                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   (my_size as f64/hash_size as f64),
+                   (my_total as f64/hash_total as f64));
+println!();
         }
     }};
 }
@@ -117,9 +132,10 @@ macro_rules! bench_remove_insert {
 macro_rules! bench_all_remove_insert {
     ($item: ident, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>5}", "remove/ins", "size");
-        print!("{:^8}(stac/heap/allo)", "set/hash");
-        print!("{:^8}(stac/heap/allo)", "vec/hash");
+        print!("{:^8}(stac/heap/allo)", "set");
+        print!("{:^8}(stac/heap/allo)", "vecset");
         print!("{:^8}(stac/heap/allo)", "btree");
+        print!("{:^8}(stac/heap/allo)", "smallset");
         println!();
         for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
                                   .filter(|&x|x<$maxsz)) {
@@ -145,6 +161,14 @@ macro_rules! bench_all_remove_insert {
 
             let (my_time, my_stack, my_size, my_total)
                 = bench_remove_insert!(BTreeSet, $item, size, $iters);
+            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+                   my_time/hash_time,
+                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   (my_size as f64/hash_size as f64),
+                   (my_total as f64/hash_total as f64));
+
+            let (my_time, my_stack, my_size, my_total)
+                = bench_remove_insert!(SmallSet, $item, size, $iters);
             print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
                    my_time/hash_time,
                    ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),

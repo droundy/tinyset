@@ -9,3 +9,4 @@ rand = "^0.3.15"
 
 david-set = { path = ".." }
 david_allocator = { path = "../david_allocator" }
+smallset = "^0.1.0"
