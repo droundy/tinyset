@@ -69,7 +69,7 @@ impl<T: Copy+Eq+Hash> Set<T> {
         }
     }
     /// Reserves capacity for at least `additional` more elements to be
-    /// inserted in the HashSet. The collection may reserve more space
+    /// inserted in the set. The collection may reserve more space
     /// to avoid frequent reallocations.
     pub fn reserve(&mut self, additional: usize) {
         match self.inner {
