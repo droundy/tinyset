@@ -11,6 +11,7 @@ use std::collections::HashSet;
 use std::collections::BTreeSet;
 use david_set::Set;
 use david_set::VecSet;
+use david_set::CastSet;
 
 type SmallSet<T> = smallset::SmallSet<[T; 8]>;
 
@@ -112,7 +113,19 @@ macro_rules! bench_all_contains {
                    ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
                    (my_size as f64/hash_size as f64),
                    (my_total as f64/hash_total as f64));
-println!();
+
+            let (total, my_time, my_stack, my_size, my_total)
+                = bench_contains!(CastSet, $item, size, $iters);
+            if total != total_true {
+                println!("serious problem!");
+            }
+            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+                   my_time/hash_time,
+                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   (my_size as f64/hash_size as f64),
+                   (my_total as f64/hash_total as f64));
+
+            println!();
         }
     }};
 }
@@ -169,6 +182,14 @@ macro_rules! bench_all_remove_insert {
 
             let (my_time, my_stack, my_size, my_total)
                 = bench_remove_insert!(SmallSet, $item, size, $iters);
+            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+                   my_time/hash_time,
+                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   (my_size as f64/hash_size as f64),
+                   (my_total as f64/hash_total as f64));
+
+            let (my_time, my_stack, my_size, my_total)
+                = bench_remove_insert!(CastSet, $item, size, $iters);
             print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
                    my_time/hash_time,
                    ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
