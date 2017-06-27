@@ -11,22 +11,34 @@ enum SearchResult {
 }
 
 /// A set implemented for types that can be cast to usize
-#[derive(Debug,Clone)]
 pub struct OptCastSet<T: Cast> {
-    inner: OCS<T>
+    sz: usize,
+    v: OCS<T>,
 }
 
-#[derive(Debug,Clone)]
 enum OCS<T: Cast> {
-    Pow1 { sz: u8, v: Box<[T; 2]> },
-    Pow2 { sz: u8, v: Box<[T; 4]> },
-    Pow3 { sz: u8, v: Box<[T; 8]> },
-    Pow4 { sz: u8, v: Box<[T; 16]> },
-    Vec {
-        v: Vec<T>,
-        poweroftwo: u8,
-        sz: usize,
-    },
+    Pow1  (Box<[T; 2]>),
+    Pow2  (Box<[T; 4]>),
+    Pow3  (Box<[T; 8]>),
+    Pow4  (Box<[T; 16]>),
+    Pow5  (Box<[T; 32]>),
+    Pow6  (Box<[T; 64]>),
+    Pow7  (Box<[T; 128]>),
+    Pow8  (Box<[T; 256]>),
+    Pow9  (Box<[T; 512]>),
+    Pow10 (Box<[T; 1024]>),
+    Pow11 (Box<[T; 2048]>),
+    Pow12 (Box<[T; 4096]>),
+    Pow13 (Box<[T; 1<<13]>),
+    Pow14 (Box<[T; 1<<14]>),
+    Pow15 (Box<[T; 1<<15]>),
+    Pow16 (Box<[T; 1<<16]>),
+    Pow17 (Box<[T; 1<<17]>),
+    Pow18 (Box<[T; 1<<18]>),
+    Pow19 (Box<[T; 1<<19]>),
+    Pow20 (Box<[T; 1<<20]>),
+    Pow21 (Box<[T; 1<<21]>),
+    Pow22 (Box<[T; 1<<22]>),
 }
 
 fn capacity_to_power(cap: usize) -> u8 {
@@ -150,38 +162,60 @@ impl<T: Cast> OptCastSet<T> {
     /// Creates an empty set with the specified power of two size.
     fn with_pow(pow: u8) -> OptCastSet<T> {
         let ocs = match pow {
-            1 | 0 => OCS::Pow1 { v: Box::new([T::invalid(); 2]), sz: 0 },
-            2 => OCS::Pow2 { v: Box::new([T::invalid(); 4]), sz: 0 },
-            3 => OCS::Pow3 { v: Box::new([T::invalid(); 8]), sz: 0 },
-            4 => OCS::Pow4 { v: Box::new([T::invalid(); 16]), sz: 0 },
-            pow => {
-                let cap: usize = 1 << pow;
-                OCS::Vec {
-                    poweroftwo: pow,
-                    v: vec![T::invalid(); cap],
-                    sz: 0,
-                }
-            },
+            1 | 0 => OCS::Pow1 (Box::new([T::invalid(); 2])),
+            2 =>  OCS::Pow2 (Box::new([T::invalid(); 4])),
+            3 =>  OCS::Pow3 (Box::new([T::invalid(); 8])),
+            4 =>  OCS::Pow4 (Box::new([T::invalid(); 16])),
+            5 =>  OCS::Pow5  (Box::new([T::invalid(); 32])),
+            6 =>  OCS::Pow6  (Box::new([T::invalid(); 64])),
+            7 =>  OCS::Pow7  (Box::new([T::invalid(); 128])),
+            8 =>  OCS::Pow8  (Box::new([T::invalid(); 256])),
+            9 =>  OCS::Pow9  (Box::new([T::invalid(); 512])),
+            10 => OCS::Pow10 (Box::new([T::invalid(); 1024])),
+            11 => OCS::Pow11 (Box::new([T::invalid(); 2048])),
+            12 => OCS::Pow12 (Box::new([T::invalid(); 4096])),
+            13 => OCS::Pow13 (Box::new([T::invalid(); 1<<13])),
+            14 => OCS::Pow14 (Box::new([T::invalid(); 1<<14])),
+            15 => OCS::Pow15 (Box::new([T::invalid(); 1<<15])),
+            16 => OCS::Pow16 (Box::new([T::invalid(); 1<<16])),
+            17 => OCS::Pow17 (Box::new([T::invalid(); 1<<17])),
+            18 => OCS::Pow18 (Box::new([T::invalid(); 1<<18])),
+            19 => OCS::Pow19 (Box::new([T::invalid(); 1<<19])),
+            20 => OCS::Pow20 (Box::new([T::invalid(); 1<<20])),
+            21 => OCS::Pow21 (Box::new([T::invalid(); 1<<21])),
+            22 => OCS::Pow22 (Box::new([T::invalid(); 1<<22])),
+            _ => unimplemented!(),
         };
-        OptCastSet { inner: ocs }
+        OptCastSet { sz: 0, v: ocs }
     }
     /// Returns the number of elements in the set.
     pub fn len(&self) -> usize {
-        match self.inner {
-            OCS::Vec { v: _, sz, poweroftwo: _ } => sz,
-            OCS::Pow1 { v: _, sz } => sz as usize,
-            OCS::Pow2 { v: _, sz } => sz as usize,
-            OCS::Pow3 { v: _, sz } => sz as usize,
-            OCS::Pow4 { v: _, sz } => sz as usize,
-        }
+        self.sz
     }
     fn my_power(&self) -> u8 {
-        match self.inner {
-            OCS::Vec { v: _, sz: _, poweroftwo } => poweroftwo,
-            OCS::Pow1 { v: _, sz: _ } => 1,
-            OCS::Pow2 { v: _, sz: _ } => 2,
-            OCS::Pow3 { v: _, sz: _ } => 3,
-            OCS::Pow4 { v: _, sz: _ } => 3,
+        match self.v {
+            OCS::Pow1  (_) => 1,
+            OCS::Pow2  (_) => 2,
+            OCS::Pow3  (_) => 3,
+            OCS::Pow4  (_) => 4,
+            OCS::Pow5  (_) => 5,
+            OCS::Pow6  (_) => 6,
+            OCS::Pow7  (_) => 7,
+            OCS::Pow8  (_) => 8,
+            OCS::Pow9  (_) => 9,
+            OCS::Pow10 (_) => 10,
+            OCS::Pow11 (_) => 11,
+            OCS::Pow12 (_) => 12,
+            OCS::Pow13 (_) => 13,
+            OCS::Pow14 (_) => 14,
+            OCS::Pow15 (_) => 15,
+            OCS::Pow16 (_) => 16,
+            OCS::Pow17 (_) => 17,
+            OCS::Pow18 (_) => 18,
+            OCS::Pow19 (_) => 19,
+            OCS::Pow20 (_) => 20,
+            OCS::Pow21 (_) => 21,
+            OCS::Pow22 (_) => 22,
         }
     }
     /// Reserves capacity for at least `additional` more elements to be
@@ -207,38 +241,32 @@ impl<T: Cast> OptCastSet<T> {
         self.insert_unchecked(elem)
     }
     fn insert_unchecked(&mut self, elem: T) -> bool {
-        match self.inner {
-            OCS::Vec { ref mut v, ref mut sz, poweroftwo: _ } => {
-                if insert(v, elem) {
-                    *sz += 1;
-                    true
-                } else { false }
-            },
-            OCS::Pow1 { ref mut v, ref mut sz } => {
-                if insert(v.as_mut(), elem) {
-                    *sz += 1;
-                    true
-                } else { false }
-            },
-            OCS::Pow2 { ref mut v, ref mut sz } => {
-                if insert(v.as_mut(), elem) {
-                    *sz += 1;
-                    true
-                } else { false }
-            },
-            OCS::Pow3 { ref mut v, ref mut sz } => {
-                if insert(v.as_mut(), elem) {
-                    *sz += 1;
-                    true
-                } else { false }
-            },
-            OCS::Pow4 { ref mut v, ref mut sz } => {
-                if insert(v.as_mut(), elem) {
-                    *sz += 1;
-                    true
-                } else { false }
-            },
-        }
+        let res = match self.v {
+            OCS::Pow1  (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow2  (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow3  (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow4  (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow5  (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow6  (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow7  (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow8  (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow9  (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow10 (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow11 (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow12 (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow13 (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow14 (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow15 (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow16 (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow17 (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow18 (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow19 (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow20 (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow21 (ref mut v) => insert(v.as_mut(), elem),
+            OCS::Pow22 (ref mut v) => insert(v.as_mut(), elem),
+        };
+        if res { self.sz += 1; }
+        res
     }
     /// Returns true if the set contains a value.
     pub fn contains(&self, value: &T) -> bool {
@@ -251,34 +279,62 @@ impl<T: Cast> OptCastSet<T> {
     /// Removes an element, and returns true if that element was present.
     pub fn remove(&mut self, value: &T) -> bool {
         if remove(self.mut_slice(), *value) {
-            match self.inner {
-                OCS::Vec { v: _, ref mut sz, poweroftwo: _ } => { *sz -= 1; },
-                OCS::Pow1 { v: _, ref mut sz } => { *sz -= 1; },
-                OCS::Pow2 { v: _, ref mut sz } => { *sz -= 1; },
-                OCS::Pow3 { v: _, ref mut sz } => { *sz -= 1; },
-                OCS::Pow4 { v: _, ref mut sz } => { *sz -= 1; },
-            }
+            self.sz -= 1;
             true
         } else {
             false
         }
     }
     fn slice(&self) -> &[T] {
-        match self.inner {
-            OCS::Vec { ref v, sz: _, poweroftwo: _ } => v,
-            OCS::Pow1 { ref v, sz: _ } => v.as_ref(),
-            OCS::Pow2 { ref v, sz: _ } => v.as_ref(),
-            OCS::Pow3 { ref v, sz: _ } => v.as_ref(),
-            OCS::Pow4 { ref v, sz: _ } => v.as_ref(),
+        match self.v {
+            OCS::Pow1  (ref v) => v.as_ref(),
+            OCS::Pow2  (ref v) => v.as_ref(),
+            OCS::Pow3  (ref v) => v.as_ref(),
+            OCS::Pow4  (ref v) => v.as_ref(),
+            OCS::Pow5  (ref v) => v.as_ref(),
+            OCS::Pow6  (ref v) => v.as_ref(),
+            OCS::Pow7  (ref v) => v.as_ref(),
+            OCS::Pow8  (ref v) => v.as_ref(),
+            OCS::Pow9  (ref v) => v.as_ref(),
+            OCS::Pow10 (ref v) => v.as_ref(),
+            OCS::Pow11 (ref v) => v.as_ref(),
+            OCS::Pow12 (ref v) => v.as_ref(),
+            OCS::Pow13 (ref v) => v.as_ref(),
+            OCS::Pow14 (ref v) => v.as_ref(),
+            OCS::Pow15 (ref v) => v.as_ref(),
+            OCS::Pow16 (ref v) => v.as_ref(),
+            OCS::Pow17 (ref v) => v.as_ref(),
+            OCS::Pow18 (ref v) => v.as_ref(),
+            OCS::Pow19 (ref v) => v.as_ref(),
+            OCS::Pow20 (ref v) => v.as_ref(),
+            OCS::Pow21 (ref v) => v.as_ref(),
+            OCS::Pow22 (ref v) => v.as_ref(),
         }
     }
     fn mut_slice(&mut self) -> &mut [T] {
-        match self.inner {
-            OCS::Vec { ref mut v, sz: _, poweroftwo: _ } => v,
-            OCS::Pow1 { ref mut v, sz: _ } => v.as_mut(),
-            OCS::Pow2 { ref mut v, sz: _ } => v.as_mut(),
-            OCS::Pow3 { ref mut v, sz: _ } => v.as_mut(),
-            OCS::Pow4 { ref mut v, sz: _ } => v.as_mut(),
+        match self.v {
+            OCS::Pow1  (ref mut v) => v.as_mut(),
+            OCS::Pow2  (ref mut v) => v.as_mut(),
+            OCS::Pow3  (ref mut v) => v.as_mut(),
+            OCS::Pow4  (ref mut v) => v.as_mut(),
+            OCS::Pow5  (ref mut v) => v.as_mut(),
+            OCS::Pow6  (ref mut v) => v.as_mut(),
+            OCS::Pow7  (ref mut v) => v.as_mut(),
+            OCS::Pow8  (ref mut v) => v.as_mut(),
+            OCS::Pow9  (ref mut v) => v.as_mut(),
+            OCS::Pow10 (ref mut v) => v.as_mut(),
+            OCS::Pow11 (ref mut v) => v.as_mut(),
+            OCS::Pow12 (ref mut v) => v.as_mut(),
+            OCS::Pow13 (ref mut v) => v.as_mut(),
+            OCS::Pow14 (ref mut v) => v.as_mut(),
+            OCS::Pow15 (ref mut v) => v.as_mut(),
+            OCS::Pow16 (ref mut v) => v.as_mut(),
+            OCS::Pow17 (ref mut v) => v.as_mut(),
+            OCS::Pow18 (ref mut v) => v.as_mut(),
+            OCS::Pow19 (ref mut v) => v.as_mut(),
+            OCS::Pow20 (ref mut v) => v.as_mut(),
+            OCS::Pow21 (ref mut v) => v.as_mut(),
+            OCS::Pow22 (ref mut v) => v.as_mut(),
         }
     }
     /// Returns an iterator over the set.
@@ -370,7 +426,7 @@ mod tests {
         assert!(!ss.contains(&4));
         println!("inserting 3");
         ss.insert(3);
-        println!("now {:?}", &ss);
+        // println!("now {:?}", &ss);
         assert!(ss.contains(&3));
         assert!(ss.contains(&5));
         assert_eq!(ss.len(), 2);
@@ -383,12 +439,16 @@ mod tests {
         assert!(!ss.contains(&3));
         assert_eq!(ss.len(), 1);
     }
+
     #[test]
     fn size_unwasted() {
         println!("small size: {}", std::mem::size_of::<OptCastSet<usize>>());
         println!(" hash size: {}", std::mem::size_of::<HashSet<usize>>());
         assert!(std::mem::size_of::<OptCastSet<usize>>() <=
                 2*std::mem::size_of::<HashSet<usize>>());
+        assert!(std::mem::size_of::<OptCastSet<usize>>() <= 24);
+        assert_eq!(std::mem::size_of::<OptCastSet<usize>>(),
+                   std::mem::size_of::<OptCastSet<u8>>());
     }
 
     #[cfg(test)]
