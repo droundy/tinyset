@@ -359,7 +359,7 @@ mod tests {
 
     #[test]
     fn random_inserts_and_removals_u8() {
-        for sz in 0..120 {
+        for sz in 0..50 {
             println!("\nCastSet {}\n", sz);
             let myset = initialize!(CastSet, u8, sz);
             println!("\nHashSet {}\n", sz);
@@ -372,12 +372,12 @@ mod tests {
 
     #[test]
     fn random_inserts_and_removals_u16() {
-        for sz in 0..200 {
+        for sz in 0..20 {
             println!("\nCastSet {}\n", sz);
             let myset = initialize!(CastSet, u16, sz);
             println!("\nHashSet {}\n", sz);
             let refset = initialize!(HashSet, u16, sz);
-            for i in 0..500 {
+            for i in 0..50 {
                 assert_eq!(myset.contains(&i), refset.contains(&i));
             }
         }

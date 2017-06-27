@@ -87,6 +87,28 @@ fn search<T: Cast>(v: &[T], elem: T) -> SearchResult {
     }
 }
 
+fn remove<T: Cast>(v: &mut [T], elem: T) -> bool {
+    match search(v, elem) {
+        SearchResult::Present(mut i) => {
+            let mask = v.len()-1;
+            let invalid = T::invalid();
+            loop {
+                let iplus1 = (i+1) & mask;
+                if v[iplus1] == invalid ||
+                    (v[iplus1].cast().wrapping_sub(iplus1) & mask) == 0
+                {
+                    v[i] = invalid;
+                    return true;
+                }
+                v[i] = v[iplus1];
+                i = iplus1;
+            }
+        },
+        SearchResult::Empty(_) => false,
+        SearchResult::Richer(_) => false,
+    }
+}
+
 #[inline]
 fn insert<T: Cast>(v: &mut [T], mut elem: T) -> bool {
     match search(v, elem) {
@@ -212,34 +234,31 @@ impl<T: Cast> OptCastSet<T> {
             SearchResult::Richer(_) => false,
         }
     }
-    // /// Removes an element, and returns true if that element was present.
-    // pub fn remove(&mut self, value: &T) -> bool {
-    //     match self.search(*value) {
-    //         SearchResult::Present(mut i) => {
-    //             self.sz -= 1;
-    //             let mask = (1 << self.poweroftwo) - 1;
-    //             let invalid = T::invalid();
-    //             loop {
-    //                 let iplus1 = (i+1) & mask;
-    //                 if self.v[iplus1] == invalid ||
-    //                     (self.v[iplus1].cast().wrapping_sub(iplus1) & mask) == 0
-    //                 {
-    //                     self.v[i] = invalid;
-    //                     return true;
-    //                 }
-    //                 self.v[i] = self.v[iplus1];
-    //                 i = iplus1;
-    //             }
-    //         },
-    //         SearchResult::Empty(_) => false,
-    //         SearchResult::Richer(_) => false,
-    //     }
-    // }
+    /// Removes an element, and returns true if that element was present.
+    pub fn remove(&mut self, value: &T) -> bool {
+        if remove(self.mut_slice(), *value) {
+            match self.inner {
+                OCS::Vec { v: _, ref mut sz, poweroftwo: _ } => { *sz -= 1; },
+                OCS::Pow1 { v: _, ref mut sz } => { *sz -= 1; },
+                OCS::Pow2 { v: _, ref mut sz } => { *sz -= 1; },
+            }
+            true
+        } else {
+            false
+        }
+    }
     fn slice(&self) -> &[T] {
         match self.inner {
             OCS::Vec { ref v, sz: _, poweroftwo: _ } => v,
             OCS::Pow1 { ref v, sz: _ } => v,
             OCS::Pow2 { ref v, sz: _ } => v,
+        }
+    }
+    fn mut_slice(&mut self) -> &mut [T] {
+        match self.inner {
+            OCS::Vec { ref mut v, sz: _, poweroftwo: _ } => v,
+            OCS::Pow1 { ref mut v, sz: _ } => v,
+            OCS::Pow2 { ref mut v, sz: _ } => v,
         }
     }
     /// Returns an iterator over the set.
@@ -320,7 +339,6 @@ impl<'a, T: 'a+Cast> Iterator for Iter<'a, T> {
 mod tests {
     use super::*;
     use std::collections::HashSet;
-    use rand::{XorShiftRng, SeedableRng, Rand};
     #[test]
     fn it_works() {
         let mut ss: OptCastSet<usize> = OptCastSet::new();
@@ -340,10 +358,10 @@ mod tests {
             println!("num is {}", num);
             assert!(ss.contains(num));
         }
-        // assert!(!ss.remove(&2));
-        // assert!(ss.remove(&3));
-        // assert!(!ss.contains(&3));
-        // assert_eq!(ss.len(), 1);
+        assert!(!ss.remove(&2));
+        assert!(ss.remove(&3));
+        assert!(!ss.contains(&3));
+        assert_eq!(ss.len(), 1);
     }
     #[test]
     fn size_unwasted() {
@@ -353,145 +371,52 @@ mod tests {
                 2*std::mem::size_of::<HashSet<usize>>());
     }
 
-    // macro_rules! initialize {
-    //     ($set: ident, $item: ident, $num: expr) => {{
-    //         let mut rng = XorShiftRng::from_seed([$num as u32,$num as u32,3,4]);
-    //         let mut set = $set::<$item>::new();
-    //         let mut refset = HashSet::<$item>::new();
-    //         if $num > 0 {
-    //             while set.len() < $num {
-    //                 let ins = $item::rand(&mut rng) % (2*$num as $item);
-    //                 let rem = $item::rand(&mut rng) % (2*$num as $item);
-    //                 set.insert(ins);
-    //                 if !set.contains(&ins) {
-    //                     println!("oops insert");
-    //                 }
-    //                 set.remove(&rem);
-    //                 if set.contains(&rem) {
-    //                     println!("oops remove");
-    //                 }
-    //                 refset.insert(ins);
-    //                 refset.remove(&rem);
-    //                 println!("inserting {}, removing {} => {}", ins, rem, set.len());
-    //                 println!("set: {:?}", set);
-    //                 println!("refset: {:?}", refset);
-    //                 let mut fails = false;
-    //                 for i in 0..255 {
-    //                     fails = fails || set.contains(&i) != refset.contains(&i);
-    //                 }
-    //                 if fails {
-    //                     for i in 0..255 {
-    //                         println!("i {}", i);
-    //                         assert_eq!(set.contains(&i), refset.contains(&i));
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //         set
-    //     }};
-    // }
+    #[cfg(test)]
+    quickcheck! {
+        fn prop_matches_u8(steps: Vec<Result<u8,u8>>) -> bool {
+            let mut steps = steps;
+            let mut set = OptCastSet::<u8>::new();
+            let mut refset = HashSet::<u8>::new();
+            loop {
+                match steps.pop() {
+                    Some(Ok(v)) => {
+                        set.insert(v); refset.insert(v);
+                    },
+                    Some(Err(v)) => {
+                        set.remove(&v); refset.remove(&v);
+                    },
+                    None => return true,
+                }
+                if set.len() != refset.len() { return false; }
+                for i in 0..255 {
+                    if set.contains(&i) != refset.contains(&i) { return false; }
+                }
+            }
+        }
+    }
 
-    // #[test]
-    // fn random_inserts_and_removals_u8() {
-    //     for sz in 0..120 {
-    //         println!("\nOptCastSet {}\n", sz);
-    //         let myset = initialize!(OptCastSet, u8, sz);
-    //         println!("\nHashSet {}\n", sz);
-    //         let refset = initialize!(HashSet, u8, sz);
-    //         for i in 0..255 {
-    //             assert_eq!(myset.contains(&i), refset.contains(&i));
-    //         }
-    //     }
-    // }
-
-    // #[test]
-    // fn random_inserts_and_removals_u16() {
-    //     for sz in 0..200 {
-    //         println!("\nOptCastSet {}\n", sz);
-    //         let myset = initialize!(OptCastSet, u16, sz);
-    //         println!("\nHashSet {}\n", sz);
-    //         let refset = initialize!(HashSet, u16, sz);
-    //         for i in 0..500 {
-    //             assert_eq!(myset.contains(&i), refset.contains(&i));
-    //         }
-    //     }
-    // }
-
-    // #[test]
-    // fn test_matches_u8() {
-    //     let mut steps: Vec<Result<u8,u8>> = vec![Err(8), Ok(0), Ok(16), Ok(1), Ok(8)];
-    //     let mut set = OptCastSet::<u8>::new();
-    //     let mut refset = HashSet::<u8>::new();
-    //     loop {
-    //         match steps.pop() {
-    //             Some(Ok(v)) => {
-    //                 println!("\ninserting {}", v);
-    //                 set.insert(v); refset.insert(v);
-    //             },
-    //             Some(Err(v)) => {
-    //                 println!("\nremoving {}", v);
-    //                 set.remove(&v); refset.remove(&v);
-    //             },
-    //             None => return,
-    //         }
-    //         println!("set: {:?}", set);
-    //         println!("refset: {:?}", refset);
-    //         assert_eq!(set.len(), refset.len());
-    //         for i in 0..255 {
-    //             if set.contains(&i) != refset.contains(&i) {
-    //                 println!("trouble at {}", i);
-    //                 assert_eq!(set.contains(&i), refset.contains(&i));
-    //             }
-    //         }
-    //     }
-    // }
-
-    // #[cfg(test)]
-    // quickcheck! {
-    //     fn prop_matches_u8(steps: Vec<Result<u8,u8>>) -> bool {
-    //         let mut steps = steps;
-    //         let mut set = OptCastSet::<u8>::new();
-    //         let mut refset = HashSet::<u8>::new();
-    //         loop {
-    //             match steps.pop() {
-    //                 Some(Ok(v)) => {
-    //                     set.insert(v); refset.insert(v);
-    //                 },
-    //                 Some(Err(v)) => {
-    //                     set.remove(&v); refset.remove(&v);
-    //                 },
-    //                 None => return true,
-    //             }
-    //             if set.len() != refset.len() { return false; }
-    //             for i in 0..255 {
-    //                 if set.contains(&i) != refset.contains(&i) { return false; }
-    //             }
-    //         }
-    //     }
-    // }
-
-    // #[cfg(test)]
-    // quickcheck! {
-    //     fn prop_matches_usize(steps: Vec<Result<usize,usize>>) -> bool {
-    //         let mut steps = steps;
-    //         let mut set = OptCastSet::<usize>::new();
-    //         let mut refset = HashSet::<usize>::new();
-    //         loop {
-    //             match steps.pop() {
-    //                 Some(Ok(v)) => {
-    //                     set.insert(v); refset.insert(v);
-    //                 },
-    //                 Some(Err(v)) => {
-    //                     set.remove(&v); refset.remove(&v);
-    //                 },
-    //                 None => return true,
-    //             }
-    //             if set.len() != refset.len() { return false; }
-    //             for i in 0..2550 {
-    //                 if set.contains(&i) != refset.contains(&i) { return false; }
-    //             }
-    //         }
-    //     }
-    // }
+    #[cfg(test)]
+    quickcheck! {
+        fn prop_matches_usize(steps: Vec<Result<usize,usize>>) -> bool {
+            let mut steps = steps;
+            let mut set = OptCastSet::<usize>::new();
+            let mut refset = HashSet::<usize>::new();
+            loop {
+                match steps.pop() {
+                    Some(Ok(v)) => {
+                        set.insert(v); refset.insert(v);
+                    },
+                    Some(Err(v)) => {
+                        set.remove(&v); refset.remove(&v);
+                    },
+                    None => return true,
+                }
+                if set.len() != refset.len() { return false; }
+                for i in 0..2550 {
+                    if set.contains(&i) != refset.contains(&i) { return false; }
+                }
+            }
+        }
+    }
 }
 
