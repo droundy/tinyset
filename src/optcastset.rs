@@ -18,18 +18,10 @@ pub struct OptCastSet<T: Cast> {
 
 #[derive(Debug,Clone)]
 enum OCS<T: Cast> {
-    Pow1 {
-        sz: u8,
-        v: Box<[T; 2]>,
-    },
-    Pow2 {
-        sz: u8,
-        v: Box<[T; 4]>,
-    },
-    Pow3 {
-        sz: u8,
-        v: Box<[T; 8]>,
-    },
+    Pow1 { sz: u8, v: Box<[T; 2]> },
+    Pow2 { sz: u8, v: Box<[T; 4]> },
+    Pow3 { sz: u8, v: Box<[T; 8]> },
+    Pow4 { sz: u8, v: Box<[T; 16]> },
     Vec {
         v: Vec<T>,
         poweroftwo: u8,
@@ -161,6 +153,7 @@ impl<T: Cast> OptCastSet<T> {
             1 | 0 => OCS::Pow1 { v: Box::new([T::invalid(); 2]), sz: 0 },
             2 => OCS::Pow2 { v: Box::new([T::invalid(); 4]), sz: 0 },
             3 => OCS::Pow3 { v: Box::new([T::invalid(); 8]), sz: 0 },
+            4 => OCS::Pow4 { v: Box::new([T::invalid(); 16]), sz: 0 },
             pow => {
                 let cap: usize = 1 << pow;
                 OCS::Vec {
@@ -179,6 +172,7 @@ impl<T: Cast> OptCastSet<T> {
             OCS::Pow1 { v: _, sz } => sz as usize,
             OCS::Pow2 { v: _, sz } => sz as usize,
             OCS::Pow3 { v: _, sz } => sz as usize,
+            OCS::Pow4 { v: _, sz } => sz as usize,
         }
     }
     fn my_power(&self) -> u8 {
@@ -187,6 +181,7 @@ impl<T: Cast> OptCastSet<T> {
             OCS::Pow1 { v: _, sz: _ } => 1,
             OCS::Pow2 { v: _, sz: _ } => 2,
             OCS::Pow3 { v: _, sz: _ } => 3,
+            OCS::Pow4 { v: _, sz: _ } => 3,
         }
     }
     /// Reserves capacity for at least `additional` more elements to be
@@ -237,6 +232,12 @@ impl<T: Cast> OptCastSet<T> {
                     true
                 } else { false }
             },
+            OCS::Pow4 { ref mut v, ref mut sz } => {
+                if insert(v.as_mut(), elem) {
+                    *sz += 1;
+                    true
+                } else { false }
+            },
         }
     }
     /// Returns true if the set contains a value.
@@ -255,6 +256,7 @@ impl<T: Cast> OptCastSet<T> {
                 OCS::Pow1 { v: _, ref mut sz } => { *sz -= 1; },
                 OCS::Pow2 { v: _, ref mut sz } => { *sz -= 1; },
                 OCS::Pow3 { v: _, ref mut sz } => { *sz -= 1; },
+                OCS::Pow4 { v: _, ref mut sz } => { *sz -= 1; },
             }
             true
         } else {
@@ -267,6 +269,7 @@ impl<T: Cast> OptCastSet<T> {
             OCS::Pow1 { ref v, sz: _ } => v.as_ref(),
             OCS::Pow2 { ref v, sz: _ } => v.as_ref(),
             OCS::Pow3 { ref v, sz: _ } => v.as_ref(),
+            OCS::Pow4 { ref v, sz: _ } => v.as_ref(),
         }
     }
     fn mut_slice(&mut self) -> &mut [T] {
@@ -275,6 +278,7 @@ impl<T: Cast> OptCastSet<T> {
             OCS::Pow1 { ref mut v, sz: _ } => v.as_mut(),
             OCS::Pow2 { ref mut v, sz: _ } => v.as_mut(),
             OCS::Pow3 { ref mut v, sz: _ } => v.as_mut(),
+            OCS::Pow4 { ref mut v, sz: _ } => v.as_mut(),
         }
     }
     /// Returns an iterator over the set.

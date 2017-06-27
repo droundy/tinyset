@@ -60,12 +60,12 @@ macro_rules! bench_contains {
 macro_rules! bench_all_contains {
     ($item: ident, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>5}", "contains", "size");
-        print!("{:^8}(stac/heap/allo)", "set");
-        print!("{:^8}(stac/heap/allo)", "vecset");
-        print!("{:^8}(stac/heap/allo)", "btree");
-        print!("{:^8}(stac/heap/allo)", "smallset");
-        print!("{:^8}(stac/heap/allo)", "castset");
-        print!("{:^8}(stac/heap/allo)", "optcast");
+        print!("{:^8}( tot/heap/allo)", "set");
+        print!("{:^8}( tot/heap/allo)", "vecset");
+        print!("{:^8}( tot/heap/allo)", "btree");
+        print!("{:^8}( tot/heap/allo)", "smallset");
+        print!("{:^8}( tot/heap/allo)", "castset");
+        print!("{:^8}( tot/heap/allo)", "optcast");
         println!();
         for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
                                   .filter(|&x|x<$maxsz)) {
@@ -78,9 +78,9 @@ macro_rules! bench_all_contains {
             if total != total_true {
                 println!("serious problem!");
             }
-            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+            print!(" {:6.3} ({:4.1}/{:4.2}/{:4.2})",
                    my_time/hash_time,
-                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   ((my_stack+my_size) as f64/size as f64),
                    (my_size as f64/hash_size as f64),
                    (my_total as f64/hash_total as f64));
 
@@ -89,9 +89,9 @@ macro_rules! bench_all_contains {
             if total != total_true {
                 println!("serious problem!");
             }
-            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+            print!(" {:6.3} ({:4.1}/{:4.2}/{:4.2})",
                    my_time/hash_time,
-                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   ((my_stack+my_size) as f64/size as f64),
                    (my_size as f64/hash_size as f64),
                    (my_total as f64/hash_total as f64));
 
@@ -100,9 +100,9 @@ macro_rules! bench_all_contains {
             if total != total_true {
                 println!("serious problem!");
             }
-            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+            print!(" {:6.3} ({:4.1}/{:4.2}/{:4.2})",
                    my_time/hash_time,
-                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   ((my_stack+my_size) as f64/size as f64),
                    (my_size as f64/hash_size as f64),
                    (my_total as f64/hash_total as f64));
 
@@ -111,9 +111,9 @@ macro_rules! bench_all_contains {
             if total != total_true {
                 println!("serious problem!");
             }
-            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+            print!(" {:6.3} ({:4.1}/{:4.2}/{:4.2})",
                    my_time/hash_time,
-                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   ((my_stack+my_size) as f64/size as f64),
                    (my_size as f64/hash_size as f64),
                    (my_total as f64/hash_total as f64));
 
@@ -122,9 +122,9 @@ macro_rules! bench_all_contains {
             if total != total_true {
                 println!("serious problem!");
             }
-            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+            print!(" {:6.3} ({:4.1}/{:4.2}/{:4.2})",
                    my_time/hash_time,
-                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   ((my_stack+my_size) as f64/size as f64),
                    (my_size as f64/hash_size as f64),
                    (my_total as f64/hash_total as f64));
 
@@ -133,9 +133,9 @@ macro_rules! bench_all_contains {
             if total != total_true {
                 println!("serious problem!");
             }
-            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+            print!(" {:6.3} ({:4.1}/{:4.2}/{:4.2})",
                    my_time/hash_time,
-                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   ((my_stack+my_size) as f64/size as f64),
                    (my_size as f64/hash_size as f64),
                    (my_total as f64/hash_total as f64));
 
@@ -159,12 +159,13 @@ macro_rules! bench_remove_insert {
 macro_rules! bench_all_remove_insert {
     ($item: ident, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>5}", "remove/ins", "size");
-        print!("{:^8}(stac/heap/allo)", "set");
-        print!("{:^8}(stac/heap/allo)", "vecset");
-        print!("{:^8}(stac/heap/allo)", "btree");
-        print!("{:^8}(stac/heap/allo)", "smallset");
-        print!("{:^8}(stac/heap/allo)", "castset");
-        print!("{:^8}(stac/heap/allo)", "optcast");
+        print!("{:^8}( tot/heap/allo)", "hash");
+        print!("{:^8}( tot/heap/allo)", "set");
+        print!("{:^8}( tot/heap/allo)", "vecset");
+        print!("{:^8}( tot/heap/allo)", "btree");
+        print!("{:^8}( tot/heap/allo)", "smallset");
+        print!("{:^8}( tot/heap/allo)", "castset");
+        print!("{:^8}( tot/heap/allo)", "optcast");
         println!();
         for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
                                   .filter(|&x|x<$maxsz)) {
@@ -173,50 +174,58 @@ macro_rules! bench_all_remove_insert {
                 = bench_remove_insert!(HashSet, $item, size, $iters);
 
             let (my_time, my_stack, my_size, my_total)
-                = bench_remove_insert!(Set, $item, size, $iters);
-            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+                = bench_remove_insert!(HashSet, $item, size, $iters);
+            print!(" {:6.3} ({:4.1}/{:4.2}/{:4.2})",
                    my_time/hash_time,
-                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   ((my_stack+my_size) as f64/size as f64),
+                   (my_size as f64/hash_size as f64),
+                   (my_total as f64/hash_total as f64));
+
+            let (my_time, my_stack, my_size, my_total)
+                = bench_remove_insert!(Set, $item, size, $iters);
+            print!(" {:6.3} ({:4.1}/{:4.2}/{:4.2})",
+                   my_time/hash_time,
+                   ((my_stack+my_size) as f64/size as f64),
                    (my_size as f64/hash_size as f64),
                    (my_total as f64/hash_total as f64));
 
             let (my_time, my_stack, my_size, my_total)
                 = bench_remove_insert!(VecSet, $item, size, $iters);
-            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+            print!(" {:6.3} ({:4.1}/{:4.2}/{:4.2})",
                    my_time/hash_time,
-                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   ((my_stack+my_size) as f64/size as f64),
                    (my_size as f64/hash_size as f64),
                    (my_total as f64/hash_total as f64));
 
             let (my_time, my_stack, my_size, my_total)
                 = bench_remove_insert!(BTreeSet, $item, size, $iters);
-            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+            print!(" {:6.3} ({:4.1}/{:4.2}/{:4.2})",
                    my_time/hash_time,
-                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   ((my_stack+my_size) as f64/size as f64),
                    (my_size as f64/hash_size as f64),
                    (my_total as f64/hash_total as f64));
 
             let (my_time, my_stack, my_size, my_total)
                 = bench_remove_insert!(SmallSet, $item, size, $iters);
-            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+            print!(" {:6.3} ({:4.1}/{:4.2}/{:4.2})",
                    my_time/hash_time,
-                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   ((my_stack+my_size) as f64/size as f64),
                    (my_size as f64/hash_size as f64),
                    (my_total as f64/hash_total as f64));
 
             let (my_time, my_stack, my_size, my_total)
                 = bench_remove_insert!(CastSet, $item, size, $iters);
-            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+            print!(" {:6.3} ({:4.1}/{:4.2}/{:4.2})",
                    my_time/hash_time,
-                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   ((my_stack+my_size) as f64/size as f64),
                    (my_size as f64/hash_size as f64),
                    (my_total as f64/hash_total as f64));
 
             let (my_time, my_stack, my_size, my_total)
                 = bench_remove_insert!(OptCastSet, $item, size, $iters);
-            print!(" {:6.3} ({:4.2}/{:4.2}/{:4.2})",
+            print!(" {:6.3} ({:4.1}/{:4.2}/{:4.2})",
                    my_time/hash_time,
-                   ((my_stack+my_size) as f64/(hash_stack + hash_size) as f64),
+                   ((my_stack+my_size) as f64/size as f64),
                    (my_size as f64/hash_size as f64),
                    (my_total as f64/hash_total as f64));
             println!();
