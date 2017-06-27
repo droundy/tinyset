@@ -10,3 +10,4 @@ repository = "https://github.com/droundy/david-set"
 [dev-dependencies]
 
 rand = "^0.3.15"
+quickcheck = "^0.4.1"

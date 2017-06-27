@@ -63,6 +63,7 @@ macro_rules! bench_all_contains {
         print!("{:^8}(stac/heap/allo)", "vecset");
         print!("{:^8}(stac/heap/allo)", "btree");
         print!("{:^8}(stac/heap/allo)", "smallset");
+        print!("{:^8}(stac/heap/allo)", "castset");
         println!();
         for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
                                   .filter(|&x|x<$maxsz)) {
@@ -149,6 +150,7 @@ macro_rules! bench_all_remove_insert {
         print!("{:^8}(stac/heap/allo)", "vecset");
         print!("{:^8}(stac/heap/allo)", "btree");
         print!("{:^8}(stac/heap/allo)", "smallset");
+        print!("{:^8}(stac/heap/allo)", "castset");
         println!();
         for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
                                   .filter(|&x|x<$maxsz)) {

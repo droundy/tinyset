@@ -24,3 +24,10 @@ pub use copyset::*;
 
 mod castset;
 pub use castset::*;
+
+#[cfg(test)]
+extern crate rand;
+
+#[cfg(test)]
+#[macro_use]
+extern crate quickcheck;

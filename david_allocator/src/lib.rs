@@ -19,6 +19,7 @@
 // so that's why this specifically requires the in-tree version.
 extern "C" {
     fn malloc(sz: usize) -> *mut u8;
+    fn calloc(sz: usize, sz2: usize) -> *mut u8;
     fn free(ptr: *mut u8);
     fn realloc(ptr: *mut u8, sz: usize) -> *mut u8;
 }
@@ -41,6 +42,15 @@ pub extern fn __rust_allocate(size: usize, _align: usize) -> *mut u8 {
         NET += size;
         TOTAL += size;
         malloc(size)
+    }
+}
+
+#[no_mangle]
+pub extern fn __rust_allocate_zeroed(size: usize, _align: usize) -> *mut u8 {
+    unsafe {
+        NET += size;
+        TOTAL += size;
+        calloc(size,1)
     }
 }
 

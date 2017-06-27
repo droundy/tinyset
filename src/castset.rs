@@ -88,7 +88,7 @@ impl<T: Cast> CastSet<T> {
             let invalid = T::invalid();
             for e in oldv {
                 if e != invalid {
-                    self.insert(e);
+                    self.insert_unchecked(e);
                 }
             }
         }
@@ -98,8 +98,11 @@ impl<T: Cast> CastSet<T> {
     /// If the set did not have this value present, `true` is returned.
     ///
     /// If the set did have this value present, `false` is returned.
-    pub fn insert(&mut self, mut elem: T) -> bool {
+    pub fn insert(&mut self, elem: T) -> bool {
         self.reserve(1);
+        self.insert_unchecked(elem)
+    }
+    fn insert_unchecked(&mut self, mut elem: T) -> bool {
         match self.search(elem) {
             SearchResult::Present(_) => false,
             SearchResult::Empty(i) => {
@@ -175,7 +178,7 @@ impl<T: Cast> CastSet<T> {
             }
             // the following is a bit contorted, to compute distance
             // when wrapped.
-            let his_dist = self.v[i].cast().wrapping_sub(i) & mask;
+            let his_dist = i.wrapping_sub(self.v[i].cast()) & mask;
             if his_dist < dist {
                 return SearchResult::Richer(i);
             }
@@ -187,7 +190,7 @@ impl<T: Cast> CastSet<T> {
         let h = elem.cast();
         let mask = (1 << self.poweroftwo) - 1;
         let invalid = T::invalid();
-        let mut dist = h.cast().wrapping_sub(i_start) & mask;
+        let mut dist = i_start.wrapping_sub(h.cast()) & mask;
         loop {
             let i = h+dist & mask;
             if self.v[i] == invalid {
@@ -197,7 +200,7 @@ impl<T: Cast> CastSet<T> {
             }
             // the following is a bit contorted, to compute distance
             // when wrapped.
-            let his_dist = self.v[i].cast().wrapping_sub(i) & mask;
+            let his_dist = i.wrapping_sub(self.v[i].cast()) & mask;
             if his_dist < dist {
                 return SearchResult::Richer(i);
             }
@@ -283,6 +286,7 @@ impl<T: Cast> Iterator for IntoIter<T> {
 mod tests {
     use super::*;
     use std::collections::HashSet;
+    use rand::{XorShiftRng, SeedableRng, Rand};
     #[test]
     fn it_works() {
         let mut ss: CastSet<usize> = CastSet::new();
@@ -313,6 +317,147 @@ mod tests {
         println!(" hash size: {}", std::mem::size_of::<HashSet<usize>>());
         assert!(std::mem::size_of::<CastSet<usize>>() <=
                 2*std::mem::size_of::<HashSet<usize>>());
+    }
+
+    macro_rules! initialize {
+        ($set: ident, $item: ident, $num: expr) => {{
+            let mut rng = XorShiftRng::from_seed([$num as u32,$num as u32,3,4]);
+            let mut set = $set::<$item>::new();
+            let mut refset = HashSet::<$item>::new();
+            if $num > 0 {
+                while set.len() < $num {
+                    let ins = $item::rand(&mut rng) % (2*$num as $item);
+                    let rem = $item::rand(&mut rng) % (2*$num as $item);
+                    set.insert(ins);
+                    if !set.contains(&ins) {
+                        println!("oops insert");
+                    }
+                    set.remove(&rem);
+                    if set.contains(&rem) {
+                        println!("oops remove");
+                    }
+                    refset.insert(ins);
+                    refset.remove(&rem);
+                    println!("inserting {}, removing {} => {}", ins, rem, set.len());
+                    println!("set: {:?}", set);
+                    println!("refset: {:?}", refset);
+                    let mut fails = false;
+                    for i in 0..255 {
+                        fails = fails || set.contains(&i) != refset.contains(&i);
+                    }
+                    if fails {
+                        for i in 0..255 {
+                            println!("i {}", i);
+                            assert_eq!(set.contains(&i), refset.contains(&i));
+                        }
+                    }
+                }
+            }
+            set
+        }};
+    }
+
+    #[test]
+    fn random_inserts_and_removals_u8() {
+        for sz in 0..120 {
+            println!("\nCastSet {}\n", sz);
+            let myset = initialize!(CastSet, u8, sz);
+            println!("\nHashSet {}\n", sz);
+            let refset = initialize!(HashSet, u8, sz);
+            for i in 0..255 {
+                assert_eq!(myset.contains(&i), refset.contains(&i));
+            }
+        }
+    }
+
+    #[test]
+    fn random_inserts_and_removals_u16() {
+        for sz in 0..200 {
+            println!("\nCastSet {}\n", sz);
+            let myset = initialize!(CastSet, u16, sz);
+            println!("\nHashSet {}\n", sz);
+            let refset = initialize!(HashSet, u16, sz);
+            for i in 0..500 {
+                assert_eq!(myset.contains(&i), refset.contains(&i));
+            }
+        }
+    }
+
+    #[test]
+    fn test_matches_u8() {
+        let mut steps: Vec<Result<u8,u8>> = vec![Err(8), Ok(0), Ok(16), Ok(1), Ok(8)];
+        let mut set = CastSet::<u8>::new();
+        let mut refset = HashSet::<u8>::new();
+        loop {
+            match steps.pop() {
+                Some(Ok(v)) => {
+                    println!("\ninserting {}", v);
+                    set.insert(v); refset.insert(v);
+                },
+                Some(Err(v)) => {
+                    println!("\nremoving {}", v);
+                    set.remove(&v); refset.remove(&v);
+                },
+                None => return,
+            }
+            println!("set: {:?}", set);
+            println!("refset: {:?}", refset);
+            assert_eq!(set.len(), refset.len());
+            for i in 0..255 {
+                if set.contains(&i) != refset.contains(&i) {
+                    println!("trouble at {}", i);
+                    assert_eq!(set.contains(&i), refset.contains(&i));
+                }
+            }
+        }
+    }
+
+    #[cfg(test)]
+    quickcheck! {
+        fn prop_matches_u8(steps: Vec<Result<u8,u8>>) -> bool {
+            let mut steps = steps;
+            let mut set = CastSet::<u8>::new();
+            let mut refset = HashSet::<u8>::new();
+            loop {
+                match steps.pop() {
+                    Some(Ok(v)) => {
+                        set.insert(v); refset.insert(v);
+                    },
+                    Some(Err(v)) => {
+                        set.remove(&v); refset.remove(&v);
+                    },
+                    None => return true,
+                }
+                if set.len() != refset.len() { return false; }
+                for i in 0..255 {
+                    if set.contains(&i) != refset.contains(&i) { return false; }
+                }
+            }
+        }
+    }
+
+    #[cfg(test)]
+    quickcheck! {
+        fn prop_matches_usize(steps: Vec<Result<usize,usize>>) -> bool {
+            let mut steps = steps;
+            let mut set = CastSet::<usize>::new();
+            let mut refset = HashSet::<usize>::new();
+            loop {
+                match steps.pop() {
+                    Some(Ok(v)) => {
+                        set.insert(v); refset.insert(v);
+                    },
+                    Some(Err(v)) => {
+                        set.remove(&v); refset.remove(&v);
+                    },
+                    None => return true,
+                }
+                if set.len() != refset.len() { return false; }
+                for i in 0..2550 {
+                    if set.contains(&i) != refset.contains(&i) { return false; }
+                }
+            }
+        }
     }
 }
 
