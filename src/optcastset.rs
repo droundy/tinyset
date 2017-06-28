@@ -416,7 +416,7 @@ mod tests {
     use super::*;
     use std::collections::HashSet;
     #[test]
-    fn it_works() {
+    fn optcastset_works() {
         let mut ss: OptCastSet<usize> = OptCastSet::new();
         println!("inserting 5");
         ss.insert(5);
