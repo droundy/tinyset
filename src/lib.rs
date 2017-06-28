@@ -25,9 +25,6 @@ pub use copyset::*;
 mod castset;
 pub use castset::*;
 
-mod optcastset;
-pub use optcastset::*;
-
 #[cfg(test)]
 extern crate rand;
 

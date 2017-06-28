@@ -12,7 +12,6 @@ use std::collections::BTreeSet;
 use david_set::Set;
 use david_set::VecSet;
 use david_set::CastSet;
-use david_set::OptCastSet;
 
 type SmallSet<T> = smallset::SmallSet<[T; 8]>;
 
@@ -66,7 +65,6 @@ macro_rules! bench_all_contains {
         print!("{:^8}( tot / heap)", "btree");
         print!("{:^8}( tot / heap)", "smallset");
         print!("{:^8}( tot / heap)", "castset");
-        print!("{:^8}( tot / heap)", "optcast");
         println!();
         for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
                                   .filter(|&x|x<$maxsz)) {
@@ -135,16 +133,6 @@ macro_rules! bench_all_contains {
                    ((my_stack+my_size) as f64/size as f64),
                    (my_size as f64/size as f64));
 
-            let (total, my_time, my_stack, my_size, _)
-                = bench_contains!(OptCastSet, $item, size, $iters);
-            if total != total_true {
-                println!("serious problem!");
-            }
-            print!(" {:6.3} ({:5.1}/{:5.1})",
-                   my_time/hash_time,
-                   ((my_stack+my_size) as f64/size as f64),
-                   (my_size as f64/size as f64));
-
             println!();
         }
     }};
@@ -171,7 +159,6 @@ macro_rules! bench_all_remove_insert {
         print!("{:^8}( tot / heap)", "btree");
         print!("{:^8}( tot / heap)", "smallset");
         print!("{:^8}( tot / heap)", "castset");
-        print!("{:^8}( tot / heap)", "optcast");
         println!();
         for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
                                   .filter(|&x|x<$maxsz)) {
@@ -221,12 +208,6 @@ macro_rules! bench_all_remove_insert {
                    ((my_stack+my_size) as f64/size as f64),
                    (my_size as f64/size as f64));
 
-            let (my_time, my_stack, my_size, _)
-                = bench_remove_insert!(OptCastSet, $item, size, $iters);
-            print!(" {:6.3} ({:5.1}/{:5.1})",
-                   my_time/hash_time,
-                   ((my_stack+my_size) as f64/size as f64),
-                   (my_size as f64/size as f64));
             println!();
         }
     }};
