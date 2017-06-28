@@ -45,7 +45,7 @@ enum SearchResult {
 /// A set implemented for types that can be cast to usize
 #[derive(Debug,Clone)]
 pub struct CastSet<T: Cast> {
-    v: Vec<T>,
+    v: Box<[T]>,
     poweroftwo: u8,
     sz: usize,
 }
@@ -67,7 +67,7 @@ impl<T: Cast> CastSet<T> {
         let cap: usize = 1 << pow;
         CastSet {
             poweroftwo: pow,
-            v: vec![T::invalid(); cap],
+            v: vec![T::invalid(); cap].into_boxed_slice(),
             sz: 0,
         }
     }
@@ -82,11 +82,11 @@ impl<T: Cast> CastSet<T> {
         let pow = capacity_to_power(self.sz + additional);
         if pow > self.poweroftwo {
             let cap: usize = 1 << pow;
-            let oldv = std::mem::replace(&mut self.v, vec![T::invalid(); cap]);
+            let oldv = std::mem::replace(&mut self.v, vec![T::invalid(); cap].into_boxed_slice());
             self.poweroftwo = pow;
             self.sz = 0;
             let invalid = T::invalid();
-            for e in oldv {
+            for &e in oldv.iter() {
                 if e != invalid {
                     self.insert_unchecked(e);
                 }
@@ -183,7 +183,7 @@ impl<T: Cast> CastSet<T> {
                 return SearchResult::Richer(i);
             }
             dist += 1;
-            assert!(dist < self.v.capacity());
+            assert!(dist < self.v.len());
         }
     }
     fn search_from(&self, i_start: usize, elem: T) -> SearchResult {
@@ -205,7 +205,7 @@ impl<T: Cast> CastSet<T> {
                 return SearchResult::Richer(i);
             }
             dist += 1;
-            assert!(dist < self.v.capacity());
+            assert!(dist < self.v.len());
         }
     }
     /// Returns an iterator over the set.
@@ -218,7 +218,8 @@ impl<T: Cast> CastSet<T> {
     /// Clears the set, returning all elements in an iterator.
     pub fn drain(&mut self) -> IntoIter<T> {
         let set = std::mem::replace(self, CastSet::new());
-        IntoIter { set: set }
+        let sz = set.sz;
+        IntoIter { set: set, nleft: sz }
     }
 }
 
@@ -258,21 +259,24 @@ impl<'a, T: Cast> IntoIterator for &'a CastSet<T> {
 }
 
 pub struct IntoIter<T: Cast> {
-    set: CastSet<T>
+    set: CastSet<T>,
+    nleft: usize,
 }
 
 impl<T: Cast> Iterator for IntoIter<T> {
     type Item = T;
     fn next(&mut self) -> Option<T> {
-        if self.set.sz == 0 {
+        if self.nleft == 0 {
             None
         } else {
-            self.set.sz -= 1;
+            self.nleft -= 1;
+            let mut i = self.nleft;
             loop {
-                let val = self.set.v.pop();
-                if val != Some(T::invalid()) {
-                    return val;
+                let val = std::mem::replace(&mut self.set.v[i], T::invalid());
+                if val != T::invalid() {
+                    return Some(val);
                 }
+                i -= 1;
             }
         }
     }
@@ -317,7 +321,7 @@ mod tests {
         println!(" hash size: {}", std::mem::size_of::<HashSet<usize>>());
         assert!(std::mem::size_of::<CastSet<usize>>() <=
                 2*std::mem::size_of::<HashSet<usize>>());
-        assert_eq!(std::mem::size_of::<CastSet<usize>>(), 40);
+        assert_eq!(std::mem::size_of::<CastSet<usize>>(), 32);
     }
 
     macro_rules! initialize {
