@@ -49,10 +49,8 @@ pub struct CastSet<T: Cast> {
     v: Box<[T]>,
 }
 
-fn capacity_to_power(cap: usize) -> u8 {
-    let bits = std::mem::size_of::<usize>() as u8 *8;
-    let cap = cap*11/10; // give a bit of space
-    bits - cap.leading_zeros() as u8
+fn capacity_to_rawcapacity(cap: usize) -> usize {
+    (1+cap*11/10).next_power_of_two()
 }
 
 impl<T: Cast> CastSet<T> {
@@ -62,8 +60,7 @@ impl<T: Cast> CastSet<T> {
     }
     /// Creates an empty set with the specified capacity.
     pub fn with_capacity(cap: usize) -> CastSet<T> {
-        let pow = capacity_to_power(cap);
-        let cap: usize = 1 << pow;
+        let cap = capacity_to_rawcapacity(cap);
         CastSet {
             v: vec![T::invalid(); cap].into_boxed_slice(),
             sz: 0,
@@ -77,9 +74,8 @@ impl<T: Cast> CastSet<T> {
     /// inserted in the set. The collection may reserve more space
     /// to avoid frequent reallocations.
     pub fn reserve(&mut self, additional: usize) {
-        let pow = capacity_to_power(self.sz + additional);
-        if (1<<pow) > self.v.len() {
-            let cap: usize = 1 << pow;
+        let cap = capacity_to_rawcapacity(self.sz + additional);
+        if cap > self.v.len() {
             let oldv = std::mem::replace(&mut self.v, vec![T::invalid(); cap].into_boxed_slice());
             self.sz = 0;
             let invalid = T::invalid();
