@@ -11,3 +11,7 @@ repository = "https://github.com/droundy/david-set"
 
 rand = "^0.3.15"
 quickcheck = "^0.4.1"
+
+[badges]
+travis-ci = { repository = "droundy/david-set" }
+appveyor = { repository = "droundy/david-set" }

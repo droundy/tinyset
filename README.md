@@ -1,3 +1,6 @@
+[![Build Status](https://travis-ci.org/droundy/david-set.svg?branch=master)](https://travis-ci.org/droundy/david-set)
+[![Build status](https://ci.appveyor.com/api/projects/status/psw05cutlw4w8nbf?svg=true)](https://ci.appveyor.com/project/droundy/david-set)
+
 # david-set
 
 This is a set that is optimized to be space and time efficient for
