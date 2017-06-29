@@ -388,7 +388,7 @@ mod tests {
         println!(" hash size: {}", std::mem::size_of::<HashSet<usize>>());
         assert!(std::mem::size_of::<CastSet<usize>>() <=
                 2*std::mem::size_of::<HashSet<usize>>());
-        assert_eq!(std::mem::size_of::<CastSet<usize>>(), 24);
+        assert!(std::mem::size_of::<CastSet<usize>>() <= 24);
     }
 
     macro_rules! initialize {
