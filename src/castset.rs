@@ -45,8 +45,66 @@ enum SearchResult {
 /// A set implemented for types that can be cast to usize
 #[derive(Debug,Clone)]
 pub struct CastSet<T: Cast> {
-    sz: usize,
-    v: Box<[T]>,
+    v: Data<T>,
+}
+
+#[derive(Debug, Clone)]
+enum Data<T: Cast> {
+    Sm(u32, [usize; 2]),
+    V(u32, Box<[T]>)
+}
+impl<T: Cast> Data<T> {
+    fn cutoff() -> usize {
+        std::mem::size_of::<[usize;2]>()/std::mem::size_of::<T>()
+    }
+    fn new() -> Data<T> {
+        let num = Data::<T>::cutoff();
+        let mut v = Data::Sm(0,[0;2]);
+        for i in 0..num {
+            v.mu()[i] = T::invalid();
+        }
+        v
+    }
+    fn len(&self) -> usize {
+        match self {
+            &Data::Sm(_,_) => {
+                Data::<T>::cutoff()
+            },
+            &Data::V(_,ref v) => v.len(),
+        }
+    }
+    fn sl(&self) -> &[T] {
+        match self {
+            &Data::Sm(_,ref v) => {
+                let num = Data::<T>::cutoff();
+                match num {
+                    1 => unsafe { std::mem::transmute::<&[usize;2],&[T;1]>(v) },
+                    2 => unsafe { std::mem::transmute::<&[usize;2],&[T;2]>(v) },
+                    4 => unsafe { std::mem::transmute::<&[usize;2],&[T;4]>(v) },
+                    8 => unsafe { std::mem::transmute::<&[usize;2],&[T;8]>(v) },
+                    16 => unsafe { std::mem::transmute::<&[usize;2],&[T;16]>(v) },
+                    _ => unreachable!(),
+                }
+            },
+            &Data::V(_,ref v) => v,
+        }
+    }
+    fn mu(&mut self) -> &mut [T] {
+        match self {
+            &mut Data::Sm(_,ref mut v) => {
+                let num = Data::<T>::cutoff();
+                match num {
+                    1 => unsafe { std::mem::transmute::<&mut [usize;2],&mut [T;1]>(v) },
+                    2 => unsafe { std::mem::transmute::<&mut [usize;2],&mut [T;2]>(v) },
+                    4 => unsafe { std::mem::transmute::<&mut [usize;2],&mut [T;4]>(v) },
+                    8 => unsafe { std::mem::transmute::<&mut [usize;2],&mut [T;8]>(v) },
+                    16 => unsafe { std::mem::transmute::<&mut [usize;2],&mut [T;16]>(v) },
+                    _ => unreachable!(),
+                }
+            },
+            &mut Data::V(_,ref mut v) => v,
+        }
+    }
 }
 
 fn capacity_to_rawcapacity(cap: usize) -> usize {
@@ -54,32 +112,45 @@ fn capacity_to_rawcapacity(cap: usize) -> usize {
 }
 
 impl<T: Cast> CastSet<T> {
+    fn mut_sz(&mut self) -> &mut u32 {
+        match &mut self.v {
+            &mut Data::Sm(ref mut sz,_) => sz,
+            &mut Data::V(ref mut sz,_) => sz,
+        }
+    }
     /// Creates an empty set..
     pub fn new() -> CastSet<T> {
         CastSet::with_capacity(0)
     }
     /// Creates an empty set with the specified capacity.
     pub fn with_capacity(cap: usize) -> CastSet<T> {
-        let cap = capacity_to_rawcapacity(cap);
-        CastSet {
-            v: vec![T::invalid(); cap].into_boxed_slice(),
-            sz: 0,
+        if cap <= Data::<T>::cutoff() {
+            CastSet { v: Data::new() }
+        } else {
+            let cap = capacity_to_rawcapacity(cap);
+            CastSet {
+                v: Data::V(0, vec![T::invalid(); cap].into_boxed_slice()),
+            }
         }
     }
     /// Returns the number of elements in the set.
     pub fn len(&self) -> usize {
-        self.sz
+        match &self.v {
+            &Data::Sm(sz,_) => sz as usize,
+            &Data::V(sz,_) => sz as usize,
+        }
     }
     /// Reserves capacity for at least `additional` more elements to be
     /// inserted in the set. The collection may reserve more space
     /// to avoid frequent reallocations.
     pub fn reserve(&mut self, additional: usize) {
-        let cap = capacity_to_rawcapacity(self.sz + additional);
-        if cap > self.v.len() {
-            let oldv = std::mem::replace(&mut self.v, vec![T::invalid(); cap].into_boxed_slice());
-            self.sz = 0;
+        let cap = capacity_to_rawcapacity(self.len() + additional);
+        if cap > self.v.sl().len() {
+            let oldv = std::mem::replace(&mut self.v,
+                                         Data::V(0,vec![T::invalid(); cap]
+                                                     .into_boxed_slice()));
             let invalid = T::invalid();
-            for &e in oldv.iter() {
+            for &e in oldv.sl().iter() {
                 if e != invalid {
                     self.insert_unchecked(e);
                 }
@@ -99,14 +170,14 @@ impl<T: Cast> CastSet<T> {
         match self.search(elem) {
             SearchResult::Present(_) => false,
             SearchResult::Empty(i) => {
-                self.v[i] = elem;
-                self.sz += 1;
+                self.v.mu()[i] = elem;
+                *self.mut_sz() += 1;
                 true
             },
             SearchResult::Richer(i) => {
-                std::mem::swap(&mut elem, &mut self.v[i]);
+                std::mem::swap(&mut elem, &mut self.v.mu()[i]);
                 self.steal(i, elem);
-                self.sz += 1;
+                *self.mut_sz() += 1;
                 true
             },
         }
@@ -123,18 +194,19 @@ impl<T: Cast> CastSet<T> {
     pub fn remove(&mut self, value: &T) -> bool {
         match self.search(*value) {
             SearchResult::Present(mut i) => {
-                self.sz -= 1;
-                let mask = self.v.len() - 1;
+                *self.mut_sz() -= 1;
+                let mut v = self.v.mu();
+                let mask = v.len() - 1;
                 let invalid = T::invalid();
                 loop {
                     let iplus1 = (i+1) & mask;
-                    if self.v[iplus1] == invalid ||
-                        (self.v[iplus1].cast().wrapping_sub(iplus1) & mask) == 0
+                    if v[iplus1] == invalid ||
+                        (v[iplus1].cast().wrapping_sub(iplus1) & mask) == 0
                     {
-                        self.v[i] = invalid;
+                        v[i] = invalid;
                         return true;
                     }
-                    self.v[i] = self.v[iplus1];
+                    v[i] = v[iplus1];
                     i = iplus1;
                 }
             },
@@ -147,11 +219,11 @@ impl<T: Cast> CastSet<T> {
             match self.search_from(i, elem) {
                 SearchResult::Present(_) => return,
                 SearchResult::Empty(i) => {
-                    self.v[i] = elem;
+                    self.v.mu()[i] = elem;
                     return;
                 },
                 SearchResult::Richer(inew) => {
-                    std::mem::swap(&mut elem, &mut self.v[inew]);
+                    std::mem::swap(&mut elem, &mut self.v.mu()[inew]);
                     i = inew;
                 },
         }
@@ -162,21 +234,22 @@ impl<T: Cast> CastSet<T> {
         let mask = self.v.len() - 1;
         let invalid = T::invalid();
         let mut dist = 0;
+        let v = self.v.sl();
         loop {
             let i = h+dist & mask;
-            if self.v[i] == invalid {
+            if v[i] == invalid {
                 return SearchResult::Empty(i);
-            } else if self.v[i] == elem {
+            } else if v[i] == elem {
                 return SearchResult::Present(i);
             }
             // the following is a bit contorted, to compute distance
             // when wrapped.
-            let his_dist = i.wrapping_sub(self.v[i].cast()) & mask;
+            let his_dist = i.wrapping_sub(v[i].cast()) & mask;
             if his_dist < dist {
                 return SearchResult::Richer(i);
             }
             dist += 1;
-            assert!(dist < self.v.len());
+            assert!(dist < v.len());
         }
     }
     fn search_from(&self, i_start: usize, elem: T) -> SearchResult {
@@ -184,34 +257,35 @@ impl<T: Cast> CastSet<T> {
         let mask = self.v.len() - 1;
         let invalid = T::invalid();
         let mut dist = i_start.wrapping_sub(h.cast()) & mask;
+        let v = self.v.sl();
         loop {
             let i = h+dist & mask;
-            if self.v[i] == invalid {
+            if v[i] == invalid {
                 return SearchResult::Empty(i);
-            } else if self.v[i] == elem {
+            } else if v[i] == elem {
                 return SearchResult::Present(i);
             }
             // the following is a bit contorted, to compute distance
             // when wrapped.
-            let his_dist = i.wrapping_sub(self.v[i].cast()) & mask;
+            let his_dist = i.wrapping_sub(v[i].cast()) & mask;
             if his_dist < dist {
                 return SearchResult::Richer(i);
             }
             dist += 1;
-            assert!(dist < self.v.len());
+            assert!(dist < v.len());
         }
     }
     /// Returns an iterator over the set.
     pub fn iter(&self) -> Iter<T> {
         Iter {
-            slice: &self.v,
-            nleft: self.sz,
+            slice: self.v.sl(),
+            nleft: self.len(),
         }
     }
     /// Clears the set, returning all elements in an iterator.
     pub fn drain(&mut self) -> IntoIter<T> {
         let set = std::mem::replace(self, CastSet::new());
-        let sz = set.sz;
+        let sz = set.len();
         IntoIter { set: set, nleft: sz }
     }
 }
@@ -227,7 +301,7 @@ impl<'a, T: 'a+Cast> Iterator for Iter<'a, T> {
         if self.nleft == 0 {
             None
         } else {
-            assert!(self.slice.len() >= self.nleft);
+            assert!(self.slice.len() >= self.nleft as usize);
             while self.slice[0] == T::invalid() {
                 self.slice = self.slice.split_first().unwrap().1;
             }
@@ -265,7 +339,7 @@ impl<T: Cast> Iterator for IntoIter<T> {
             self.nleft -= 1;
             let mut i = self.nleft;
             loop {
-                let val = std::mem::replace(&mut self.set.v[i], T::invalid());
+                let val = std::mem::replace(&mut self.set.v.mu()[i], T::invalid());
                 if val != T::invalid() {
                     return Some(val);
                 }
@@ -274,7 +348,7 @@ impl<T: Cast> Iterator for IntoIter<T> {
         }
     }
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.set.sz, Some(self.set.sz))
+        (self.nleft, Some(self.nleft))
     }
 }
 
