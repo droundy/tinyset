@@ -3,7 +3,7 @@ name = "david-set"
 version = "0.1.2"
 authors = ["David Roundy <daveroundy@gmail.com>"]
 
-description = "Set optimized for small or large numbers of Copy elements"
+description = "Sets optimized for small or large numbers of Copy elements"
 license = "MPL-2.0"
 repository = "https://github.com/droundy/david-set"
 
