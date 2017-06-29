@@ -37,7 +37,7 @@
 //!
 //! ```
 //! use david_set::CastSet;
-//! let mut s: CastSet<usize> = Set::new();
+//! let mut s: CastSet<usize> = CastSet::new();
 //! s.insert(1);
 //! assert!(s.contains(&1));
 //! ```
