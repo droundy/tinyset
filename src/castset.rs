@@ -45,9 +45,8 @@ enum SearchResult {
 /// A set implemented for types that can be cast to usize
 #[derive(Debug,Clone)]
 pub struct CastSet<T: Cast> {
-    v: Box<[T]>,
-    poweroftwo: u8,
     sz: usize,
+    v: Box<[T]>,
 }
 
 fn capacity_to_power(cap: usize) -> u8 {
@@ -66,7 +65,6 @@ impl<T: Cast> CastSet<T> {
         let pow = capacity_to_power(cap);
         let cap: usize = 1 << pow;
         CastSet {
-            poweroftwo: pow,
             v: vec![T::invalid(); cap].into_boxed_slice(),
             sz: 0,
         }
@@ -80,10 +78,9 @@ impl<T: Cast> CastSet<T> {
     /// to avoid frequent reallocations.
     pub fn reserve(&mut self, additional: usize) {
         let pow = capacity_to_power(self.sz + additional);
-        if pow > self.poweroftwo {
+        if (1<<pow) > self.v.len() {
             let cap: usize = 1 << pow;
             let oldv = std::mem::replace(&mut self.v, vec![T::invalid(); cap].into_boxed_slice());
-            self.poweroftwo = pow;
             self.sz = 0;
             let invalid = T::invalid();
             for &e in oldv.iter() {
@@ -131,7 +128,7 @@ impl<T: Cast> CastSet<T> {
         match self.search(*value) {
             SearchResult::Present(mut i) => {
                 self.sz -= 1;
-                let mask = (1 << self.poweroftwo) - 1;
+                let mask = self.v.len() - 1;
                 let invalid = T::invalid();
                 loop {
                     let iplus1 = (i+1) & mask;
@@ -166,7 +163,7 @@ impl<T: Cast> CastSet<T> {
     }
     fn search(&self, elem: T) -> SearchResult {
         let h = elem.cast();
-        let mask = (1 << self.poweroftwo) - 1;
+        let mask = self.v.len() - 1;
         let invalid = T::invalid();
         let mut dist = 0;
         loop {
@@ -188,7 +185,7 @@ impl<T: Cast> CastSet<T> {
     }
     fn search_from(&self, i_start: usize, elem: T) -> SearchResult {
         let h = elem.cast();
-        let mask = (1 << self.poweroftwo) - 1;
+        let mask = self.v.len() - 1;
         let invalid = T::invalid();
         let mut dist = i_start.wrapping_sub(h.cast()) & mask;
         loop {
@@ -321,7 +318,7 @@ mod tests {
         println!(" hash size: {}", std::mem::size_of::<HashSet<usize>>());
         assert!(std::mem::size_of::<CastSet<usize>>() <=
                 2*std::mem::size_of::<HashSet<usize>>());
-        assert_eq!(std::mem::size_of::<CastSet<usize>>(), 32);
+        assert_eq!(std::mem::size_of::<CastSet<usize>>(), 24);
     }
 
     macro_rules! initialize {
