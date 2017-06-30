@@ -1,5 +1,8 @@
 use std;
 
+use fnv::FnvHasher;
+use std::hash::{Hash, Hasher};
+
 /// Trait for any type that can be converted to a `usize`.  This could
 /// actually be a hash function, but we will assume that it is *fast*,
 /// so I'm not calling it `Hash`.
@@ -14,23 +17,43 @@ pub trait Cast : Copy+Eq {
 }
 
 impl Cast for usize {
-    fn cast(self) -> usize { self }
+    fn cast(self) -> usize {
+        let mut h: FnvHasher = Default::default();
+        self.hash(&mut h);
+        h.finish() as usize
+    }
     fn invalid() -> Self { (-1 as i64) as Self }
 }
 impl Cast for u64 {
-    fn cast(self) -> usize { self as usize }
+    fn cast(self) -> usize {
+        let mut h: FnvHasher = Default::default();
+        self.hash(&mut h);
+        h.finish() as usize
+    }
     fn invalid() -> Self { (-1 as i64) as Self }
 }
 impl Cast for u32 {
-    fn cast(self) -> usize { self as usize }
+    fn cast(self) -> usize {
+        let mut h: FnvHasher = Default::default();
+        self.hash(&mut h);
+        h.finish() as usize
+    }
     fn invalid() -> Self { (-1 as i32) as Self }
 }
 impl Cast for u16 {
-    fn cast(self) -> usize { self as usize }
+    fn cast(self) -> usize {
+        let mut h: FnvHasher = Default::default();
+        self.hash(&mut h);
+        h.finish() as usize
+    }
     fn invalid() -> Self { (-1 as i16) as Self }
 }
 impl Cast for u8 {
-    fn cast(self) -> usize { self as usize }
+    fn cast(self) -> usize {
+        let mut h: FnvHasher = Default::default();
+        self.hash(&mut h);
+        h.finish() as usize
+    }
     fn invalid() -> Self { (-1 as i8) as Self }
 }
 
@@ -108,7 +131,11 @@ impl<T: Cast> Data<T> {
 }
 
 fn capacity_to_rawcapacity(cap: usize) -> usize {
-    (1+cap*11/10).next_power_of_two()
+    if cap <= 4 {
+        cap.next_power_of_two()
+    } else {
+        (1+cap*12/10).next_power_of_two()
+    }
 }
 
 impl<T: Cast> CastSet<T> {
@@ -117,6 +144,10 @@ impl<T: Cast> CastSet<T> {
             &mut Data::Sm(ref mut sz,_) => sz,
             &mut Data::V(ref mut sz,_) => sz,
         }
+    }
+    /// Creates an empty set..
+    pub fn default() -> CastSet<T> {
+        CastSet::with_capacity(0)
     }
     /// Creates an empty set..
     pub fn new() -> CastSet<T> {
@@ -231,10 +262,10 @@ impl<T: Cast> CastSet<T> {
     }
     fn search(&self, elem: T) -> SearchResult {
         let h = elem.cast();
-        let mask = self.v.len() - 1;
         let invalid = T::invalid();
         let mut dist = 0;
         let v = self.v.sl();
+        let mask = v.len() - 1;
         loop {
             let i = h+dist & mask;
             if v[i] == invalid {
@@ -249,14 +280,14 @@ impl<T: Cast> CastSet<T> {
                 return SearchResult::Richer(i);
             }
             dist += 1;
-            assert!(dist < v.len());
+            assert!(dist <= v.len());
         }
     }
     fn search_from(&self, i_start: usize, elem: T) -> SearchResult {
         let h = elem.cast();
         let mask = self.v.len() - 1;
         let invalid = T::invalid();
-        let mut dist = i_start.wrapping_sub(h.cast()) & mask;
+        let mut dist = i_start.wrapping_sub(h) & mask;
         let v = self.v.sl();
         loop {
             let i = h+dist & mask;
@@ -272,7 +303,7 @@ impl<T: Cast> CastSet<T> {
                 return SearchResult::Richer(i);
             }
             dist += 1;
-            assert!(dist < v.len());
+            assert!(dist <= v.len());
         }
     }
     /// Returns an iterator over the set.

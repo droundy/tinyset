@@ -44,6 +44,8 @@
 
 #![deny(missing_docs)]
 
+extern crate fnv;
+
 mod vecset;
 pub use vecset::*;
 

@@ -1,17 +1,16 @@
-
 use std;
-use std::collections::HashSet;
+use fnv::FnvHashSet;
 use std::hash::Hash;
 use std::borrow::Borrow;
 
 /// The number of elements stored in an array before moving up to the
-/// `HashSet` implementation.
+/// `FnvHashSet` implementation.
 pub const CAPACITY: usize = 8;
 
-/// A set that is a `HashSet` when it has many elements, but is just
+/// A set that is a `FnvHashSet` when it has many elements, but is just
 /// an array for small set sizes.
 ///
-/// As with the `HashSet` type, a `Set` requires that the
+/// As with the `FnvHashSet` type, a `Set` requires that the
 /// elements implement the Eq and Hash traits.  This can frequently be
 /// achieved by using #[derive(PartialEq, Eq, Hash)]. In addition,
 /// `Set` requires that the elements implement the `Copy` trait,
@@ -25,7 +24,7 @@ pub struct Set<T: Copy + Eq + Hash> {
 #[derive(Debug, Clone)]
 enum SS<T: Copy+Eq+Hash> {
     Small(usize, [T;CAPACITY]),
-    Large(HashSet<T>),
+    Large(FnvHashSet<T>),
 }
 
 /// An iterator for consuming sets.
@@ -53,10 +52,15 @@ impl<T: Copy+Eq+Hash> Set<T> {
     pub fn new() -> Set<T> {
         Set { inner: SS::Small(0, unsafe { std::mem::uninitialized() }) }
     }
+    /// Creates an empty set..
+    pub fn default() -> Set<T> {
+        Self::new()
+    }
     /// Creates an empty set with the specified capacity.
     pub fn with_capacity(cap: usize) -> Set<T> {
         if cap > CAPACITY {
-            Set { inner: SS::Large(HashSet::with_capacity(cap)) }
+            Set { inner: SS::Large(FnvHashSet::with_capacity_and_hasher(cap,
+                                                                     Default::default())) }
         } else {
             Set::new()
         }
@@ -78,7 +82,8 @@ impl<T: Copy+Eq+Hash> Set<T> {
                 return;
             },
             SS::Small(len, arr) => {
-                let mut s = HashSet::with_capacity(additional+CAPACITY);
+                let mut s = FnvHashSet::with_capacity_and_hasher(additional+CAPACITY,
+                                                              Default::default());
                 for i in 0..len {
                     s.insert(arr[i]);
                 }
@@ -112,7 +117,7 @@ impl<T: Copy+Eq+Hash> Set<T> {
         match self.inner {
             SS::Large(_) => unreachable!(),
             SS::Small(len, arr) => {
-                let mut s = HashSet::with_capacity(1+CAPACITY);
+                let mut s = FnvHashSet::with_capacity_and_hasher(1+CAPACITY, Default::default());
                 for i in 0..len {
                     s.insert(arr[i]);
                 }
@@ -405,8 +410,8 @@ mod tests {
     #[test]
     fn size_unwasted() {
         println!("small size: {}", std::mem::size_of::<Set<usize>>());
-        println!(" hash size: {}", std::mem::size_of::<HashSet<usize>>());
+        println!(" hash size: {}", std::mem::size_of::<FnvHashSet<usize>>());
         assert!(std::mem::size_of::<Set<usize>>() <=
-                2*std::mem::size_of::<HashSet<usize>>());
+                4*std::mem::size_of::<FnvHashSet<usize>>());
     }
 }

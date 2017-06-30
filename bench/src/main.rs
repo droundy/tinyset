@@ -2,25 +2,26 @@ extern crate david_allocator;
 extern crate david_set;
 extern crate rand;
 extern crate smallset;
+extern crate fnv;
 
 use std::time::{Instant, Duration};
 
 use rand::{XorShiftRng, SeedableRng, Rand};
 
-use std::collections::HashSet;
 use std::collections::BTreeSet;
 use david_set::Set;
 use david_set::VecSet;
 use david_set::CastSet;
+use fnv::FnvHashSet;
 
 type SmallSet<T> = smallset::SmallSet<[T; 8]>;
 
 macro_rules! initialize {
-    ($set: ident, $item: ident, $num: expr) => {{
+    ($set: expr, $item: ident, $num: expr) => {{
         let mut rng = XorShiftRng::from_seed([$num as u32,$num as u32,3,4]);
         let before = david_allocator::net_allocation();
         let before_total = david_allocator::total_allocation();
-        let mut set = $set::<$item>::new();
+        let mut set = $set;
         if $num > 0 {
             while set.len() < $num {
                 set.insert($item::rand(&mut rng) % (2*$num as $item));
@@ -29,7 +30,8 @@ macro_rules! initialize {
         }
         let net_alloced = david_allocator::net_allocation() - before;
         let total_alloced = david_allocator::total_allocation() - before_total;
-        (set, std::mem::size_of::<$set<$item>>(), net_alloced, total_alloced)
+        let len_stack = std::mem::size_of_val(&set);
+        (set, len_stack, net_alloced, total_alloced)
     }};
 }
 
@@ -44,7 +46,7 @@ macro_rules! time_me {
 }
 
 macro_rules! bench_contains {
-    ($set: ident, $item: ident, $size: expr, $iters: expr) => {{
+    ($set: expr, $item: ident, $size: expr, $iters: expr) => {{
         let (set, my_stack, my_size, my_alloc) = initialize!($set, $item, $size);
         let mut total = 0;
         let mut i = 0;
@@ -71,10 +73,10 @@ macro_rules! bench_all_contains {
             print!("{:5}",size);
 
             let (total_true, hash_time, _, _, _)
-                = bench_contains!(HashSet, $item, size, $iters);
+                = bench_contains!(FnvHashSet::<$item>::default(), $item, size, $iters);
 
             let (total, my_time, my_stack, my_size, _)
-                = bench_contains!(HashSet, $item, size, $iters);
+                = bench_contains!(FnvHashSet::<$item>::default(), $item, size, $iters);
             if total != total_true {
                 println!("serious problem!");
             }
@@ -84,7 +86,7 @@ macro_rules! bench_all_contains {
                    (my_size as f64/size as f64));
 
             let (total, my_time, my_stack, my_size, _)
-                = bench_contains!(Set, $item, size, $iters);
+                = bench_contains!(Set::<$item>::new(), $item, size, $iters);
             if total != total_true {
                 println!("serious problem!");
             }
@@ -94,7 +96,7 @@ macro_rules! bench_all_contains {
                    (my_size as f64/size as f64));
 
             let (total, my_time, my_stack, my_size, _)
-                = bench_contains!(VecSet, $item, size, $iters);
+                = bench_contains!(VecSet::<$item>::new(), $item, size, $iters);
             if total != total_true {
                 println!("serious problem!");
             }
@@ -104,7 +106,7 @@ macro_rules! bench_all_contains {
                    (my_size as f64/size as f64));
 
             let (total, my_time, my_stack, my_size, _)
-                = bench_contains!(BTreeSet, $item, size, $iters);
+                = bench_contains!(BTreeSet::<$item>::new(), $item, size, $iters);
             if total != total_true {
                 println!("serious problem!");
             }
@@ -114,7 +116,7 @@ macro_rules! bench_all_contains {
                    (my_size as f64/size as f64));
 
             let (total, my_time, my_stack, my_size, _)
-                = bench_contains!(SmallSet, $item, size, $iters);
+                = bench_contains!(SmallSet::<$item>::new(), $item, size, $iters);
             if total != total_true {
                 println!("serious problem!");
             }
@@ -124,7 +126,7 @@ macro_rules! bench_all_contains {
                    (my_size as f64/size as f64));
 
             let (total, my_time, my_stack, my_size, _)
-                = bench_contains!(CastSet, $item, size, $iters);
+                = bench_contains!(CastSet::<$item>::new(), $item, size, $iters);
             if total != total_true {
                 println!("serious problem!");
             }
@@ -139,7 +141,7 @@ macro_rules! bench_all_contains {
 }
 
 macro_rules! bench_remove_insert {
-    ($set: ident, $item: ident, $size: expr, $iters: expr) => {{
+    ($set: expr, $item: ident, $size: expr, $iters: expr) => {{
         let (mut set, my_stack, my_size, my_alloc) = initialize!($set, $item, $size);
         let mut i = 0;
         let my_time = time_me!({
@@ -164,45 +166,45 @@ macro_rules! bench_all_remove_insert {
                                   .filter(|&x|x<$maxsz)) {
             print!("{:5}",size);
             let (hash_time, _, _, _)
-                = bench_remove_insert!(HashSet, $item, size, $iters);
+                = bench_remove_insert!(FnvHashSet::<$item>::default(), $item, size, $iters);
 
             let (my_time, my_stack, my_size, _)
-                = bench_remove_insert!(HashSet, $item, size, $iters);
+                = bench_remove_insert!(FnvHashSet::<$item>::default(), $item, size, $iters);
             print!(" {:6.3} ({:5.1}/{:5.1})",
                    my_time/hash_time,
                    ((my_stack+my_size) as f64/size as f64),
                    (my_size as f64/size as f64));
 
             let (my_time, my_stack, my_size, _)
-                = bench_remove_insert!(Set, $item, size, $iters);
+                = bench_remove_insert!(Set::<$item>::new(), $item, size, $iters);
             print!(" {:6.3} ({:5.1}/{:5.1})",
                    my_time/hash_time,
                    ((my_stack+my_size) as f64/size as f64),
                    (my_size as f64/size as f64));
 
             let (my_time, my_stack, my_size, _)
-                = bench_remove_insert!(VecSet, $item, size, $iters);
+                = bench_remove_insert!(VecSet::<$item>::new(), $item, size, $iters);
             print!(" {:6.3} ({:5.1}/{:5.1})",
                    my_time/hash_time,
                    ((my_stack+my_size) as f64/size as f64),
                    (my_size as f64/size as f64));
 
             let (my_time, my_stack, my_size, _)
-                = bench_remove_insert!(BTreeSet, $item, size, $iters);
+                = bench_remove_insert!(BTreeSet::<$item>::new(), $item, size, $iters);
             print!(" {:6.3} ({:5.1}/{:5.1})",
                    my_time/hash_time,
                    ((my_stack+my_size) as f64/size as f64),
                    (my_size as f64/size as f64));
 
             let (my_time, my_stack, my_size, _)
-                = bench_remove_insert!(SmallSet, $item, size, $iters);
+                = bench_remove_insert!(SmallSet::<$item>::new(), $item, size, $iters);
             print!(" {:6.3} ({:5.1}/{:5.1})",
                    my_time/hash_time,
                    ((my_stack+my_size) as f64/size as f64),
                    (my_size as f64/size as f64));
 
             let (my_time, my_stack, my_size, _)
-                = bench_remove_insert!(CastSet, $item, size, $iters);
+                = bench_remove_insert!(CastSet::<$item>::new(), $item, size, $iters);
             print!(" {:6.3} ({:5.1}/{:5.1})",
                    my_time/hash_time,
                    ((my_stack+my_size) as f64/size as f64),

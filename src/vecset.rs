@@ -10,6 +10,10 @@ impl<T: Eq> VecSet<T> {
     pub fn new() -> VecSet<T> {
         VecSet { v: Vec::new() }
     }
+    /// Creates an empty set..
+    pub fn default() -> VecSet<T> {
+        Self::new()
+    }
     /// Returns the number of elements in the set.
     pub fn len(&self) -> usize {
         self.v.len()

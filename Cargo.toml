@@ -15,3 +15,6 @@ quickcheck = "^0.4.1"
 [badges]
 travis-ci = { repository = "droundy/david-set" }
 appveyor = { repository = "droundy/david-set" }
+
+[dependencies]
+fnv = "^1.0.3"
