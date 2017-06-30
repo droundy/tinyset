@@ -263,7 +263,7 @@ impl<T: Eq+Hash+Copy> IntoIterator for Set<T> {
     /// # Examples
     ///
     /// ```
-    /// use david_set::Set;
+    /// use tinyset::Set;
     /// let mut set: Set<u32> = Set::new();
     /// set.insert(2);
     /// set.insert(5);
@@ -299,7 +299,7 @@ impl<'a, 'b, T: Eq+Hash+Copy> std::ops::Sub<&'b Set<T>> for &'a Set<T> {
     /// # Examples
     ///
     /// ```
-    /// use david_set::Set;
+    /// use tinyset::Set;
     ///
     /// let a: Set<u32> = vec![1, 2, 3].into_iter().collect();
     /// let b: Set<u32> = vec![3, 4, 5].into_iter().collect();
@@ -331,7 +331,7 @@ impl<T: Eq+Hash+Copy> Extend<T> for Set<T> {
     /// # Examples
     ///
     /// ```
-    /// use david_set::Set;
+    /// use tinyset::Set;
     ///
     /// let mut a: Set<u32> = vec![1, 2, 3].into_iter().collect();
     /// a.extend(vec![3, 4, 5]);
@@ -362,7 +362,7 @@ impl<'a, 'b, T: Eq+Hash+Copy> std::ops::BitOr<&'b Set<T>> for &'a Set<T> {
     /// # Examples
     ///
     /// ```
-    /// use david_set::Set;
+    /// use tinyset::Set;
     ///
     /// let a: Set<u32> = vec![1, 2, 3].into_iter().collect();
     /// let b: Set<u32> = vec![3, 4, 5].into_iter().collect();
