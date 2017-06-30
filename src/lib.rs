@@ -24,14 +24,14 @@
 //! # Examples
 //!
 //! ```
-//! use david_set::Set;
+//! use tinyset::Set;
 //! let mut s: Set<usize> = Set::new();
 //! s.insert(1);
 //! assert!(s.contains(&1));
 //! ```
 //!
 //! ```
-//! use david_set::TinySet;
+//! use tinyset::TinySet;
 //! let mut s: TinySet<usize> = TinySet::new();
 //! s.insert(1);
 //! assert!(s.contains(&1));
