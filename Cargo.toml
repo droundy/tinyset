@@ -1,11 +1,11 @@
 [package]
-name = "david-set"
-version = "0.1.2"
+name = "tinyset"
+version = "0.0.1"
 authors = ["David Roundy <daveroundy@gmail.com>"]
 
-description = "Sets optimized for small or large numbers of Copy elements"
+description = "Size-optimized  sets for Copy elements"
 license = "MPL-2.0"
-repository = "https://github.com/droundy/david-set"
+repository = "https://github.com/droundy/tinyset"
 
 [dev-dependencies]
 
@@ -13,8 +13,8 @@ rand = "^0.3.15"
 quickcheck = "^0.4.1"
 
 [badges]
-travis-ci = { repository = "droundy/david-set" }
-appveyor = { repository = "droundy/david-set" }
+travis-ci = { repository = "droundy/tinyset" }
+appveyor = { repository = "droundy/tinyset" }
 
 [dependencies]
 fnv = "^1.0.3"

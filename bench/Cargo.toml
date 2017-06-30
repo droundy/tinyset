@@ -1,5 +1,5 @@
 [package]
-name = "david-set-bench"
+name = "tinyset-bench"
 version = "0.0.1"
 authors = ["David Roundy <daveroundy@gmail.com>"]
 
@@ -7,7 +7,7 @@ authors = ["David Roundy <daveroundy@gmail.com>"]
 
 rand = "^0.3.15"
 
-david-set = { path = ".." }
+tinyset = { path = ".." }
 david_allocator = { path = "../david_allocator" }
 smallset = "^0.1.0"
 fnv = "^1.0.3"

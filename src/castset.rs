@@ -14,7 +14,7 @@ pub trait HasInvalid : Copy+Eq+Hash {
         h.finish() as usize
     }
     /// A unique invalid value for this type.  If you cannot identify
-    /// an invalid value, then you don't get to use CastSet, since we
+    /// an invalid value, then you don't get to use TinySet, since we
     /// would need to store an `Option<T>` which would probably double
     /// the size of the set.
     fn invalid() -> Self;
@@ -44,9 +44,9 @@ enum SearchResult {
     Richer(usize),
 }
 
-/// A set implemented for types that can be cast to usize
+/// A set implemented for types that have an invalid value
 #[derive(Debug,Clone)]
-pub struct CastSet<T: HasInvalid> {
+pub struct TinySet<T: HasInvalid> {
     v: Data<T>,
 }
 
@@ -117,7 +117,7 @@ fn capacity_to_rawcapacity(cap: usize) -> usize {
     }
 }
 
-impl<T: HasInvalid> CastSet<T> {
+impl<T: HasInvalid> TinySet<T> {
     fn mut_sz(&mut self) -> &mut u32 {
         match &mut self.v {
             &mut Data::Sm(ref mut sz,_) => sz,
@@ -125,20 +125,20 @@ impl<T: HasInvalid> CastSet<T> {
         }
     }
     /// Creates an empty set..
-    pub fn default() -> CastSet<T> {
-        CastSet::with_capacity(0)
+    pub fn default() -> TinySet<T> {
+        TinySet::with_capacity(0)
     }
     /// Creates an empty set..
-    pub fn new() -> CastSet<T> {
-        CastSet::with_capacity(0)
+    pub fn new() -> TinySet<T> {
+        TinySet::with_capacity(0)
     }
     /// Creates an empty set with the specified capacity.
-    pub fn with_capacity(cap: usize) -> CastSet<T> {
+    pub fn with_capacity(cap: usize) -> TinySet<T> {
         if cap <= Data::<T>::cutoff() {
-            CastSet { v: Data::new() }
+            TinySet { v: Data::new() }
         } else {
             let cap = capacity_to_rawcapacity(cap);
-            CastSet {
+            TinySet {
                 v: Data::V(0, vec![T::invalid(); cap].into_boxed_slice()),
             }
         }
@@ -294,7 +294,7 @@ impl<T: HasInvalid> CastSet<T> {
     }
     /// Clears the set, returning all elements in an iterator.
     pub fn drain(&mut self) -> IntoIter<T> {
-        let set = std::mem::replace(self, CastSet::new());
+        let set = std::mem::replace(self, TinySet::new());
         let sz = set.len();
         IntoIter { set: set, nleft: sz }
     }
@@ -326,7 +326,7 @@ impl<'a, T: 'a+HasInvalid> Iterator for Iter<'a, T> {
     }
 }
 
-impl<'a, T: HasInvalid> IntoIterator for &'a CastSet<T> {
+impl<'a, T: HasInvalid> IntoIterator for &'a TinySet<T> {
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
 
@@ -336,7 +336,7 @@ impl<'a, T: HasInvalid> IntoIterator for &'a CastSet<T> {
 }
 
 pub struct IntoIter<T: HasInvalid> {
-    set: CastSet<T>,
+    set: TinySet<T>,
     nleft: usize,
 }
 
@@ -370,7 +370,7 @@ mod tests {
     use rand::{XorShiftRng, SeedableRng, Rand};
     #[test]
     fn it_works() {
-        let mut ss: CastSet<usize> = CastSet::new();
+        let mut ss: TinySet<usize> = TinySet::new();
         println!("inserting 5");
         ss.insert(5);
         println!("contains 5");
@@ -394,11 +394,11 @@ mod tests {
     }
     #[test]
     fn size_unwasted() {
-        println!("small size: {}", std::mem::size_of::<CastSet<usize>>());
+        println!("small size: {}", std::mem::size_of::<TinySet<usize>>());
         println!(" hash size: {}", std::mem::size_of::<HashSet<usize>>());
-        assert!(std::mem::size_of::<CastSet<usize>>() <=
+        assert!(std::mem::size_of::<TinySet<usize>>() <=
                 2*std::mem::size_of::<HashSet<usize>>());
-        assert!(std::mem::size_of::<CastSet<usize>>() <= 24);
+        assert!(std::mem::size_of::<TinySet<usize>>() <= 24);
     }
 
     macro_rules! initialize {
@@ -442,8 +442,8 @@ mod tests {
     #[test]
     fn random_inserts_and_removals_u8() {
         for sz in 0..50 {
-            println!("\nCastSet {}\n", sz);
-            let myset = initialize!(CastSet, u8, sz);
+            println!("\nTinySet {}\n", sz);
+            let myset = initialize!(TinySet, u8, sz);
             println!("\nHashSet {}\n", sz);
             let refset = initialize!(HashSet, u8, sz);
             for i in 0..255 {
@@ -455,8 +455,8 @@ mod tests {
     #[test]
     fn random_inserts_and_removals_u16() {
         for sz in 0..20 {
-            println!("\nCastSet {}\n", sz);
-            let myset = initialize!(CastSet, u16, sz);
+            println!("\nTinySet {}\n", sz);
+            let myset = initialize!(TinySet, u16, sz);
             println!("\nHashSet {}\n", sz);
             let refset = initialize!(HashSet, u16, sz);
             for i in 0..50 {
@@ -468,7 +468,7 @@ mod tests {
     #[test]
     fn test_matches_u8() {
         let mut steps: Vec<Result<u8,u8>> = vec![Err(8), Ok(0), Ok(16), Ok(1), Ok(8)];
-        let mut set = CastSet::<u8>::new();
+        let mut set = TinySet::<u8>::new();
         let mut refset = HashSet::<u8>::new();
         loop {
             match steps.pop() {
@@ -498,7 +498,7 @@ mod tests {
     quickcheck! {
         fn prop_matches_u8(steps: Vec<Result<u8,u8>>) -> bool {
             let mut steps = steps;
-            let mut set = CastSet::<u8>::new();
+            let mut set = TinySet::<u8>::new();
             let mut refset = HashSet::<u8>::new();
             loop {
                 match steps.pop() {
@@ -522,7 +522,7 @@ mod tests {
     quickcheck! {
         fn prop_matches_usize(steps: Vec<Result<usize,usize>>) -> bool {
             let mut steps = steps;
-            let mut set = CastSet::<usize>::new();
+            let mut set = TinySet::<usize>::new();
             let mut refset = HashSet::<usize>::new();
             loop {
                 match steps.pop() {

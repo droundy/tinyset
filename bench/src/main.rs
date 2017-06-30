@@ -11,7 +11,7 @@ use rand::{XorShiftRng, SeedableRng, Rand};
 use std::collections::BTreeSet;
 use david_set::Set;
 use david_set::VecSet;
-use david_set::CastSet;
+use david_set::TinySet;
 use fnv::FnvHashSet;
 
 type SmallSet<T> = smallset::SmallSet<[T; 8]>;
@@ -66,7 +66,7 @@ macro_rules! bench_all_contains {
         print!("{:^8}( tot / heap)", "vecset");
         print!("{:^8}( tot / heap)", "btree");
         print!("{:^8}( tot / heap)", "smallset");
-        print!("{:^8}( tot / heap)", "castset");
+        print!("{:^8}( tot / heap)", "tinyset");
         println!();
         for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
                                   .filter(|&x|x<$maxsz)) {
@@ -126,7 +126,7 @@ macro_rules! bench_all_contains {
                    (my_size as f64/size as f64));
 
             let (total, my_time, my_stack, my_size, _)
-                = bench_contains!(CastSet::<$item>::new(), $item, size, $iters);
+                = bench_contains!(TinySet::<$item>::new(), $item, size, $iters);
             if total != total_true {
                 println!("serious problem!");
             }
@@ -160,7 +160,7 @@ macro_rules! bench_all_remove_insert {
         print!("{:^8}( tot / heap)", "vecset");
         print!("{:^8}( tot / heap)", "btree");
         print!("{:^8}( tot / heap)", "smallset");
-        print!("{:^8}( tot / heap)", "castset");
+        print!("{:^8}( tot / heap)", "tinyset");
         println!();
         for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
                                   .filter(|&x|x<$maxsz)) {
@@ -204,7 +204,7 @@ macro_rules! bench_all_remove_insert {
                    (my_size as f64/size as f64));
 
             let (my_time, my_stack, my_size, _)
-                = bench_remove_insert!(CastSet::<$item>::new(), $item, size, $iters);
+                = bench_remove_insert!(TinySet::<$item>::new(), $item, size, $iters);
             print!(" {:6.3} ({:5.1}/{:5.1})",
                    my_time/hash_time,
                    ((my_stack+my_size) as f64/size as f64),
