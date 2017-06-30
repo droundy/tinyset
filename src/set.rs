@@ -1,3 +1,5 @@
+//! A set that is compact in size when it has few elements.
+
 use std;
 use fnv::FnvHashSet;
 use std::hash::Hash;

@@ -1,5 +1,5 @@
 extern crate david_allocator;
-extern crate david_set;
+extern crate tinyset;
 extern crate rand;
 extern crate smallset;
 extern crate fnv;
@@ -9,9 +9,9 @@ use std::time::{Instant, Duration};
 use rand::{XorShiftRng, SeedableRng, Rand};
 
 use std::collections::BTreeSet;
-use david_set::Set;
-use david_set::VecSet;
-use david_set::TinySet;
+use tinyset::Set;
+use tinyset::VecSet;
+use tinyset::TinySet;
 use fnv::FnvHashSet;
 
 type SmallSet<T> = smallset::SmallSet<[T; 8]>;

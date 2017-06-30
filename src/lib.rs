@@ -44,11 +44,11 @@ extern crate fnv;
 mod vecset;
 pub use vecset::*;
 
-mod copyset;
-pub use copyset::*;
+pub mod set;
+pub use set::*;
 
-mod castset;
-pub use castset::*;
+pub mod tinyset;
+pub use tinyset::*;
 
 #[cfg(test)]
 extern crate rand;

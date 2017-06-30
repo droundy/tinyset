@@ -1,3 +1,5 @@
+//! A set that is compact in size.
+
 use std;
 
 use fnv::FnvHasher;
@@ -300,6 +302,7 @@ impl<T: HasInvalid> TinySet<T> {
     }
 }
 
+/// An iterator for `TinySet`.
 pub struct Iter<'a, T: 'a+HasInvalid> {
     slice: &'a [T],
     nleft: usize,
@@ -335,6 +338,7 @@ impl<'a, T: HasInvalid> IntoIterator for &'a TinySet<T> {
     }
 }
 
+/// An iterator for `TinySet`.
 pub struct IntoIter<T: HasInvalid> {
     set: TinySet<T>,
     nleft: usize,
