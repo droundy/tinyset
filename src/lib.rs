@@ -1,4 +1,4 @@
-//! david-set contains a few collections that are optimized to scale
+//! `tinyset` contains a few collections that are optimized to scale
 //! in size well for small numbers of elements, while still scaling
 //! well in time (and size) for numbers of elements.  We have two set types:
 //!
@@ -18,10 +18,8 @@
 //! Both of these set types will do no heap allocation for small sets
 //! of small elements.  `TinySet` will store up to 16 bytes of
 //! elements before doing any heap allocation, while `Set` stores sets
-//! up to size 8 without allocation.  Both sets are typically faster
-//! than `HashSet` by a factor of around two, although for sets with
-//! more than 8 elements `Set` is in fact identical to `HashSet` in
-//! performance.
+//! up to size 8 without allocation.  Both sets are similar in speed
+//! to `fnv::HashSet`.
 //!
 //! # Examples
 //!
