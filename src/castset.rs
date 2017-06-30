@@ -6,9 +6,13 @@ use std::hash::{Hash, Hasher};
 /// Trait for any type that can be converted to a `usize`.  This could
 /// actually be a hash function, but we will assume that it is *fast*,
 /// so I'm not calling it `Hash`.
-pub trait Cast : Copy+Eq {
-    /// Convert to a `usize`.
-    fn cast(self) -> usize;
+pub trait HasInvalid : Copy+Eq+Hash {
+    /// Hash to a `usize`.
+    fn hash_usize(self) -> usize {
+        let mut h: FnvHasher = Default::default();
+        self.hash(&mut h);
+        h.finish() as usize
+    }
     /// A unique invalid value for this type.  If you cannot identify
     /// an invalid value, then you don't get to use CastSet, since we
     /// would need to store an `Option<T>` which would probably double
@@ -16,44 +20,19 @@ pub trait Cast : Copy+Eq {
     fn invalid() -> Self;
 }
 
-impl Cast for usize {
-    fn cast(self) -> usize {
-        let mut h: FnvHasher = Default::default();
-        self.hash(&mut h);
-        h.finish() as usize
-    }
+impl HasInvalid for usize {
     fn invalid() -> Self { (-1 as i64) as Self }
 }
-impl Cast for u64 {
-    fn cast(self) -> usize {
-        let mut h: FnvHasher = Default::default();
-        self.hash(&mut h);
-        h.finish() as usize
-    }
+impl HasInvalid for u64 {
     fn invalid() -> Self { (-1 as i64) as Self }
 }
-impl Cast for u32 {
-    fn cast(self) -> usize {
-        let mut h: FnvHasher = Default::default();
-        self.hash(&mut h);
-        h.finish() as usize
-    }
+impl HasInvalid for u32 {
     fn invalid() -> Self { (-1 as i32) as Self }
 }
-impl Cast for u16 {
-    fn cast(self) -> usize {
-        let mut h: FnvHasher = Default::default();
-        self.hash(&mut h);
-        h.finish() as usize
-    }
+impl HasInvalid for u16 {
     fn invalid() -> Self { (-1 as i16) as Self }
 }
-impl Cast for u8 {
-    fn cast(self) -> usize {
-        let mut h: FnvHasher = Default::default();
-        self.hash(&mut h);
-        h.finish() as usize
-    }
+impl HasInvalid for u8 {
     fn invalid() -> Self { (-1 as i8) as Self }
 }
 
@@ -67,16 +46,16 @@ enum SearchResult {
 
 /// A set implemented for types that can be cast to usize
 #[derive(Debug,Clone)]
-pub struct CastSet<T: Cast> {
+pub struct CastSet<T: HasInvalid> {
     v: Data<T>,
 }
 
 #[derive(Debug, Clone)]
-enum Data<T: Cast> {
+enum Data<T: HasInvalid> {
     Sm(u32, [usize; 2]),
     V(u32, Box<[T]>)
 }
-impl<T: Cast> Data<T> {
+impl<T: HasInvalid> Data<T> {
     fn cutoff() -> usize {
         std::mem::size_of::<[usize;2]>()/std::mem::size_of::<T>()
     }
@@ -134,11 +113,11 @@ fn capacity_to_rawcapacity(cap: usize) -> usize {
     if cap <= 4 {
         cap.next_power_of_two()
     } else {
-        (1+cap*12/10).next_power_of_two()
+        (cap*22/10).next_power_of_two()
     }
 }
 
-impl<T: Cast> CastSet<T> {
+impl<T: HasInvalid> CastSet<T> {
     fn mut_sz(&mut self) -> &mut u32 {
         match &mut self.v {
             &mut Data::Sm(ref mut sz,_) => sz,
@@ -232,7 +211,7 @@ impl<T: Cast> CastSet<T> {
                 loop {
                     let iplus1 = (i+1) & mask;
                     if v[iplus1] == invalid ||
-                        (v[iplus1].cast().wrapping_sub(iplus1) & mask) == 0
+                        (v[iplus1].hash_usize().wrapping_sub(iplus1) & mask) == 0
                     {
                         v[i] = invalid;
                         return true;
@@ -261,7 +240,7 @@ impl<T: Cast> CastSet<T> {
         }
     }
     fn search(&self, elem: T) -> SearchResult {
-        let h = elem.cast();
+        let h = elem.hash_usize();
         let invalid = T::invalid();
         let mut dist = 0;
         let v = self.v.sl();
@@ -275,7 +254,7 @@ impl<T: Cast> CastSet<T> {
             }
             // the following is a bit contorted, to compute distance
             // when wrapped.
-            let his_dist = i.wrapping_sub(v[i].cast()) & mask;
+            let his_dist = i.wrapping_sub(v[i].hash_usize()) & mask;
             if his_dist < dist {
                 return SearchResult::Richer(i);
             }
@@ -284,7 +263,7 @@ impl<T: Cast> CastSet<T> {
         }
     }
     fn search_from(&self, i_start: usize, elem: T) -> SearchResult {
-        let h = elem.cast();
+        let h = elem.hash_usize();
         let mask = self.v.len() - 1;
         let invalid = T::invalid();
         let mut dist = i_start.wrapping_sub(h) & mask;
@@ -298,7 +277,7 @@ impl<T: Cast> CastSet<T> {
             }
             // the following is a bit contorted, to compute distance
             // when wrapped.
-            let his_dist = i.wrapping_sub(v[i].cast()) & mask;
+            let his_dist = i.wrapping_sub(v[i].hash_usize()) & mask;
             if his_dist < dist {
                 return SearchResult::Richer(i);
             }
@@ -321,12 +300,12 @@ impl<T: Cast> CastSet<T> {
     }
 }
 
-pub struct Iter<'a, T: 'a+Cast> {
+pub struct Iter<'a, T: 'a+HasInvalid> {
     slice: &'a [T],
     nleft: usize,
 }
 
-impl<'a, T: 'a+Cast> Iterator for Iter<'a, T> {
+impl<'a, T: 'a+HasInvalid> Iterator for Iter<'a, T> {
     type Item = &'a T;
     fn next(&mut self) -> Option<&'a T> {
         if self.nleft == 0 {
@@ -347,7 +326,7 @@ impl<'a, T: 'a+Cast> Iterator for Iter<'a, T> {
     }
 }
 
-impl<'a, T: Cast> IntoIterator for &'a CastSet<T> {
+impl<'a, T: HasInvalid> IntoIterator for &'a CastSet<T> {
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
 
@@ -356,12 +335,12 @@ impl<'a, T: Cast> IntoIterator for &'a CastSet<T> {
     }
 }
 
-pub struct IntoIter<T: Cast> {
+pub struct IntoIter<T: HasInvalid> {
     set: CastSet<T>,
     nleft: usize,
 }
 
-impl<T: Cast> Iterator for IntoIter<T> {
+impl<T: HasInvalid> Iterator for IntoIter<T> {
     type Item = T;
     fn next(&mut self) -> Option<T> {
         if self.nleft == 0 {
