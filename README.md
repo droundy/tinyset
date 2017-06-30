@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/droundy/david-set.svg?branch=master)](https://travis-ci.org/droundy/david-set)
+[![Build Status](https://travis-ci.org/droundy/tinyset.svg?branch=master)](https://travis-ci.org/droundy/tinyset)
 [![Build status](https://ci.appveyor.com/api/projects/status/h0rn4amvlwce10pl?svg=true)](https://ci.appveyor.com/project/droundy/tinyset)
 
 # tinyset
