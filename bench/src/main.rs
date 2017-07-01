@@ -68,7 +68,7 @@ macro_rules! bench_all_contains {
         print!("{:^8}( tot / heap)", "smallset");
         print!("{:^8}( tot / heap)", "tinyset");
         println!();
-        for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
+        for size in (1..15).chain([20,30,50,100,1000].iter().map(|&x|x)
                                   .filter(|&x|x<$maxsz)) {
             print!("{:5}",size);
 

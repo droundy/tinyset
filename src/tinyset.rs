@@ -5,6 +5,8 @@ use std;
 use fnv::FnvHasher;
 use std::hash::{Hash, Hasher};
 
+const TINY: usize =  4;
+
 /// Trait for any type that can be converted to a `usize`.  This could
 /// actually be a hash function, but we will assume that it is *fast*,
 /// so I'm not calling it `Hash`.
@@ -69,14 +71,6 @@ impl<T: HasInvalid> Data<T> {
         }
         v
     }
-    fn len(&self) -> usize {
-        match self {
-            &Data::Sm(_,_) => {
-                Data::<T>::cutoff()
-            },
-            &Data::V(_,ref v) => v.len(),
-        }
-    }
     fn sl(&self) -> &[T] {
         match self {
             &Data::Sm(_,ref v) => {
@@ -109,23 +103,33 @@ impl<T: HasInvalid> Data<T> {
             &mut Data::V(_,ref mut v) => v,
         }
     }
+    fn sz_mu(&mut self) -> (&mut u32, &mut [T]) {
+        match self {
+            &mut Data::Sm(ref mut sz,ref mut v) => {
+                let num = Data::<T>::cutoff();
+                (sz, match num {
+                    1 => unsafe { std::mem::transmute::<&mut [usize;2],&mut [T;1]>(v) },
+                    2 => unsafe { std::mem::transmute::<&mut [usize;2],&mut [T;2]>(v) },
+                    4 => unsafe { std::mem::transmute::<&mut [usize;2],&mut [T;4]>(v) },
+                    8 => unsafe { std::mem::transmute::<&mut [usize;2],&mut [T;8]>(v) },
+                    16 => unsafe { std::mem::transmute::<&mut [usize;2],&mut [T;16]>(v) },
+                    _ => unreachable!(),
+                })
+            },
+            &mut Data::V(ref mut sz,ref mut v) => (sz, v),
+        }
+    }
 }
 
 fn capacity_to_rawcapacity(cap: usize) -> usize {
     if cap <= 4 {
         cap.next_power_of_two()
     } else {
-        (cap*22/10).next_power_of_two()
+        (cap*12/10).next_power_of_two()
     }
 }
 
 impl<T: HasInvalid> TinySet<T> {
-    fn mut_sz(&mut self) -> &mut u32 {
-        match &mut self.v {
-            &mut Data::Sm(ref mut sz,_) => sz,
-            &mut Data::V(ref mut sz,_) => sz,
-        }
-    }
     /// Creates an empty set..
     pub fn default() -> TinySet<T> {
         TinySet::with_capacity(0)
@@ -179,24 +183,45 @@ impl<T: HasInvalid> TinySet<T> {
         self.insert_unchecked(elem)
     }
     fn insert_unchecked(&mut self, mut elem: T) -> bool {
-        match self.search(elem) {
+        let len = self.len();
+        let (sz, v) = self.v.sz_mu();
+        if TINY >= Data::<T>::cutoff() && v.len() <= TINY {
+            for &x in v.iter().take(len) {
+                if x == elem {
+                    return false;
+                }
+            }
+            v[len] = elem;
+            *sz += 1;
+            return true
+        }
+        match search(v, elem) {
             SearchResult::Present(_) => false,
             SearchResult::Empty(i) => {
-                self.v.mu()[i] = elem;
-                *self.mut_sz() += 1;
+                v[i] = elem;
+                *sz += 1;
                 true
             },
             SearchResult::Richer(i) => {
-                std::mem::swap(&mut elem, &mut self.v.mu()[i]);
-                self.steal(i, elem);
-                *self.mut_sz() += 1;
+                std::mem::swap(&mut elem, &mut v[i]);
+                steal(v, i, elem);
+                *sz += 1;
                 true
             },
         }
     }
     /// Returns true if the set contains a value.
     pub fn contains(&self, value: &T) -> bool {
-        match self.search(*value) {
+        let v = self.v.sl();
+        if TINY >= Data::<T>::cutoff() && v.len() <= TINY {
+            for &x in v.iter().take(self.len()) {
+                if x == *value {
+                    return true;
+                }
+            }
+            return false
+        }
+        match search(v, *value) {
             SearchResult::Present(_) => true,
             SearchResult::Empty(_) => false,
             SearchResult::Richer(_) => false,
@@ -204,10 +229,28 @@ impl<T: HasInvalid> TinySet<T> {
     }
     /// Removes an element, and returns true if that element was present.
     pub fn remove(&mut self, value: &T) -> bool {
-        match self.search(*value) {
+        let len = self.len();
+        let (sz, v) = self.v.sz_mu();
+        if TINY >= Data::<T>::cutoff() && v.len() <= TINY {
+            let mut i = None;
+            for (j, &x) in v.iter().enumerate().take(len) {
+                if x == *value {
+                    i = Some(j);
+                    break;
+                }
+            }
+            return if let Some(i) = i {
+                v[i] = v[len-1];
+                v[len-1] = T::invalid();
+                *sz -= 1;
+                true
+            } else {
+                false
+            };
+        }
+        match search(v, *value) {
             SearchResult::Present(mut i) => {
-                *self.mut_sz() -= 1;
-                let mut v = self.v.mu();
+                *sz -= 1;
                 let mask = v.len() - 1;
                 let invalid = T::invalid();
                 loop {
@@ -224,67 +267,6 @@ impl<T: HasInvalid> TinySet<T> {
             },
             SearchResult::Empty(_) => false,
             SearchResult::Richer(_) => false,
-        }
-    }
-    fn steal(&mut self, mut i: usize, mut elem: T) {
-        loop {
-            match self.search_from(i, elem) {
-                SearchResult::Present(_) => return,
-                SearchResult::Empty(i) => {
-                    self.v.mu()[i] = elem;
-                    return;
-                },
-                SearchResult::Richer(inew) => {
-                    std::mem::swap(&mut elem, &mut self.v.mu()[inew]);
-                    i = inew;
-                },
-        }
-        }
-    }
-    fn search(&self, elem: T) -> SearchResult {
-        let h = elem.hash_usize();
-        let invalid = T::invalid();
-        let mut dist = 0;
-        let v = self.v.sl();
-        let mask = v.len() - 1;
-        loop {
-            let i = h+dist & mask;
-            if v[i] == invalid {
-                return SearchResult::Empty(i);
-            } else if v[i] == elem {
-                return SearchResult::Present(i);
-            }
-            // the following is a bit contorted, to compute distance
-            // when wrapped.
-            let his_dist = i.wrapping_sub(v[i].hash_usize()) & mask;
-            if his_dist < dist {
-                return SearchResult::Richer(i);
-            }
-            dist += 1;
-            assert!(dist <= v.len());
-        }
-    }
-    fn search_from(&self, i_start: usize, elem: T) -> SearchResult {
-        let h = elem.hash_usize();
-        let mask = self.v.len() - 1;
-        let invalid = T::invalid();
-        let mut dist = i_start.wrapping_sub(h) & mask;
-        let v = self.v.sl();
-        loop {
-            let i = h+dist & mask;
-            if v[i] == invalid {
-                return SearchResult::Empty(i);
-            } else if v[i] == elem {
-                return SearchResult::Present(i);
-            }
-            // the following is a bit contorted, to compute distance
-            // when wrapped.
-            let his_dist = i.wrapping_sub(v[i].hash_usize()) & mask;
-            if his_dist < dist {
-                return SearchResult::Richer(i);
-            }
-            dist += 1;
-            assert!(dist <= v.len());
         }
     }
     /// Returns an iterator over the set.
@@ -547,3 +529,64 @@ mod tests {
     }
 }
 
+fn search<T: HasInvalid>(v: &[T], elem: T) -> SearchResult {
+    let h = elem.hash_usize();
+    let invalid = T::invalid();
+    let mut dist = 0;
+    let mask = v.len() - 1;
+    loop {
+        let i = h+dist & mask;
+        if v[i] == invalid {
+            return SearchResult::Empty(i);
+        } else if v[i] == elem {
+            return SearchResult::Present(i);
+        }
+        // the following is a bit contorted, to compute distance
+        // when wrapped.
+        let his_dist = i.wrapping_sub(v[i].hash_usize()) & mask;
+        if his_dist < dist {
+            return SearchResult::Richer(i);
+        }
+        dist += 1;
+        assert!(dist <= v.len());
+    }
+}
+
+fn search_from<T: HasInvalid>(v: &[T], i_start: usize, elem: T) -> SearchResult {
+    let h = elem.hash_usize();
+    let mask = v.len() - 1;
+    let invalid = T::invalid();
+    let mut dist = i_start.wrapping_sub(h) & mask;
+    loop {
+        let i = h+dist & mask;
+        if v[i] == invalid {
+            return SearchResult::Empty(i);
+        } else if v[i] == elem {
+            return SearchResult::Present(i);
+        }
+        // the following is a bit contorted, to compute distance
+        // when wrapped.
+        let his_dist = i.wrapping_sub(v[i].hash_usize()) & mask;
+        if his_dist < dist {
+            return SearchResult::Richer(i);
+        }
+        dist += 1;
+        assert!(dist <= v.len());
+    }
+}
+
+fn steal<T: HasInvalid>(v: &mut [T], mut i: usize, mut elem: T) {
+    loop {
+        match search_from(v, i, elem) {
+            SearchResult::Present(_) => return,
+            SearchResult::Empty(i) => {
+                v[i] = elem;
+                return;
+            },
+            SearchResult::Richer(inew) => {
+                std::mem::swap(&mut elem, &mut v[inew]);
+                i = inew;
+            },
+        }
+    }
+}
