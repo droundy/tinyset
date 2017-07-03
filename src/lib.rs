@@ -50,6 +50,8 @@ pub use set::*;
 pub mod tinyset;
 pub use tinyset::*;
 
+pub mod usizeset;
+
 #[cfg(test)]
 extern crate rand;
 
