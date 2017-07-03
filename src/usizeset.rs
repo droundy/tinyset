@@ -424,12 +424,12 @@ mod tests {
     }
 
     #[test]
-    fn random_inserts_and_removals_u8() {
+    fn random_inserts_and_removals() {
         for sz in 0..50 {
             println!("\nUSizeSet {}\n", sz);
-            let myset = initialize!(USizeSet, u8, sz);
+            let myset = initialize!(USizeSet, usize, sz);
             println!("\nHashSet {}\n", sz);
-            let refset = initialize!(HashSet, u8, sz);
+            let refset = initialize!(HashSet, usize, sz);
             for i in 0..255 {
                 assert_eq!(myset.contains(&i), refset.contains(&i));
             }
@@ -437,23 +437,10 @@ mod tests {
     }
 
     #[test]
-    fn random_inserts_and_removals_u16() {
-        for sz in 0..20 {
-            println!("\nUSizeSet {}\n", sz);
-            let myset = initialize!(USizeSet, u16, sz);
-            println!("\nHashSet {}\n", sz);
-            let refset = initialize!(HashSet, u16, sz);
-            for i in 0..50 {
-                assert_eq!(myset.contains(&i), refset.contains(&i));
-            }
-        }
-    }
-
-    #[test]
-    fn test_matches_u8() {
-        let mut steps: Vec<Result<u8,u8>> = vec![Err(8), Ok(0), Ok(16), Ok(1), Ok(8)];
-        let mut set = USizeSet::<u8>::new();
-        let mut refset = HashSet::<u8>::new();
+    fn test_matches() {
+        let mut steps: Vec<Result<usize,usize>> = vec![Err(8), Ok(0), Ok(16), Ok(1), Ok(8)];
+        let mut set = USizeSet::new();
+        let mut refset = HashSet::<usize>::new();
         loop {
             match steps.pop() {
                 Some(Ok(v)) => {
@@ -480,31 +467,7 @@ mod tests {
 
     #[cfg(test)]
     quickcheck! {
-        fn prop_matches_u8(steps: Vec<Result<u8,u8>>) -> bool {
-            let mut steps = steps;
-            let mut set = USizeSet::<u8>::new();
-            let mut refset = HashSet::<u8>::new();
-            loop {
-                match steps.pop() {
-                    Some(Ok(v)) => {
-                        set.insert(v); refset.insert(v);
-                    },
-                    Some(Err(v)) => {
-                        set.remove(&v); refset.remove(&v);
-                    },
-                    None => return true,
-                }
-                if set.len() != refset.len() { return false; }
-                for i in 0..255 {
-                    if set.contains(&i) != refset.contains(&i) { return false; }
-                }
-            }
-        }
-    }
-
-    #[cfg(test)]
-    quickcheck! {
-        fn prop_matches_usize(steps: Vec<Result<usize,usize>>) -> bool {
+        fn prop_matches(steps: Vec<Result<usize,usize>>) -> bool {
             let mut steps = steps;
             let mut set = USizeSet::new();
             let mut refset = HashSet::<usize>::new();
