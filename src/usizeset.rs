@@ -21,28 +21,31 @@ pub struct USizeSet {
     v: Data,
 }
 
+const NUM_U8: usize = 22;
+const NUM_U16: usize = 10;
+
 #[derive(Debug, Clone)]
 enum Data {
-    Su8(u8, [u8; 22]),
+    Su8(u8, [u8; NUM_U8]),
     Vu8(u8, Box<[u8]>),
-    Su16(u16, [u16; 11]),
+    Su16(u16, [u16; NUM_U16]),
     Vu16(u16, Box<[u16]>),
 }
 impl Data {
     fn new() -> Data {
-        Data::Su8(0, [u8::invalid(); 22])
+        Data::Su8(0, [u8::invalid(); NUM_U8])
     }
     fn with_max_cap(max: usize, cap: usize) -> Data {
         if max < u8::invalid() as usize {
-            if cap <= 22 {
-                Data::Su8(0, [u8::invalid(); 22])
+            if cap <= NUM_U8 {
+                Data::Su8(0, [u8::invalid(); NUM_U8])
             } else {
                 Data::Vu8(0, vec![u8::invalid(); (cap*11/10).next_power_of_two()]
                           .into_boxed_slice())
             }
         } else if max < u16::invalid() as usize {
-            if cap <= 11 {
-                Data::Su16(0, [u16::invalid(); 11])
+            if cap <= NUM_U16 {
+                Data::Su16(0, [u16::invalid(); NUM_U16])
             } else {
                 Data::Vu16(0, vec![u16::invalid(); (cap*11/10).next_power_of_two()]
                            .into_boxed_slice())
@@ -69,7 +72,7 @@ impl USizeSet {
     /// Creates an empty set with the specified capacity.
     pub fn with_capacity(cap: usize) -> USizeSet {
         let nextcap = capacity_to_rawcapacity(cap);
-        if cap <= 22 {
+        if cap <= NUM_U8 {
             USizeSet { v: Data::new() }
         } else if cap < u8::invalid() as usize {
             USizeSet { v: Data::Vu8( 0, vec![u8::invalid(); nextcap].into_boxed_slice()) }
@@ -97,7 +100,7 @@ impl USizeSet {
     /// to avoid frequent reallocations.
     pub fn reserve(&mut self, additional: usize) {
         match self.v {
-            Data::Su8(sz, v) if sz as usize + additional > 22 => {
+            Data::Su8(sz, v) if sz as usize + additional > NUM_U8 => {
                 self.v = Data::Vu8(0, vec![u8::invalid();
                                            ((sz as usize+additional)*11/10).next_power_of_two()]
                                    .into_boxed_slice());
@@ -122,7 +125,7 @@ impl USizeSet {
                 }
                 *self = n;
             },
-            Data::Su8(sz, v) if sz as usize + additional > 22 => {
+            Data::Su8(sz, v) if sz as usize + additional > NUM_U8 => {
                 self.v = Data::Vu8(0, vec![u8::invalid();
                                            ((sz as usize+additional)*11/10).next_power_of_two()]
                                    .into_boxed_slice());
@@ -131,7 +134,37 @@ impl USizeSet {
                 }
             },
             Data::Su8(_,_) => (),
-            _ => unimplemented!(),
+            Data::Vu8(sz, ref mut v) if sz as usize + additional > v.len()*10/11 => {
+                let newcap = ((sz as usize+additional)*11/10).next_power_of_two();
+                let oldv = std::mem::replace(v, vec![u8::invalid(); newcap]
+                                             .into_boxed_slice());
+                for &x in oldv.iter() {
+                    if x != u8::invalid() {
+                        let mut value = x;
+                        match search(v, value) {
+                            SearchResult::Present(_) => (),
+                            SearchResult::Empty(i) => { v[i] = value; },
+                            SearchResult::Richer(i) => {
+                                std::mem::swap(&mut v[i], &mut value);
+                                steal(v, i, value);
+                            },
+                        }
+                    }
+                }
+            },
+            Data::Vu8(_,_) => (),
+            Data::Su16(_,_) => {
+                println!("Su16 reserve_with_max({}, {})", max, additional);
+                unimplemented!()
+            },
+            Data::Vu16(_,_) => {
+                println!("Vu16 reserve_with_max({}, {})", max, additional);
+                unimplemented!()
+            },
+            _ => {
+                println!("reserve_with_max({}, {})", max, additional);
+                unimplemented!()
+            },
         }
     }
     fn max_and_cap(&self) -> (usize, usize) {
@@ -140,6 +173,14 @@ impl USizeSet {
             Data::Vu8(_, ref v) => (u8::invalid() as usize - 1, v.len()*10/11),
             Data::Su16(_, ref v) => (u8::invalid() as usize - 1, v.len()),
             Data::Vu16(_, ref v) => (u8::invalid() as usize - 1, v.len()*10/11),
+        }
+    }
+    fn capacity(&self) -> usize {
+        match self.v {
+            Data::Su8(_, ref v) => v.len(),
+            Data::Vu8(_, ref v) => v.len()*10/11,
+            Data::Su16(_, ref v) => v.len(),
+            Data::Vu16(_, ref v) => v.len()*10/11,
         }
     }
     /// Adds a value to the set.
@@ -267,13 +308,24 @@ impl USizeSet {
             _ => unimplemented!(),
         }
     }
-    // /// Returns an iterator over the set.
-    // pub fn iter(&self) -> Iter {
-    //     Iter {
-    //         slice: self.v.sl(),
-    //         nleft: self.len(),
-    //     }
-    // }
+    /// Returns an iterator over the set.
+    pub fn iter(&self) -> Iter {
+        match self.v {
+            Data::Su8(sz, ref v) => {
+                Iter::U8 {
+                    slice: &v[0..sz as usize],
+                    nleft: sz as usize,
+                }
+            },
+            Data::Vu8(sz, ref v) => {
+                Iter::U8 {
+                    slice: v,
+                    nleft: sz as usize,
+                }
+            },
+            _ => unimplemented!(),
+        }
+    }
     // /// Clears the set, returning all elements in an iterator.
     // pub fn drain(&mut self) -> IntoIter {
     //     let set = std::mem::replace(self, USizeSet::new());
@@ -282,32 +334,44 @@ impl USizeSet {
     // }
 }
 
-// /// An iterator for `USizeSet`.
-// pub struct Iter<'a> {
-//     slice: &'a [usize],
-//     nleft: usize,
-// }
+/// An iterator for `USizeSet`.
+pub enum Iter<'a> {
+    /// this really should be private
+    U8 {
+        /// this really should be private
+        slice: &'a [u8],
+        /// this really should be private
+        nleft: usize,
+    },
+}
 
-// impl<'a, T: 'a+HasInvalid> Iterator for Iter<'a, T> {
-//     type Item = &'a T;
-//     fn next(&mut self) -> Option<&'a T> {
-//         if self.nleft == 0 {
-//             None
-//         } else {
-//             assert!(self.slice.len() >= self.nleft as usize);
-//             while self.slice[0] == T::invalid() {
-//                 self.slice = self.slice.split_first().unwrap().1;
-//             }
-//             let val = &self.slice[0];
-//             self.slice = self.slice.split_first().unwrap().1;
-//             self.nleft -= 1;
-//             Some(val)
-//         }
-//     }
-//     fn size_hint(&self) -> (usize, Option<usize>) {
-//         (self.nleft, Some(self.nleft))
-//     }
-// }
+impl<'a> Iterator for Iter<'a> {
+    type Item = usize;
+    fn next(&mut self) -> Option<usize> {
+        match self {
+            &mut Iter::U8{ref mut slice, ref mut nleft} => {
+                if *nleft == 0 {
+                    None
+                } else {
+                    assert!(slice.len() >= *nleft);
+                    while slice[0] == u8::invalid() {
+                        *slice = slice.split_first().unwrap().1;
+                    }
+                    let val = slice[0];
+                    *slice = slice.split_first().unwrap().1;
+                    *nleft -= 1;
+                    Some(val as usize)
+                }
+            },
+        }
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match self {
+            &Iter::U8{slice: _, nleft} => (nleft, Some(nleft)),
+            _ => unimplemented!(),
+        }
+    }
+}
 
 // impl IntoIterator for &USizeSet {
 //     type Item = &T;
@@ -354,7 +418,7 @@ mod tests {
     use rand::{XorShiftRng, SeedableRng, Rand};
     #[test]
     fn it_works() {
-        let mut ss: USizeSet<usize> = USizeSet::new();
+        let mut ss = USizeSet::new();
         println!("inserting 5");
         ss.insert(5);
         println!("contains 5");
@@ -369,7 +433,7 @@ mod tests {
         assert_eq!(ss.len(), 2);
         for num in ss.iter() {
             println!("num is {}", num);
-            assert!(ss.contains(num));
+            assert!(ss.contains(&num));
         }
         assert!(!ss.remove(&2));
         assert!(ss.remove(&3));
@@ -378,63 +442,63 @@ mod tests {
     }
     #[test]
     fn size_unwasted() {
-        println!("small size: {}", std::mem::size_of::<USizeSet<usize>>());
+        println!("small size: {}", std::mem::size_of::<USizeSet>());
         println!(" hash size: {}", std::mem::size_of::<HashSet<usize>>());
         assert!(std::mem::size_of::<USizeSet>() <=
                 2*std::mem::size_of::<HashSet<usize>>());
         assert!(std::mem::size_of::<USizeSet>() <= 24);
     }
 
-    macro_rules! initialize {
-        ($set: ident, $item: ident, $num: expr) => {{
-            let mut rng = XorShiftRng::from_seed([$num as u32,$num as u32,3,4]);
-            let mut set = $set::<$item>::new();
-            let mut refset = HashSet::<$item>::new();
-            if $num > 0 {
-                while set.len() < $num {
-                    let ins = $item::rand(&mut rng) % (2*$num as $item);
-                    let rem = $item::rand(&mut rng) % (2*$num as $item);
-                    set.insert(ins);
-                    if !set.contains(&ins) {
-                        println!("oops insert");
-                    }
-                    set.remove(&rem);
-                    if set.contains(&rem) {
-                        println!("oops remove");
-                    }
-                    refset.insert(ins);
-                    refset.remove(&rem);
-                    println!("inserting {}, removing {} => {}", ins, rem, set.len());
-                    println!("set: {:?}", set);
-                    println!("refset: {:?}", refset);
-                    let mut fails = false;
-                    for i in 0..255 {
-                        fails = fails || set.contains(&i) != refset.contains(&i);
-                    }
-                    if fails {
-                        for i in 0..255 {
-                            println!("i {}", i);
-                            assert_eq!(set.contains(&i), refset.contains(&i));
-                        }
-                    }
-                }
-            }
-            set
-        }};
-    }
+    // macro_rules! initialize {
+    //     ($set: expr, $item: ident, $num: expr) => {{
+    //         let mut rng = XorShiftRng::from_seed([$num as u32,$num as u32,3,4]);
+    //         let mut set = $set;
+    //         let mut refset = HashSet::<$item>::new();
+    //         if $num > 0 {
+    //             while set.len() < $num {
+    //                 let ins = $item::rand(&mut rng) % (2*$num as $item);
+    //                 let rem = $item::rand(&mut rng) % (2*$num as $item);
+    //                 set.insert(ins);
+    //                 if !set.contains(&ins) {
+    //                     println!("oops insert");
+    //                 }
+    //                 set.remove(&rem);
+    //                 if set.contains(&rem) {
+    //                     println!("oops remove");
+    //                 }
+    //                 refset.insert(ins);
+    //                 refset.remove(&rem);
+    //                 println!("inserting {}, removing {} => {}", ins, rem, set.len());
+    //                 println!("set: {:?}", set);
+    //                 println!("refset: {:?}", refset);
+    //                 let mut fails = false;
+    //                 for i in 0..255 {
+    //                     fails = fails || set.contains(&i) != refset.contains(&i);
+    //                 }
+    //                 if fails {
+    //                     for i in 0..255 {
+    //                         println!("i {}", i);
+    //                         assert_eq!(set.contains(&i), refset.contains(&i));
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //         set
+    //     }};
+    // }
 
-    #[test]
-    fn random_inserts_and_removals() {
-        for sz in 0..50 {
-            println!("\nUSizeSet {}\n", sz);
-            let myset = initialize!(USizeSet, usize, sz);
-            println!("\nHashSet {}\n", sz);
-            let refset = initialize!(HashSet, usize, sz);
-            for i in 0..255 {
-                assert_eq!(myset.contains(&i), refset.contains(&i));
-            }
-        }
-    }
+    // #[test]
+    // fn random_inserts_and_removals() {
+    //     for sz in 0..50 {
+    //         println!("\nUSizeSet {}\n", sz);
+    //         let myset = initialize!(USizeSet::new(), usize, sz);
+    //         println!("\nHashSet {}\n", sz);
+    //         let refset = initialize!(HashSet::<usize>::new(), usize, sz);
+    //         for i in 0..255 {
+    //             assert_eq!(myset.contains(&i), refset.contains(&i));
+    //         }
+    //     }
+    // }
 
     #[test]
     fn test_matches() {
