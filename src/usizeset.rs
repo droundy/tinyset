@@ -118,7 +118,7 @@ impl USizeSet {
     /// reallocations.
     pub fn reserve_with_max(&mut self, max: usize, additional: usize) {
         match self.v {
-            Data::Su8(sz, v) if max >= 255 => {
+            Data::Su8(sz, v) if max >= u8::invalid() as usize => {
                 let mut n = Self::with_max_and_capacity(max, sz as usize + additional);
                 for i in 0..sz as usize {
                     n.insert_unchecked(v[i] as usize);
@@ -134,6 +134,22 @@ impl USizeSet {
                 }
             },
             Data::Su8(_,_) => (),
+            Data::Su16(sz, v) if max >= u16::invalid() as usize => {
+                let mut n = Self::with_max_and_capacity(max, sz as usize + additional);
+                for i in 0..sz as usize {
+                    n.insert_unchecked(v[i] as usize);
+                }
+                *self = n;
+            },
+            Data::Su16(sz, v) if sz as usize + additional > NUM_U16 => {
+                self.v = Data::Vu16(0, vec![u16::invalid();
+                                            ((sz as usize+additional)*11/10).next_power_of_two()]
+                                    .into_boxed_slice());
+                for i in 0..sz as usize {
+                    self.insert_unchecked(v[i] as usize);
+                }
+            },
+            Data::Su16(_,_) => (),
             Data::Vu8(sz, ref mut v) if sz as usize + additional > v.len()*10/11 => {
                 let newcap = ((sz as usize+additional)*11/10).next_power_of_two();
                 let oldv = std::mem::replace(v, vec![u8::invalid(); newcap]
@@ -153,10 +169,6 @@ impl USizeSet {
                 }
             },
             Data::Vu8(_,_) => (),
-            Data::Su16(_,_) => {
-                println!("Su16 reserve_with_max({}, {})", max, additional);
-                unimplemented!()
-            },
             Data::Vu16(_,_) => {
                 println!("Vu16 reserve_with_max({}, {})", max, additional);
                 unimplemented!()
@@ -222,6 +234,17 @@ impl USizeSet {
                     },
                 }
             },
+            Data::Su16(ref mut sz, ref mut v) => {
+                let value = value as u16;
+                for &x in v.iter().take(*sz as usize) {
+                    if x == value {
+                        return false;
+                    }
+                }
+                v[*sz as usize] = value;
+                *sz += 1;
+                true
+            },
             _ => unimplemented!(),
         }
     }
@@ -241,6 +264,18 @@ impl USizeSet {
                 }
                 false
             },
+            Data::Su16(sz, ref v) => {
+                if value >= u16::invalid() as usize {
+                    return false;
+                }
+                let value = value as u16;
+                for &x in v.iter().take(sz as usize) {
+                    if x == value {
+                        return true;
+                    }
+                }
+                false
+            },
             Data::Vu8(_, ref v) => {
                 if value >= u8::invalid() as usize {
                     return false;
@@ -252,7 +287,10 @@ impl USizeSet {
                     SearchResult::Richer(_) => false,
                 }
             },
-            _ => unimplemented!(),
+            ref data => {
+                println!("error contains {:?}", data);
+                unimplemented!()
+            },
         }
     }
     /// Removes an element, and returns true if that element was present.
@@ -641,3 +679,4 @@ fn steal<T: HasInvalid>(v: &mut [T], mut i: usize, mut elem: T) {
         }
     }
 }
+
