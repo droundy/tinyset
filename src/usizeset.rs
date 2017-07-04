@@ -552,6 +552,32 @@ mod tests {
             }
         }
     }
+
+    #[cfg(test)]
+    quickcheck! {
+        fn prop_bigint(steps: Vec<Result<(usize,u8),(usize,u8)>>) -> bool {
+            let mut steps = steps;
+            let mut set = USizeSet::new();
+            let mut refset = HashSet::<usize>::new();
+            loop {
+                match steps.pop() {
+                    Some(Ok((v,shift))) => {
+                        let v = v << (shift & 31);
+                        set.insert(v); refset.insert(v);
+                    },
+                    Some(Err((v,shift))) => {
+                        let v = v << (shift & 31);
+                        set.remove(&v); refset.remove(&v);
+                    },
+                    None => return true,
+                }
+                if set.len() != refset.len() { return false; }
+                for i in 0..2550 {
+                    if set.contains(&i) != refset.contains(&i) { return false; }
+                }
+            }
+        }
+    }
 }
 
 fn search<T: HasInvalid>(v: &[T], elem: T) -> SearchResult {
