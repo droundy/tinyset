@@ -342,7 +342,6 @@ impl USizeSet {
         self.insert_unchecked(elem)
     }
     fn insert_unchecked(&mut self, value: usize) -> bool {
-        println!("adding {} to {:?}", value, self);
         match self.v {
             Data::Su8(ref mut sz, ref mut v) => {
                 let value = value as u8;
@@ -426,17 +425,14 @@ impl USizeSet {
                 let mut value = value as u32;
                 match search(v, value) {
                     SearchResult::Present(_) => {
-                        println!("   already present: {}", value);
                         false
                     },
                     SearchResult::Empty(i) => {
-                        println!("   adding: {} at {}", value, i);
                         v[i] = value;
                         *sz += 1;
                         true
                     },
                     SearchResult::Richer(i) => {
-                        println!("   adding: {} at {} and bumping richer", value, i);
                         *sz += 1;
                         std::mem::swap(&mut v[i], &mut value);
                         steal(v, i, value);

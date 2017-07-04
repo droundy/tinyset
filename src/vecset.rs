@@ -1,3 +1,5 @@
+//! This module is only for comparison in benchmarking, not for actual use.
+
 use std;
 use std::hash::Hash;
 use std::borrow::Borrow;
@@ -62,6 +64,7 @@ impl<T: Eq> VecSet<T> {
     }
 }
 
+/// iterator
 pub struct Iter<'a,T: 'a>(std::slice::Iter<'a,T>);
 impl<'a, T: 'a+Eq> Iterator for Iter<'a, T> {
     type Item = &'a T;
