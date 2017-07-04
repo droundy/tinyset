@@ -776,12 +776,91 @@ impl U64Set {
             },
         }
     }
-    // /// Clears the set, returning all elements in an iterator.
-    // pub fn drain(&mut self) -> IntoIter {
-    //     let set = std::mem::replace(self, U64Set::new());
-    //     let sz = set.len();
-    //     IntoIter { set: set, nleft: sz }
-    // }
+    /// Clears the set, returning all elements in an iterator.
+    pub fn drain(&mut self) -> Drain {
+        match self.v {
+            Data::Su8(ref mut sz, ref mut v) => {
+                let oldv = std::mem::replace(v, [u8::invalid(); NUM_U8]);
+                let oldsz = std::mem::replace(sz, 0) as usize;
+                let oldv = Vec::from(&oldv[0..oldsz]);
+                Drain::U8 {
+                    slice: oldv,
+                    nleft: oldsz,
+                }
+            },
+            Data::Vu8(ref mut sz, ref mut v) => {
+                let len = v.len();
+                let oldv = std::mem::replace(v,
+                                             vec![u8::invalid(); len].into_boxed_slice());
+                let oldsz = std::mem::replace(sz, 0) as usize;
+                let oldv = Vec::from(oldv);
+                Drain::U8 {
+                    slice: oldv,
+                    nleft: oldsz,
+                }
+            },
+            Data::Su16(ref mut sz, ref mut v) => {
+                let oldv = std::mem::replace(v, [u16::invalid(); NUM_U16]);
+                let oldsz = std::mem::replace(sz, 0) as usize;
+                let oldv = Vec::from(&oldv[0..oldsz]);
+                Drain::U16 {
+                    slice: oldv,
+                    nleft: oldsz,
+                }
+            },
+            Data::Vu16(ref mut sz, ref mut v) => {
+                let len = v.len();
+                let oldv = std::mem::replace(v,
+                                             vec![u16::invalid(); len].into_boxed_slice());
+                let oldsz = std::mem::replace(sz, 0) as usize;
+                let oldv = Vec::from(oldv);
+                Drain::U16 {
+                    slice: oldv,
+                    nleft: oldsz,
+                }
+            },
+            Data::Su32(ref mut sz, ref mut v) => {
+                let oldv = std::mem::replace(v, [u32::invalid(); NUM_U32]);
+                let oldsz = std::mem::replace(sz, 0) as usize;
+                let oldv = Vec::from(&oldv[0..oldsz]);
+                Drain::U32 {
+                    slice: oldv,
+                    nleft: oldsz,
+                }
+            },
+            Data::Vu32(ref mut sz, ref mut v) => {
+                let len = v.len();
+                let oldv = std::mem::replace(v,
+                                             vec![u32::invalid(); len].into_boxed_slice());
+                let oldsz = std::mem::replace(sz, 0) as usize;
+                let oldv = Vec::from(oldv);
+                Drain::U32 {
+                    slice: oldv,
+                    nleft: oldsz,
+                }
+            },
+            Data::Su64(ref mut sz, ref mut v) => {
+                let oldv = std::mem::replace(v, [u64::invalid(); NUM_U64]);
+                let oldsz = std::mem::replace(sz, 0) as usize;
+                let oldv = Vec::from(&oldv[0..oldsz]);
+                Drain::U64 {
+                    slice: oldv,
+                    nleft: oldsz,
+                }
+            },
+            Data::Vu64(ref mut sz, ref mut v) => {
+                let len = v.len();
+                let oldv = std::mem::replace(v,
+                                             vec![u64::invalid(); len].into_boxed_slice());
+                let oldsz = std::mem::replace(sz, 0) as usize;
+                let oldv = Vec::from(oldv);
+                Drain::U64 {
+                    slice: oldv,
+                    nleft: oldsz,
+                }
+            },
+        }
+    }
 }
 
 /// An iterator for `U64Set`.
@@ -811,6 +890,37 @@ pub enum Iter<'a> {
     U64 {
         /// this really should be private
         slice: &'a [u64],
+        /// this really should be private
+        nleft: usize,
+    },
+}
+/// A draining iterator for `U64Set`.
+pub enum Drain {
+    /// this really should be private
+    U8 {
+        /// this really should be private
+        slice: Vec<u8>,
+        /// this really should be private
+        nleft: usize,
+    },
+    /// this really should be private
+    U16 {
+        /// this really should be private
+        slice: Vec<u16>,
+        /// this really should be private
+        nleft: usize,
+    },
+    /// this really should be private
+    U32 {
+        /// this really should be private
+        slice: Vec<u32>,
+        /// this really should be private
+        nleft: usize,
+    },
+    /// this really should be private
+    U64 {
+        /// this really should be private
+        slice: Vec<u64>,
         /// this really should be private
         nleft: usize,
     },
@@ -888,43 +998,73 @@ impl<'a> Iterator for Iter<'a> {
     }
 }
 
-// impl IntoIterator for &U64Set {
-//     type Item = &T;
-//     type IntoIter = Iter;
-
-//     fn into_iter(self) -> Iter {
-//         self.iter()
-//     }
-// }
-
-// /// An iterator for `U64Set`.
-// pub struct IntoIter {
-//     set: U64Set,
-//     nleft: usize,
-// }
-
-// impl Iterator for IntoIter {
-//     type Item = usize;
-//     fn next(&mut self) -> Option<&usize> {
-//         if self.nleft == 0 {
-//             None
-//         } else {
-//             self.nleft -= 1;
-//             let mut i = self.nleft;
-//             loop {
-//                 let val = std::mem::replace(&mut self.set.v.mu()[i], T::invalid());
-//                 if val != T::invalid() {
-//                     return Some(val);
-//                 }
-//                 i -= 1;
-//             }
-//         }
-//     }
-//     fn size_hint(&self) -> (usize, Option<usize>) {
-//         (self.nleft, Some(self.nleft))
-//     }
-// }
-
+impl Iterator for Drain {
+    type Item = u64;
+    fn next(&mut self) -> Option<u64> {
+        match self {
+            &mut Drain::U8{ref mut slice, ref mut nleft} => {
+                if *nleft == 0 {
+                    None
+                } else {
+                    assert!(slice.len() >= *nleft);
+                    let mut val = slice.pop().unwrap();
+                    while val == u8::invalid() {
+                        val = slice.pop().unwrap();
+                    }
+                    *nleft -= 1;
+                    Some(val as u64)
+                }
+            },
+            &mut Drain::U16{ref mut slice, ref mut nleft} => {
+                if *nleft == 0 {
+                    None
+                } else {
+                    assert!(slice.len() >= *nleft);
+                    let mut val = slice.pop().unwrap();
+                    while val == u16::invalid() {
+                        val = slice.pop().unwrap();
+                    }
+                    *nleft -= 1;
+                    Some(val as u64)
+                }
+            },
+            &mut Drain::U32{ref mut slice, ref mut nleft} => {
+                if *nleft == 0 {
+                    None
+                } else {
+                    assert!(slice.len() >= *nleft);
+                    let mut val = slice.pop().unwrap();
+                    while val == u32::invalid() {
+                        val = slice.pop().unwrap();
+                    }
+                    *nleft -= 1;
+                    Some(val as u64)
+                }
+            },
+            &mut Drain::U64{ref mut slice, ref mut nleft} => {
+                if *nleft == 0 {
+                    None
+                } else {
+                    assert!(slice.len() >= *nleft);
+                    let mut val = slice.pop().unwrap();
+                    while val == u64::invalid() {
+                        val = slice.pop().unwrap();
+                    }
+                    *nleft -= 1;
+                    Some(val as u64)
+                }
+            },
+        }
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match self {
+            &Drain::U8{slice: _, nleft} => (nleft, Some(nleft)),
+            &Drain::U16{slice: _, nleft} => (nleft, Some(nleft)),
+            &Drain::U32{slice: _, nleft} => (nleft, Some(nleft)),
+            &Drain::U64{slice: _, nleft} => (nleft, Some(nleft)),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -1036,6 +1176,12 @@ mod tests {
                 for i in 0..2550 {
                     if set.contains(&i) != refset.contains(&i) { return false; }
                 }
+                for x in set.iter() {
+                    if !refset.contains(&x) { return false; }
+                }
+                for x in refset.iter() {
+                    if !set.contains(x) { return false; }
+                }
             }
         }
     }
@@ -1054,11 +1200,29 @@ mod tests {
                     Some(Err(v)) => {
                         set.remove(&v); refset.remove(&v);
                     },
-                    None => return true,
+                    None => {
+                        for x in set.drain() {
+                            if !refset.contains(&x) {
+                                println!("draining {} not in {:?}", x, &refset);
+                                return false;
+                            }
+                        }
+                        if set.len() != 0 {
+                            println!("len should be zero not {} {:?}", set.len(), &set);
+                            return false;
+                        }
+                        return true;
+                    },
                 }
                 if set.len() != refset.len() { return false; }
                 for i in 0..2550 {
                     if set.contains(&i) != refset.contains(&i) { return false; }
+                }
+                for x in set.iter() {
+                    if !refset.contains(&x) { return false; }
+                }
+                for x in refset.iter() {
+                    if !set.contains(x) { return false; }
                 }
             }
         }
@@ -1369,6 +1533,22 @@ impl<T: Fits64> Set64<T> {
     /// Iterate
     pub fn iter(&self) -> Iter64<T> {
         Iter64( self.0.iter(), PhantomData )
+    }
+    /// Drain
+    pub fn drain(&mut self) -> Drain64<T> {
+        Drain64( self.0.drain(), PhantomData )
+    }
+}
+
+/// A drainer.
+pub struct Drain64<T: Fits64>( Drain, PhantomData<T> );
+impl<T: Fits64> Iterator for Drain64<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<T> {
+        self.0.next().map(|x| unsafe { T::from_u64(x) })
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
     }
 }
 
