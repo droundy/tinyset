@@ -1366,4 +1366,21 @@ impl<T: Fits64> Set64<T> {
         let x = value.clone().to_u64();
         self.0.remove(&x)
     }
+    /// Iterate
+    pub fn iter(&self) -> Iter64<T> {
+        Iter64( self.0.iter(), PhantomData )
+    }
+}
+
+/// An iterator.
+pub struct Iter64<'a, T: Fits64>( Iter<'a>, PhantomData<T> );
+
+impl<'a, T: Fits64> Iterator for Iter64<'a, T> {
+    type Item = T;
+    fn next(&mut self) -> Option<T> {
+        self.0.next().map(|x| unsafe { T::from_u64(x) })
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
 }
