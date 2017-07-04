@@ -1143,6 +1143,62 @@ mod tests {
             }
         }
     }
+
+    #[cfg(test)]
+    quickcheck! {
+        fn fits64_i8(num: i8) -> bool {
+            num.test_fits64()
+        }
+    }
+
+    #[cfg(test)]
+    quickcheck! {
+        fn fits64_u8(num: u8) -> bool {
+            num.test_fits64()
+        }
+    }
+
+    #[cfg(test)]
+    quickcheck! {
+        fn fits64_i16(num: i16) -> bool {
+            num.test_fits64()
+        }
+    }
+
+    #[cfg(test)]
+    quickcheck! {
+        fn fits64_u16(num: u16) -> bool {
+            num.test_fits64()
+        }
+    }
+
+    #[cfg(test)]
+    quickcheck! {
+        fn fits32_i32(num: i32) -> bool {
+            num.test_fits64()
+        }
+    }
+
+    #[cfg(test)]
+    quickcheck! {
+        fn fits32_u32(num: u32) -> bool {
+            num.test_fits64()
+        }
+    }
+
+    #[cfg(test)]
+    quickcheck! {
+        fn fits64_i64(num: i64) -> bool {
+            num.test_fits64()
+        }
+    }
+
+    #[cfg(test)]
+    quickcheck! {
+        fn fits64_u64(num: u64) -> bool {
+            num.test_fits64()
+        }
+    }
 }
 
 fn search<T: HasInvalid>(v: &[T], elem: T) -> SearchResult {
@@ -1208,8 +1264,9 @@ fn steal<T: HasInvalid>(v: &mut [T], mut i: usize, mut elem: T) {
 }
 
 /// This describes a type which can be stored in 64 bits without loss.
-/// It is defined for all unsigned integer types.
-pub trait Fits64 : Clone {
+/// It is defined for all signed and unsigned integer types.  In both
+/// cases, we store "small" integers as "small" `u64`s.
+pub trait Fits64 : Clone + std::fmt::Debug {
     /// Convert back *from* a u64.  This is unsafe, since it is only
     /// infallible if the `u64` originally came from type `Self`.
     #[inline]
@@ -1217,6 +1274,15 @@ pub trait Fits64 : Clone {
     /// Convert to a `u64`.  This should be infallible.
     #[inline]
     fn to_u64(self) -> u64;
+    /// verify that the conversion is lossless
+    fn test_fits64(self) -> bool {
+        println!("\ntest_fits64 {:?}", &self);
+        let x = self.to_u64();
+        let y = unsafe { Self::from_u64(x).to_u64() };
+        println!("x: {}, and y: {}", x, y);
+        // assert_eq!(x, y);
+        x == y
+    }
 }
 
 macro_rules! define_fits {
@@ -1232,6 +1298,30 @@ define_fits!(u32);
 define_fits!(u16);
 define_fits!(u8);
 define_fits!(usize);
+macro_rules! define_ifits {
+    ($ty: ty, $uty: ty) => {
+        impl Fits64 for $ty {
+            unsafe fn from_u64(x: u64) -> Self {
+                let abs = (x >> 1) as $ty;
+                let neg = (x & 1) as $ty;
+                println!("x {} (abs is {} neg is {}) -> {}",
+                         x, abs, neg, abs*(neg*(-2)+1));
+                abs*(neg*(-2)+1)
+            }
+            fn to_u64(self) -> u64 {
+                let a = (self.abs() as u64) << 1;
+                let b = (self as $uty >> (8*std::mem::size_of::<Self>()-1)) as u64;
+                println!("self {} (a {} b {}) -> {}", self, a, b, a+b);
+                a + b
+            }
+        }
+    };
+}
+define_ifits!(i8, u8);
+define_ifits!(i16, u16);
+define_ifits!(i32, u32);
+define_ifits!(i64, u64);
+define_ifits!(isize, usize);
 
 /// A set type that can store any type that fits in a `u64`.
 #[derive(Debug, Clone)]
