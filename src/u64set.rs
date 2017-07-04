@@ -1384,3 +1384,12 @@ impl<'a, T: Fits64> Iterator for Iter64<'a, T> {
         self.0.size_hint()
     }
 }
+
+impl<'a, T: Fits64> IntoIterator for &'a Set64<T> {
+    type Item = T;
+    type IntoIter = Iter64<'a, T>;
+
+    fn into_iter(self) -> Iter64<'a, T> {
+        self.iter()
+    }
+}
