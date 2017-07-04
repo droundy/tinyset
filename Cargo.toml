@@ -1,6 +1,6 @@
 [package]
 name = "tinyset"
-version = "0.0.3"
+version = "0.0.4"
 authors = ["David Roundy <daveroundy@gmail.com>"]
 
 description = "Size-optimized  sets for Copy elements"

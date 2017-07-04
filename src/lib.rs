@@ -36,6 +36,13 @@
 //! s.insert(1);
 //! assert!(s.contains(&1));
 //! ```
+//!
+//! ```
+//! use tinyset::Set64;
+//! let mut s: Set64<usize> = Set64::new();
+//! s.insert(1);
+//! assert!(s.contains(&1));
+//! ```
 
 #![deny(missing_docs)]
 
@@ -54,8 +61,7 @@ pub mod usizeset;
 pub use usizeset::USizeSet;
 
 pub mod u64set;
-pub use u64set::U64Set;
-pub use u64set::Set64;
+pub use u64set::{Set64, Fits64, U64Set};
 
 #[cfg(test)]
 extern crate rand;
