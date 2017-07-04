@@ -14,6 +14,7 @@ use tinyset::VecSet;
 use tinyset::TinySet;
 use tinyset::usizeset::USizeSet;
 use fnv::FnvHashSet;
+use tinyset::Set64;
 
 type SmallSet<T> = smallset::SmallSet<[T; 8]>;
 
@@ -87,6 +88,7 @@ macro_rules! bench_all_contains {
         print!("{:^8}( tot / heap)", "btree");
         print!("{:^8}( tot / heap)", "tinyset");
         print!("{:^8}( tot / heap)", "usizeset");
+        print!("{:^8}( tot / heap)", "set64");
         println!();
         for size in (1..15).chain(USIZE_SIZES.iter().map(|&x|x).filter(|&x|x<$maxsz)) {
             println!("size: {:5}",size);
@@ -105,6 +107,8 @@ macro_rules! bench_all_contains {
                          hash_time, total_true);
                 bench_c!(USizeSet::new(), usize, size, mx, $iters,
                          hash_time, total_true);
+                bench_c!(Set64::<usize>::new(), usize, size, mx, $iters,
+                         hash_time, total_true);
                 println!();
             }
         }
@@ -117,6 +121,7 @@ macro_rules! bench_all_contains {
         print!("{:^8}( tot / heap)", "btree");
         print!("{:^8}( tot / heap)", "smallset");
         print!("{:^8}( tot / heap)", "tinyset");
+        print!("{:^8}( tot / heap)", "set64");
         println!();
         for size in (1..15).chain([20,30,50,100,1000].iter().map(|&x|x)
                                   .filter(|&x|x<$maxsz)) {
@@ -137,6 +142,8 @@ macro_rules! bench_all_contains {
             bench_c!(SmallSet::<$item>::new(), $item, size, 2*size, $iters,
                      hash_time, total_true);
             bench_c!(TinySet::<$item>::new(), $item, size, 2*size, $iters,
+                     hash_time, total_true);
+            bench_c!(Set64::<$item>::new(), $item, size, 2*size, $iters,
                      hash_time, total_true);
             println!();
         }
@@ -174,6 +181,7 @@ macro_rules! bench_all_remove_insert {
         print!("{:^8}( tot / heap)", "set");
         print!("{:^8}( tot / heap)", "btree");
         print!("{:^8}( tot / heap)", "tinyset");
+        print!("{:^8}( tot / heap)", "set64");
         print!("{:^8}( tot / heap)", "usizeset");
         println!();
         for size in (1..15).chain(USIZE_SIZES.iter().map(|&x|x).filter(|&x|x<$maxsz)) {
@@ -185,6 +193,7 @@ macro_rules! bench_all_remove_insert {
             bench_ri!(Set::<usize>::new(), usize, size, $iters, hash_time);
             bench_ri!(BTreeSet::<usize>::new(), usize, size, $iters, hash_time);
             bench_ri!(TinySet::<usize>::new(), usize, size, $iters, hash_time);
+            bench_ri!(Set64::<usize>::new(), usize, size, $iters, hash_time);
             bench_ri!(USizeSet::new(), usize, size, $iters, hash_time);
             println!();
         }
@@ -197,6 +206,7 @@ macro_rules! bench_all_remove_insert {
         print!("{:^8}( tot / heap)", "btree");
         print!("{:^8}( tot / heap)", "smallset");
         print!("{:^8}( tot / heap)", "tinyset");
+        print!("{:^8}( tot / heap)", "set64");
         println!();
         for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
                                   .filter(|&x|x<$maxsz)) {
@@ -210,6 +220,7 @@ macro_rules! bench_all_remove_insert {
             bench_ri!(BTreeSet::<$item>::new(), $item, size, $iters, hash_time);
             bench_ri!(SmallSet::<$item>::new(), $item, size, $iters, hash_time);
             bench_ri!(TinySet::<$item>::new(), $item, size, $iters, hash_time);
+            bench_ri!(Set64::<$item>::new(), $item, size, $iters, hash_time);
             println!();
         }
     }};

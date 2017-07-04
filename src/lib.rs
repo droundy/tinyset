@@ -53,6 +53,10 @@ pub use tinyset::*;
 pub mod usizeset;
 pub use usizeset::USizeSet;
 
+pub mod u64set;
+pub use u64set::U64Set;
+pub use u64set::Set64;
+
 #[cfg(test)]
 extern crate rand;
 
