@@ -113,6 +113,30 @@ macro_rules! bench_all_contains {
             }
         }
     }};
+    (i8, $iters: expr, $maxsz: expr) => {{
+        print!("{:10}\n---------\n{:>6}", "contains", "size");
+        print!("{:^8}( tot / heap)", "hash");
+        print!("{:^8}( tot / heap)", "set");
+        print!("{:^8}( tot / heap)", "btree");
+        print!("{:^8}( tot / heap)", "tinyset");
+        print!("{:^8}( tot / heap)", "usizeset");
+        print!("{:^8}( tot / heap)", "set64");
+        println!();
+        for size in (1..15).chain(USIZE_SIZES.iter().map(|&x|x).filter(|&x|x<$maxsz)) {
+            let mx = 100;
+            print!("{:6}",size);
+            let (total_true, hash_time, _, _, _)
+                = bench_contains!(FnvHashSet::<i8>::default(), i8, size, mx, $iters);
+
+            bench_c!(FnvHashSet::<i8>::default(), i8, size, mx, $iters, hash_time, total_true);
+            bench_c!(Set::<i8>::new(), i8, size, mx, $iters, hash_time, total_true);
+            bench_c!(VecSet::<i8>::new(), i8, size, mx, $iters, hash_time, total_true);
+            bench_c!(BTreeSet::<i8>::new(), i8, size, mx, $iters, hash_time, total_true);
+            bench_c!(SmallSet::<i8>::new(), i8, size, mx, $iters, hash_time, total_true);
+            bench_c!(Set64::<i8>::new(), i8, size, mx, $iters, hash_time, total_true);
+            println!();
+        }
+    }};
     ($item: ident, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>5}", "contains", "size");
         print!("{:^8}( tot / heap)", "hash");
@@ -198,6 +222,29 @@ macro_rules! bench_all_remove_insert {
             println!();
         }
     }};
+    (i8, $iters: expr, $maxsz: expr) => {{
+        print!("{:10}\n---------\n{:>5}", "remove/ins", "size");
+        print!("{:^8}( tot / heap)", "hash");
+        print!("{:^8}( tot / heap)", "set");
+        print!("{:^8}( tot / heap)", "btree");
+        print!("{:^8}( tot / heap)", "tinyset");
+        print!("{:^8}( tot / heap)", "set64");
+        print!("{:^8}( tot / heap)", "usizeset");
+        println!();
+        for size in (1..15).chain(USIZE_SIZES.iter().map(|&x|x).filter(|&x|x<$maxsz)) {
+            print!("{:5}",size);
+            let (hash_time, _, _, _)
+                = bench_remove_insert!(FnvHashSet::<i8>::default(), i8, size, $iters);
+
+            bench_ri!(FnvHashSet::<i8>::default(), i8, size, $iters, hash_time);
+            bench_ri!(Set::<i8>::new(), i8, size, $iters, hash_time);
+            bench_ri!(VecSet::<i8>::new(), i8, size, $iters, hash_time);
+            bench_ri!(BTreeSet::<i8>::new(), i8, size, $iters, hash_time);
+            bench_ri!(SmallSet::<i8>::new(), i8, size, $iters, hash_time);
+            bench_ri!(Set64::<i8>::new(), i8, size, $iters, hash_time);
+            println!();
+        }
+    }};
     ($item: ident, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>5}", "remove/ins", "size");
         print!("{:^8}( tot / heap)", "hash");
@@ -228,6 +275,11 @@ macro_rules! bench_all_remove_insert {
 
 fn main() {
     let iters = 10000000;
+
+    println!("\n==============\n    i8\n==============");
+    let maxsz = 64;
+    bench_all_contains!(i8, iters, maxsz);
+    bench_all_remove_insert!(i8, iters, maxsz);
 
     let maxsz = 10*iters;
     println!("\n==============\n    usize\n==============");

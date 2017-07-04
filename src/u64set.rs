@@ -1304,14 +1304,14 @@ macro_rules! define_ifits {
             unsafe fn from_u64(x: u64) -> Self {
                 let abs = (x >> 1) as $ty;
                 let neg = (x & 1) as $ty;
-                println!("x {} (abs is {} neg is {}) -> {}",
-                         x, abs, neg, abs*(neg*(-2)+1));
+                // println!("x {} (abs is {} neg is {}) -> {}",
+                //          x, abs, neg, abs*(neg*(-2)+1));
                 abs*(neg*(-2)+1)
             }
             fn to_u64(self) -> u64 {
                 let a = (self.abs() as u64) << 1;
                 let b = (self as $uty >> (8*std::mem::size_of::<Self>()-1)) as u64;
-                println!("self {} (a {} b {}) -> {}", self, a, b, a+b);
+                // println!("self {} (a {} b {}) -> {}", self, a, b, a+b);
                 a + b
             }
         }
