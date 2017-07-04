@@ -22,14 +22,20 @@ pub struct USizeSet {
 }
 
 const NUM_U8: usize = 22;
-const NUM_U16: usize = 10;
+const NUM_U16: usize = 11;
+const NUM_U32: usize = 5;
+const NUM_U64: usize = 2;
 
 #[derive(Debug, Clone)]
 enum Data {
     Su8(u8, [u8; NUM_U8]),
     Vu8(u8, Box<[u8]>),
-    Su16(u16, [u16; NUM_U16]),
+    Su16(u8, [u16; NUM_U16]),
     Vu16(u16, Box<[u16]>),
+    Su32(u8, [u32; NUM_U32]),
+    Vu32(u32, Box<[u32]>),
+    Su64(u32, [u64; NUM_U64]),
+    Vu64(u32, Box<[u64]>),
 }
 impl Data {
     fn new() -> Data {
@@ -48,6 +54,20 @@ impl Data {
                 Data::Su16(0, [u16::invalid(); NUM_U16])
             } else {
                 Data::Vu16(0, vec![u16::invalid(); (cap*11/10).next_power_of_two()]
+                           .into_boxed_slice())
+            }
+        } else if max < u32::invalid() as usize {
+            if cap <= NUM_U32 {
+                Data::Su32(0, [u32::invalid(); NUM_U32])
+            } else {
+                Data::Vu32(0, vec![u32::invalid(); (cap*11/10).next_power_of_two()]
+                           .into_boxed_slice())
+            }
+        } else if max < u64::invalid() as usize {
+            if cap <= NUM_U64 {
+                Data::Su64(0, [u64::invalid(); NUM_U64])
+            } else {
+                Data::Vu64(0, vec![u64::invalid(); (cap*11/10).next_power_of_two()]
                            .into_boxed_slice())
             }
         } else {
@@ -93,6 +113,10 @@ impl USizeSet {
             &Data::Vu8(sz,_) => sz as usize,
             &Data::Su16(sz,_) => sz as usize,
             &Data::Vu16(sz,_) => sz as usize,
+            &Data::Su32(sz,_) => sz as usize,
+            &Data::Vu32(sz,_) => sz as usize,
+            &Data::Su64(sz,_) => sz as usize,
+            &Data::Vu64(sz,_) => sz as usize,
         }
     }
     /// Reserves capacity for at least `additional` more elements to be
@@ -150,6 +174,62 @@ impl USizeSet {
                 }
             },
             Data::Su16(_,_) => (),
+            Data::Su32(sz, v) if max >= u32::invalid() as usize => {
+                let mut n = Self::with_max_and_capacity(max, sz as usize + additional);
+                for i in 0..sz as usize {
+                    n.insert_unchecked(v[i] as usize);
+                }
+                *self = n;
+            },
+            Data::Su32(sz, v) if sz as usize + additional > NUM_U32 => {
+                self.v = Data::Vu32(0, vec![u32::invalid();
+                                            ((sz as usize+additional)*11/10).next_power_of_two()]
+                                    .into_boxed_slice());
+                for i in 0..sz as usize {
+                    self.insert_unchecked(v[i] as usize);
+                }
+            },
+            Data::Su32(_,_) => (),
+            Data::Su64(sz, v) if max >= u64::invalid() as usize => {
+                let mut n = Self::with_max_and_capacity(max, sz as usize + additional);
+                for i in 0..sz as usize {
+                    n.insert_unchecked(v[i] as usize);
+                }
+                *self = n;
+            },
+            Data::Su64(sz, v) if sz as usize + additional > NUM_U64 => {
+                self.v = Data::Vu64(0, vec![u64::invalid();
+                                            ((sz as usize+additional)*11/10).next_power_of_two()]
+                                    .into_boxed_slice());
+                for i in 0..sz as usize {
+                    self.insert_unchecked(v[i] as usize);
+                }
+            },
+            Data::Su64(_,_) => (),
+            Data::Vu8(sz, _) if max >= u8::invalid() as usize => {
+                let mut n = Self::with_max_and_capacity(max, sz as usize + additional);
+                for x in self.iter() {
+                    n.insert_unchecked(x);
+                }
+                *self = n;
+            },
+            Data::Vu16(sz, _) if max >= u16::invalid() as usize => {
+                let mut n = Self::with_max_and_capacity(max, sz as usize + additional);
+                for x in self.iter() {
+                    n.insert_unchecked(x);
+                }
+                *self = n;
+            },
+            Data::Vu32(sz, _) if max >= u32::invalid() as usize => {
+                let mut n = Self::with_max_and_capacity(max, sz as usize + additional);
+                for x in self.iter() {
+                    n.insert_unchecked(x);
+                }
+                *self = n;
+            },
+            Data::Vu64(sz, _) if max >= u64::invalid() as usize => {
+                unimplemented!();
+            },
             Data::Vu8(sz, ref mut v) if sz as usize + additional > v.len()*10/11 => {
                 let newcap = ((sz as usize+additional)*11/10).next_power_of_two();
                 let oldv = std::mem::replace(v, vec![u8::invalid(); newcap]
@@ -169,22 +249,75 @@ impl USizeSet {
                 }
             },
             Data::Vu8(_,_) => (),
-            Data::Vu16(_,_) => {
-                println!("Vu16 reserve_with_max({}, {})", max, additional);
-                unimplemented!()
+            Data::Vu16(sz, ref mut v) if sz as usize + additional > v.len()*10/11 => {
+                let newcap = ((sz as usize+additional)*11/10).next_power_of_two();
+                let oldv = std::mem::replace(v, vec![u16::invalid(); newcap]
+                                             .into_boxed_slice());
+                for &x in oldv.iter() {
+                    if x != u16::invalid() {
+                        let mut value = x;
+                        match search(v, value) {
+                            SearchResult::Present(_) => (),
+                            SearchResult::Empty(i) => { v[i] = value; },
+                            SearchResult::Richer(i) => {
+                                std::mem::swap(&mut v[i], &mut value);
+                                steal(v, i, value);
+                            },
+                        }
+                    }
+                }
             },
-            _ => {
-                println!("reserve_with_max({}, {})", max, additional);
-                unimplemented!()
+            Data::Vu16(_,_) => (),
+            Data::Vu32(sz, ref mut v) if sz as usize + additional > v.len()*10/11 => {
+                let newcap = ((sz as usize+additional)*11/10).next_power_of_two();
+                let oldv = std::mem::replace(v, vec![u32::invalid(); newcap]
+                                             .into_boxed_slice());
+                for &x in oldv.iter() {
+                    if x != u32::invalid() {
+                        let mut value = x;
+                        match search(v, value) {
+                            SearchResult::Present(_) => (),
+                            SearchResult::Empty(i) => { v[i] = value; },
+                            SearchResult::Richer(i) => {
+                                std::mem::swap(&mut v[i], &mut value);
+                                steal(v, i, value);
+                            },
+                        }
+                    }
+                }
             },
+            Data::Vu32(_,_) => (),
+            Data::Vu64(sz, ref mut v) if sz as usize + additional > v.len()*10/11 => {
+                let newcap = ((sz as usize+additional)*11/10).next_power_of_two();
+                let oldv = std::mem::replace(v, vec![u64::invalid(); newcap]
+                                             .into_boxed_slice());
+                for &x in oldv.iter() {
+                    if x != u64::invalid() {
+                        let mut value = x;
+                        match search(v, value) {
+                            SearchResult::Present(_) => (),
+                            SearchResult::Empty(i) => { v[i] = value; },
+                            SearchResult::Richer(i) => {
+                                std::mem::swap(&mut v[i], &mut value);
+                                steal(v, i, value);
+                            },
+                        }
+                    }
+                }
+            },
+            Data::Vu64(_,_) => (),
         }
     }
     fn max_and_cap(&self) -> (usize, usize) {
         match self.v {
             Data::Su8(_, ref v) => (u8::invalid() as usize - 1, v.len()),
             Data::Vu8(_, ref v) => (u8::invalid() as usize - 1, v.len()*10/11),
-            Data::Su16(_, ref v) => (u8::invalid() as usize - 1, v.len()),
-            Data::Vu16(_, ref v) => (u8::invalid() as usize - 1, v.len()*10/11),
+            Data::Su16(_, ref v) => (u16::invalid() as usize - 1, v.len()),
+            Data::Vu16(_, ref v) => (u16::invalid() as usize - 1, v.len()*10/11),
+            Data::Su32(_, ref v) => (u32::invalid() as usize - 1, v.len()),
+            Data::Vu32(_, ref v) => (u32::invalid() as usize - 1, v.len()*10/11),
+            Data::Su64(_, ref v) => (u64::invalid() as usize - 1, v.len()),
+            Data::Vu64(_, ref v) => (u64::invalid() as usize - 1, v.len()*10/11),
         }
     }
     fn capacity(&self) -> usize {
@@ -193,6 +326,10 @@ impl USizeSet {
             Data::Vu8(_, ref v) => v.len()*10/11,
             Data::Su16(_, ref v) => v.len(),
             Data::Vu16(_, ref v) => v.len()*10/11,
+            Data::Su32(_, ref v) => v.len(),
+            Data::Vu32(_, ref v) => v.len()*10/11,
+            Data::Su64(_, ref v) => v.len(),
+            Data::Vu64(_, ref v) => v.len()*10/11,
         }
     }
     /// Adds a value to the set.
@@ -205,9 +342,43 @@ impl USizeSet {
         self.insert_unchecked(elem)
     }
     fn insert_unchecked(&mut self, value: usize) -> bool {
+        println!("adding {} to {:?}", value, self);
         match self.v {
             Data::Su8(ref mut sz, ref mut v) => {
                 let value = value as u8;
+                for &x in v.iter().take(*sz as usize) {
+                    if x == value {
+                        return false;
+                    }
+                }
+                v[*sz as usize] = value;
+                *sz += 1;
+                true
+            },
+            Data::Su16(ref mut sz, ref mut v) => {
+                let value = value as u16;
+                for &x in v.iter().take(*sz as usize) {
+                    if x == value {
+                        return false;
+                    }
+                }
+                v[*sz as usize] = value;
+                *sz += 1;
+                true
+            },
+            Data::Su32(ref mut sz, ref mut v) => {
+                let value = value as u32;
+                for &x in v.iter().take(*sz as usize) {
+                    if x == value {
+                        return false;
+                    }
+                }
+                v[*sz as usize] = value;
+                *sz += 1;
+                true
+            },
+            Data::Su64(ref mut sz, ref mut v) => {
+                let value = value as u64;
                 for &x in v.iter().take(*sz as usize) {
                     if x == value {
                         return false;
@@ -234,18 +405,62 @@ impl USizeSet {
                     },
                 }
             },
-            Data::Su16(ref mut sz, ref mut v) => {
-                let value = value as u16;
-                for &x in v.iter().take(*sz as usize) {
-                    if x == value {
-                        return false;
-                    }
+            Data::Vu16(ref mut sz, ref mut v) => {
+                let mut value = value as u16;
+                match search(v, value) {
+                    SearchResult::Present(_) => false,
+                    SearchResult::Empty(i) => {
+                        v[i] = value;
+                        *sz += 1;
+                        true
+                    },
+                    SearchResult::Richer(i) => {
+                        *sz += 1;
+                        std::mem::swap(&mut v[i], &mut value);
+                        steal(v, i, value);
+                        true
+                    },
                 }
-                v[*sz as usize] = value;
-                *sz += 1;
-                true
             },
-            _ => unimplemented!(),
+            Data::Vu32(ref mut sz, ref mut v) => {
+                let mut value = value as u32;
+                match search(v, value) {
+                    SearchResult::Present(_) => {
+                        println!("   already present: {}", value);
+                        false
+                    },
+                    SearchResult::Empty(i) => {
+                        println!("   adding: {} at {}", value, i);
+                        v[i] = value;
+                        *sz += 1;
+                        true
+                    },
+                    SearchResult::Richer(i) => {
+                        println!("   adding: {} at {} and bumping richer", value, i);
+                        *sz += 1;
+                        std::mem::swap(&mut v[i], &mut value);
+                        steal(v, i, value);
+                        true
+                    },
+                }
+            },
+            Data::Vu64(ref mut sz, ref mut v) => {
+                let mut value = value as u64;
+                match search(v, value) {
+                    SearchResult::Present(_) => false,
+                    SearchResult::Empty(i) => {
+                        v[i] = value;
+                        *sz += 1;
+                        true
+                    },
+                    SearchResult::Richer(i) => {
+                        *sz += 1;
+                        std::mem::swap(&mut v[i], &mut value);
+                        steal(v, i, value);
+                        true
+                    },
+                }
+            },
         }
     }
     /// Returns true if the set contains a value.
@@ -276,6 +491,30 @@ impl USizeSet {
                 }
                 false
             },
+            Data::Su32(sz, ref v) => {
+                if value >= u32::invalid() as usize {
+                    return false;
+                }
+                let value = value as u32;
+                for &x in v.iter().take(sz as usize) {
+                    if x == value {
+                        return true;
+                    }
+                }
+                false
+            },
+            Data::Su64(sz, ref v) => {
+                if value >= u64::invalid() as usize {
+                    return false;
+                }
+                let value = value as u64;
+                for &x in v.iter().take(sz as usize) {
+                    if x == value {
+                        return true;
+                    }
+                }
+                false
+            },
             Data::Vu8(_, ref v) => {
                 if value >= u8::invalid() as usize {
                     return false;
@@ -287,9 +526,38 @@ impl USizeSet {
                     SearchResult::Richer(_) => false,
                 }
             },
-            ref data => {
-                println!("error contains {:?}", data);
-                unimplemented!()
+            Data::Vu16(_, ref v) => {
+                if value >= u16::invalid() as usize {
+                    return false;
+                }
+                let value = value as u16;
+                match search(v, value) {
+                    SearchResult::Present(_) => true,
+                    SearchResult::Empty(_) => false,
+                    SearchResult::Richer(_) => false,
+                }
+            },
+            Data::Vu32(_, ref v) => {
+                if value >= u32::invalid() as usize {
+                    return false;
+                }
+                let value = value as u32;
+                match search(v, value) {
+                    SearchResult::Present(_) => true,
+                    SearchResult::Empty(_) => false,
+                    SearchResult::Richer(_) => false,
+                }
+            },
+            Data::Vu64(_, ref v) => {
+                if value >= u64::invalid() as usize {
+                    return false;
+                }
+                let value = value as u64;
+                match search(v, value) {
+                    SearchResult::Present(_) => true,
+                    SearchResult::Empty(_) => false,
+                    SearchResult::Richer(_) => false,
+                }
             },
         }
     }
@@ -302,6 +570,66 @@ impl USizeSet {
                     return false;
                 }
                 let value = value as u8;
+                let mut i = None;
+                for (j, &x) in v.iter().enumerate().take(*sz as usize) {
+                    if x == value {
+                        i = Some(j);
+                        break;
+                    }
+                }
+                return if let Some(i) = i {
+                    v[i] = v[*sz as usize -1];
+                    *sz -= 1;
+                    true
+                } else {
+                    false
+                };
+            },
+            Data::Su16(ref mut sz, ref mut v) => {
+                if value >= u16::invalid() as usize {
+                    return false;
+                }
+                let value = value as u16;
+                let mut i = None;
+                for (j, &x) in v.iter().enumerate().take(*sz as usize) {
+                    if x == value {
+                        i = Some(j);
+                        break;
+                    }
+                }
+                return if let Some(i) = i {
+                    v[i] = v[*sz as usize -1];
+                    *sz -= 1;
+                    true
+                } else {
+                    false
+                };
+            },
+            Data::Su32(ref mut sz, ref mut v) => {
+                if value >= u32::invalid() as usize {
+                    return false;
+                }
+                let value = value as u32;
+                let mut i = None;
+                for (j, &x) in v.iter().enumerate().take(*sz as usize) {
+                    if x == value {
+                        i = Some(j);
+                        break;
+                    }
+                }
+                return if let Some(i) = i {
+                    v[i] = v[*sz as usize -1];
+                    *sz -= 1;
+                    true
+                } else {
+                    false
+                };
+            },
+            Data::Su64(ref mut sz, ref mut v) => {
+                if value >= u64::invalid() as usize {
+                    return false;
+                }
+                let value = value as u64;
                 let mut i = None;
                 for (j, &x) in v.iter().enumerate().take(*sz as usize) {
                     if x == value {
@@ -343,7 +671,84 @@ impl USizeSet {
                     SearchResult::Richer(_) => false,
                 }
             },
-            _ => unimplemented!(),
+            Data::Vu16(ref mut sz, ref mut v) => {
+                if value >= u16::invalid() as usize {
+                    return false;
+                }
+                let value = value as u16;
+                match search(v, value) {
+                    SearchResult::Present(mut i) => {
+                        *sz -= 1;
+                        let mask = v.len() - 1;
+                        let invalid = u16::invalid();
+                        loop {
+                            let iplus1 = (i+1) & mask;
+                            if v[iplus1] == invalid ||
+                                (v[iplus1].hash_usize().wrapping_sub(iplus1) & mask) == 0
+                            {
+                                v[i] = invalid;
+                                return true;
+                            }
+                            v[i] = v[iplus1];
+                            i = iplus1;
+                        }
+                    },
+                    SearchResult::Empty(_) => false,
+                    SearchResult::Richer(_) => false,
+                }
+            },
+            Data::Vu32(ref mut sz, ref mut v) => {
+                if value >= u32::invalid() as usize {
+                    return false;
+                }
+                let value = value as u32;
+                match search(v, value) {
+                    SearchResult::Present(mut i) => {
+                        *sz -= 1;
+                        let mask = v.len() - 1;
+                        let invalid = u32::invalid();
+                        loop {
+                            let iplus1 = (i+1) & mask;
+                            if v[iplus1] == invalid ||
+                                (v[iplus1].hash_usize().wrapping_sub(iplus1) & mask) == 0
+                            {
+                                v[i] = invalid;
+                                return true;
+                            }
+                            v[i] = v[iplus1];
+                            i = iplus1;
+                        }
+                    },
+                    SearchResult::Empty(_) => false,
+                    SearchResult::Richer(_) => false,
+                }
+            },
+            Data::Vu64(ref mut sz, ref mut v) => {
+                if value >= u64::invalid() as usize {
+                    return false;
+                }
+                let value = value as u64;
+                match search(v, value) {
+                    SearchResult::Present(mut i) => {
+                        *sz -= 1;
+                        let mask = v.len() - 1;
+                        let invalid = u64::invalid();
+                        loop {
+                            let iplus1 = (i+1) & mask;
+                            if v[iplus1] == invalid ||
+                                (v[iplus1].hash_usize().wrapping_sub(iplus1) & mask) == 0
+                            {
+                                v[i] = invalid;
+                                return true;
+                            }
+                            v[i] = v[iplus1];
+                            i = iplus1;
+                        }
+                    },
+                    SearchResult::Empty(_) => false,
+                    SearchResult::Richer(_) => false,
+                }
+            },
         }
     }
     /// Returns an iterator over the set.
@@ -361,7 +766,42 @@ impl USizeSet {
                     nleft: sz as usize,
                 }
             },
-            _ => unimplemented!(),
+            Data::Su16(sz, ref v) => {
+                Iter::U16 {
+                    slice: &v[0..sz as usize],
+                    nleft: sz as usize,
+                }
+            },
+            Data::Vu16(sz, ref v) => {
+                Iter::U16 {
+                    slice: v,
+                    nleft: sz as usize,
+                }
+            },
+            Data::Su32(sz, ref v) => {
+                Iter::U32 {
+                    slice: &v[0..sz as usize],
+                    nleft: sz as usize,
+                }
+            },
+            Data::Vu32(sz, ref v) => {
+                Iter::U32 {
+                    slice: v,
+                    nleft: sz as usize,
+                }
+            },
+            Data::Su64(sz, ref v) => {
+                Iter::U64 {
+                    slice: &v[0..sz as usize],
+                    nleft: sz as usize,
+                }
+            },
+            Data::Vu64(sz, ref v) => {
+                Iter::U64 {
+                    slice: v,
+                    nleft: sz as usize,
+                }
+            },
         }
     }
     // /// Clears the set, returning all elements in an iterator.
@@ -378,6 +818,27 @@ pub enum Iter<'a> {
     U8 {
         /// this really should be private
         slice: &'a [u8],
+        /// this really should be private
+        nleft: usize,
+    },
+    /// this really should be private
+    U16 {
+        /// this really should be private
+        slice: &'a [u16],
+        /// this really should be private
+        nleft: usize,
+    },
+    /// this really should be private
+    U32 {
+        /// this really should be private
+        slice: &'a [u32],
+        /// this really should be private
+        nleft: usize,
+    },
+    /// this really should be private
+    U64 {
+        /// this really should be private
+        slice: &'a [u64],
         /// this really should be private
         nleft: usize,
     },
@@ -401,12 +862,56 @@ impl<'a> Iterator for Iter<'a> {
                     Some(val as usize)
                 }
             },
+            &mut Iter::U16{ref mut slice, ref mut nleft} => {
+                if *nleft == 0 {
+                    None
+                } else {
+                    assert!(slice.len() >= *nleft);
+                    while slice[0] == u16::invalid() {
+                        *slice = slice.split_first().unwrap().1;
+                    }
+                    let val = slice[0];
+                    *slice = slice.split_first().unwrap().1;
+                    *nleft -= 1;
+                    Some(val as usize)
+                }
+            },
+            &mut Iter::U32{ref mut slice, ref mut nleft} => {
+                if *nleft == 0 {
+                    None
+                } else {
+                    assert!(slice.len() >= *nleft);
+                    while slice[0] == u32::invalid() {
+                        *slice = slice.split_first().unwrap().1;
+                    }
+                    let val = slice[0];
+                    *slice = slice.split_first().unwrap().1;
+                    *nleft -= 1;
+                    Some(val as usize)
+                }
+            },
+            &mut Iter::U64{ref mut slice, ref mut nleft} => {
+                if *nleft == 0 {
+                    None
+                } else {
+                    assert!(slice.len() >= *nleft);
+                    while slice[0] == u64::invalid() {
+                        *slice = slice.split_first().unwrap().1;
+                    }
+                    let val = slice[0];
+                    *slice = slice.split_first().unwrap().1;
+                    *nleft -= 1;
+                    Some(val as usize)
+                }
+            },
         }
     }
     fn size_hint(&self) -> (usize, Option<usize>) {
         match self {
             &Iter::U8{slice: _, nleft} => (nleft, Some(nleft)),
-            _ => unimplemented!(),
+            &Iter::U16{slice: _, nleft} => (nleft, Some(nleft)),
+            &Iter::U32{slice: _, nleft} => (nleft, Some(nleft)),
+            &Iter::U64{slice: _, nleft} => (nleft, Some(nleft)),
         }
     }
 }
@@ -611,7 +1116,61 @@ mod tests {
                 }
                 if set.len() != refset.len() { return false; }
                 for i in 0..2550 {
-                    if set.contains(&i) != refset.contains(&i) { return false; }
+                    if set.contains(&i) != refset.contains(&i) {
+                        println!("refset: {:?}", &refset);
+                        println!("set: {:?}", &set);
+                        for x in set.iter() {
+                            print!(" {}", x);
+                        }
+                        println!();
+                        assert_eq!(set.contains(&i), refset.contains(&i));
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn specific_bigint() {
+        let mut steps: Vec<Result<(usize,u8),(usize,u8)>> =
+            vec![Ok((84, 30)), Ok((0, 0)), Ok((0, 0)), Ok((1, 0)),
+                 Ok((1, 1)), Ok((1, 2)), Ok((2, 15))];
+        let mut set = USizeSet::new();
+        let mut refset = HashSet::<usize>::new();
+        loop {
+            match steps.pop() {
+                Some(Ok((v,shift))) => {
+                    let v = v << (shift & 31);
+                    println!(" adding {}", v);
+                    println!("compare {}", u32::invalid());
+                    set.insert(v); refset.insert(v);
+                },
+                Some(Err((v,shift))) => {
+                    let v = v << (shift & 31);
+                    println!("removing {}", v);
+                    set.remove(&v); refset.remove(&v);
+                },
+                None => return,
+            }
+            if true || set.len() != refset.len() {
+                println!("refset: {:?}", &refset);
+                println!("set: {:?}", &set);
+                for x in set.iter() {
+                    print!(" {}", x);
+                }
+                println!();
+            }
+            assert_eq!(set.len(), refset.len());
+            for i in 0..2550 {
+                if set.contains(&i) != refset.contains(&i) {
+                    println!("refset: {:?}", &refset);
+                    println!("set: {:?}", &set);
+                    for x in set.iter() {
+                        print!(" {}", x);
+                    }
+                    println!();
+                    assert_eq!(set.contains(&i), refset.contains(&i));
                 }
             }
         }
