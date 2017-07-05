@@ -3,7 +3,7 @@ name = "tinyset"
 version = "0.0.10"
 authors = ["David Roundy <daveroundy@gmail.com>"]
 
-description = "Size-optimized  sets for Copy elements"
+description = "Size-optimized sets"
 license = "MPL-2.0"
 repository = "https://github.com/droundy/tinyset"
 
