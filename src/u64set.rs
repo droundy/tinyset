@@ -1443,22 +1443,8 @@ fn steal<T: HasInvalid>(v: &mut [T], mut i: usize, mut elem: T) {
 /// It is defined for all signed and unsigned integer types, as well
 /// as `char`.  In each case, we store sets consisting exclusively of
 /// "small" integers efficiently.
-///
-/// # Examples
-///
 /// ```
-/// use tinyset::Set64;
-///
-/// let a: Set64<char> = "Hello world".chars().collect();
-///
-/// for x in "Hello world".chars() {
-///     assert!(a.contains(&x));
-/// }
-/// for x in &a {
-///     assert!("Hello world".contains(x));
-/// }
-/// ```
-pub trait Fits64 : Clone + std::fmt::Debug {
+pub trait Fits64 : Copy + std::fmt::Debug {
     /// Convert back *from* a u64.  This is unsafe, since it is only
     /// infallible (and lossless) if the `u64` originally came from
     /// type `Self`.
@@ -1526,7 +1512,37 @@ define_ifits!(isize, usize);
 /// type is very space-efficient in storing small integers, while not
 /// being bad at storing large integers (i.e. about half the size of a
 /// large `fnv::HashSet`, for small sets of large integers about five
-/// times smaller than `fnv::HashSet`.
+/// times smaller than `fnv::HashSet`.  For small numbers, `Set64` is
+/// even more compact.
+///
+/// **Major caveat** The `Set64` type defines iterators (`drain()` and
+/// `iter()`) that iterate over `T` rather than `&T`.  This is a break
+/// with standard libray convention, and can be annoying if you are
+/// translating code from `HashSet` to `Set64`.  The motivation for
+/// this is several-fold:
+///
+/// 1. `Set64` does not store `T` directly in its data structures
+/// (which would waste space), so there is no reference to the data to
+/// take.  This does not make it impossible, but does mean we would
+/// have to fabricate a `T` and return a reference to it, which is
+/// awkward and ugly.
+///
+/// 2. There is no inefficiency involved in returning `T`, since it is
+/// necessarily no larger than a pointer.
+///
+/// # Examples
+///
+/// ```
+/// use tinyset::Set64;
+///
+/// let a: Set64<char> = "Hello world".chars().collect();
+///
+/// for x in "Hello world".chars() {
+///     assert!(a.contains(&x));
+/// }
+/// for x in &a {
+///     assert!("Hello world".contains(x));
+/// }
 #[derive(Debug, Clone)]
 pub struct Set64<T: Fits64>(U64Set, PhantomData<T>);
 
