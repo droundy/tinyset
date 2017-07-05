@@ -9,6 +9,7 @@ use std::time::{Instant, Duration};
 use rand::{XorShiftRng, SeedableRng, Rand};
 
 use std::collections::BTreeSet;
+use std::collections::HashSet;
 use tinyset::Set;
 use tinyset::VecSet;
 use tinyset::TinySet;
@@ -83,6 +84,7 @@ const USIZE_MAXES: &[usize] = &[254, 10000, 100_000, 10_000_000_000];
 macro_rules! bench_all_contains {
     (usize, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>12}", "contains", "max");
+        print!("{:^8}( tot / heap)", "fnvhash");
         print!("{:^8}( tot / heap)", "hash");
         print!("{:^8}( tot / heap)", "set");
         print!("{:^8}( tot / heap)", "btree");
@@ -98,6 +100,8 @@ macro_rules! bench_all_contains {
                     = bench_contains!(FnvHashSet::<usize>::default(), usize, size, mx, $iters);
 
                 bench_c!(FnvHashSet::<usize>::default(), usize, size, mx, $iters,
+                         hash_time, total_true);
+                bench_c!(HashSet::<usize>::default(), usize, size, mx, $iters,
                          hash_time, total_true);
                 bench_c!(Set::<usize>::new(), usize, size, mx, $iters,
                          hash_time, total_true);
@@ -115,6 +119,7 @@ macro_rules! bench_all_contains {
     }};
     (i8, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>6}", "contains", "size");
+        print!("{:^8}( tot / heap)", "fnvhash");
         print!("{:^8}( tot / heap)", "hash");
         print!("{:^8}( tot / heap)", "set");
         print!("{:^8}( tot / heap)", "btree");
@@ -129,6 +134,7 @@ macro_rules! bench_all_contains {
                 = bench_contains!(FnvHashSet::<i8>::default(), i8, size, mx, $iters);
 
             bench_c!(FnvHashSet::<i8>::default(), i8, size, mx, $iters, hash_time, total_true);
+            bench_c!(HashSet::<i8>::default(), i8, size, mx, $iters, hash_time, total_true);
             bench_c!(Set::<i8>::new(), i8, size, mx, $iters, hash_time, total_true);
             bench_c!(VecSet::<i8>::new(), i8, size, mx, $iters, hash_time, total_true);
             bench_c!(BTreeSet::<i8>::new(), i8, size, mx, $iters, hash_time, total_true);
@@ -139,6 +145,7 @@ macro_rules! bench_all_contains {
     }};
     ($item: ident, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>5}", "contains", "size");
+        print!("{:^8}( tot / heap)", "fnvhash");
         print!("{:^8}( tot / heap)", "hash");
         print!("{:^8}( tot / heap)", "set");
         print!("{:^8}( tot / heap)", "vecset");
@@ -156,6 +163,8 @@ macro_rules! bench_all_contains {
                                   2*size, $iters);
 
             bench_c!(FnvHashSet::<$item>::default(), $item, size, 2*size, $iters,
+                     hash_time, total_true);
+            bench_c!(HashSet::<$item>::default(), $item, size, 2*size, $iters,
                      hash_time, total_true);
             bench_c!(Set::<$item>::new(), $item, size, 2*size, $iters,
                      hash_time, total_true);
@@ -201,6 +210,7 @@ macro_rules! bench_ri {
 macro_rules! bench_all_remove_insert {
     (usize, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>5}", "remove/ins", "size");
+        print!("{:^8}( tot / heap)", "fnvhash");
         print!("{:^8}( tot / heap)", "hash");
         print!("{:^8}( tot / heap)", "set");
         print!("{:^8}( tot / heap)", "btree");
@@ -214,6 +224,7 @@ macro_rules! bench_all_remove_insert {
                 = bench_remove_insert!(FnvHashSet::<usize>::default(), usize, size, $iters);
 
             bench_ri!(FnvHashSet::<usize>::default(), usize, size, $iters, hash_time);
+            bench_ri!(HashSet::<usize>::default(), usize, size, $iters, hash_time);
             bench_ri!(Set::<usize>::new(), usize, size, $iters, hash_time);
             bench_ri!(BTreeSet::<usize>::new(), usize, size, $iters, hash_time);
             bench_ri!(TinySet::<usize>::new(), usize, size, $iters, hash_time);
@@ -224,6 +235,7 @@ macro_rules! bench_all_remove_insert {
     }};
     (i8, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>5}", "remove/ins", "size");
+        print!("{:^8}( tot / heap)", "fnvhash");
         print!("{:^8}( tot / heap)", "hash");
         print!("{:^8}( tot / heap)", "set");
         print!("{:^8}( tot / heap)", "btree");
@@ -237,6 +249,7 @@ macro_rules! bench_all_remove_insert {
                 = bench_remove_insert!(FnvHashSet::<i8>::default(), i8, size, $iters);
 
             bench_ri!(FnvHashSet::<i8>::default(), i8, size, $iters, hash_time);
+            bench_ri!(HashSet::<i8>::default(), i8, size, $iters, hash_time);
             bench_ri!(Set::<i8>::new(), i8, size, $iters, hash_time);
             bench_ri!(VecSet::<i8>::new(), i8, size, $iters, hash_time);
             bench_ri!(BTreeSet::<i8>::new(), i8, size, $iters, hash_time);
@@ -247,6 +260,7 @@ macro_rules! bench_all_remove_insert {
     }};
     ($item: ident, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>5}", "remove/ins", "size");
+        print!("{:^8}( tot / heap)", "fnvhash");
         print!("{:^8}( tot / heap)", "hash");
         print!("{:^8}( tot / heap)", "set");
         print!("{:^8}( tot / heap)", "vecset");
@@ -262,6 +276,7 @@ macro_rules! bench_all_remove_insert {
                 = bench_remove_insert!(FnvHashSet::<$item>::default(), $item, size, $iters);
 
             bench_ri!(FnvHashSet::<$item>::default(), $item, size, $iters, hash_time);
+            bench_ri!(HashSet::<$item>::default(), $item, size, $iters, hash_time);
             bench_ri!(Set::<$item>::new(), $item, size, $iters, hash_time);
             bench_ri!(VecSet::<$item>::new(), $item, size, $iters, hash_time);
             bench_ri!(BTreeSet::<$item>::new(), $item, size, $iters, hash_time);

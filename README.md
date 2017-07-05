@@ -44,8 +44,15 @@ of 2.
 
 To run the benchmark suite, `cd` into `bench` and then run
 
-    cargo +nightly run --release
+    cargo +nightly run --bin sets --release
 
 This will give you loads of timings and storage requirements for a
 wide variety of set types.  You will need nightly rust installed with
 rustup.
+
+You can alternatively run
+
+    cargo +nightly run --bin maps --release
+
+This will give you loads of timings and storage requirements for a
+wide variety of map types.

@@ -11,3 +11,6 @@ tinyset = { path = ".." }
 david_allocator = { path = "../david_allocator" }
 smallset = "^0.1.0"
 fnv = "^1.0.3"
+
+ordermap = "^0.2.10"
+flat_map = "^0.0.4"
