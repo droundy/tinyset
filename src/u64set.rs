@@ -863,6 +863,18 @@ impl U64Set {
     }
 }
 
+impl std::iter::FromIterator<u64> for U64Set {
+    fn from_iter<I: IntoIterator<Item=u64>>(iter: I) -> Self {
+        let iter = iter.into_iter();
+        let (sz,_) = iter.size_hint();
+        let mut c = U64Set::with_capacity(sz);
+        for i in iter {
+            c.insert(i);
+        }
+        c
+    }
+}
+
 /// An iterator for `U64Set`.
 pub enum Iter<'a> {
     /// this really should be private
@@ -1537,6 +1549,18 @@ impl<T: Fits64> Set64<T> {
     /// Drain
     pub fn drain(&mut self) -> Drain64<T> {
         Drain64( self.0.drain(), PhantomData )
+    }
+}
+
+impl<T: Fits64> std::iter::FromIterator<T> for Set64<T> {
+    fn from_iter<I: IntoIterator<Item=T>>(iter: I) -> Self {
+        let iter = iter.into_iter();
+        let (sz,_) = iter.size_hint();
+        let mut c = Set64::with_capacity(sz);
+        for i in iter {
+            c.insert(i);
+        }
+        c
     }
 }
 

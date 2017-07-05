@@ -290,6 +290,18 @@ pub struct Iter<'a, T: 'a+HasInvalid> {
     nleft: usize,
 }
 
+impl<T: HasInvalid> std::iter::FromIterator<T> for TinySet<T> {
+    fn from_iter<I: IntoIterator<Item=T>>(iter: I) -> Self {
+        let iter = iter.into_iter();
+        let (sz,_) = iter.size_hint();
+        let mut c = TinySet::with_capacity(sz);
+        for i in iter {
+            c.insert(i);
+        }
+        c
+    }
+}
+
 impl<'a, T: 'a+HasInvalid> Iterator for Iter<'a, T> {
     type Item = &'a T;
     fn next(&mut self) -> Option<&'a T> {
