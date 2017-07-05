@@ -1440,11 +1440,28 @@ fn steal<T: HasInvalid>(v: &mut [T], mut i: usize, mut elem: T) {
 }
 
 /// This describes a type which can be stored in 64 bits without loss.
-/// It is defined for all signed and unsigned integer types.  In both
-/// cases, we store "small" integers as "small" `u64`s.
+/// It is defined for all signed and unsigned integer types, as well
+/// as `char`.  In each case, we store sets consisting exclusively of
+/// "small" integers efficiently.
+///
+/// # Examples
+///
+/// ```
+/// use tinyset::Set64;
+///
+/// let a: Set64<char> = "Hello world".chars().collect();
+///
+/// for x in "Hello world".chars() {
+///     assert!(a.contains(&x));
+/// }
+/// for x in &a {
+///     assert!("Hello world".contains(x));
+/// }
+/// ```
 pub trait Fits64 : Clone + std::fmt::Debug {
     /// Convert back *from* a u64.  This is unsafe, since it is only
-    /// infallible if the `u64` originally came from type `Self`.
+    /// infallible (and lossless) if the `u64` originally came from
+    /// type `Self`.
     #[inline]
     unsafe fn from_u64(x: u64) -> Self;
     /// Convert to a `u64`.  This should be infallible.
@@ -1474,6 +1491,12 @@ define_fits!(u32);
 define_fits!(u16);
 define_fits!(u8);
 define_fits!(usize);
+impl Fits64 for char {
+    unsafe fn from_u64(x: u64) -> Self {
+        std::char::from_u32(x as u32).unwrap()
+    }
+    fn to_u64(self) -> u64 { self as u64 }
+}
 macro_rules! define_ifits {
     ($ty: ty, $uty: ty) => {
         impl Fits64 for $ty {
@@ -1499,7 +1522,11 @@ define_ifits!(i32, u32);
 define_ifits!(i64, u64);
 define_ifits!(isize, usize);
 
-/// A set type that can store any type that fits in a `u64`.
+/// A set type that can store any type that fits in a `u64`.  This set
+/// type is very space-efficient in storing small integers, while not
+/// being bad at storing large integers (i.e. about half the size of a
+/// large `fnv::HashSet`, for small sets of large integers about five
+/// times smaller than `fnv::HashSet`.
 #[derive(Debug, Clone)]
 pub struct Set64<T: Fits64>(U64Set, PhantomData<T>);
 
@@ -1520,6 +1547,19 @@ impl<T: Fits64> Set64<T> {
     pub fn with_max_and_capacity(max: T, cap: usize) -> Self {
         Set64(U64Set::with_max_and_capacity(max.to_u64(), cap), PhantomData)
     }
+    /// Reserves capacity for at least `additional` more elements to be
+    /// inserted in the set. The collection may reserve more space
+    /// to avoid frequent reallocations.
+    pub fn reserve(&mut self, additional: usize) {
+        self.0.reserve(additional);
+    }
+    /// Reserves capacity for at least `additional` more elements to
+    /// be inserted in the set, with maximum value of `max`. The
+    /// collection may reserve more space to avoid frequent
+    /// reallocations.
+    pub fn reserve_with_max(&mut self, max: T, additional: usize) {
+        self.0.reserve_with_max(max.to_u64(), additional);
+    }
     /// Adds a value to the set.
     ///
     /// If the set did not have this value present, `true` is returned.
@@ -1533,8 +1573,8 @@ impl<T: Fits64> Set64<T> {
         self.0.len()
     }
     /// Returns true if the set contains a value.
-    pub fn contains(&self, value: &T) -> bool {
-        let x = value.clone().to_u64();
+    pub fn contains<R: std::borrow::Borrow<T>>(&self, value: R) -> bool {
+        let x = value.borrow().clone().to_u64();
         self.0.contains(&x)
     }
     /// Removes an element, and returns true if that element was present.
@@ -1595,5 +1635,103 @@ impl<'a, T: Fits64> IntoIterator for &'a Set64<T> {
 
     fn into_iter(self) -> Iter64<'a, T> {
         self.iter()
+    }
+}
+
+impl<'a, 'b, T: Fits64> std::ops::Sub<&'b Set64<T>> for &'a Set64<T> {
+    type Output = Set64<T>;
+
+    /// Returns the difference of `self` and `rhs` as a new `Set64<T>`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tinyset::Set64;
+    ///
+    /// let a: Set64<u32> = vec![1, 2, 3].into_iter().collect();
+    /// let b: Set64<u32> = vec![3, 4, 5].into_iter().collect();
+    ///
+    /// let set = &a - &b;
+    ///
+    /// let mut i = 0;
+    /// let expected = [1, 2];
+    /// for x in &set {
+    ///     assert!(expected.contains(&x));
+    ///     i += 1;
+    /// }
+    /// assert_eq!(i, expected.len());
+    /// ```
+    fn sub(self, rhs: &Set64<T>) -> Set64<T> {
+        let mut s = Set64::with_capacity(self.len());
+        for v in self.iter() {
+            if !rhs.contains(&v) {
+                s.insert(v);
+            }
+        }
+        s
+    }
+}
+
+impl<T: Fits64> Extend<T> for Set64<T> {
+    /// Adds a bunch of elements to the set
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tinyset::Set64;
+    ///
+    /// let mut a: Set64<u32> = vec![1, 2, 3].into_iter().collect();
+    /// a.extend(vec![3, 4, 5]);
+    ///
+    /// let mut i = 0;
+    /// let expected = [1, 2, 3, 4, 5];
+    /// for x in &a {
+    ///     assert!(expected.contains(&x));
+    ///     i += 1;
+    /// }
+    /// assert_eq!(i, expected.len());
+    /// ```
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        let iter = iter.into_iter();
+        let (sz,_) = iter.size_hint();
+        self.reserve(sz);
+        for i in iter {
+            self.insert(i);
+        }
+    }
+}
+
+impl<'a, 'b, T: Fits64> std::ops::BitOr<&'b Set64<T>> for &'a Set64<T> {
+    type Output = Set64<T>;
+
+    /// Returns the union of `self` and `rhs` as a new `Set64<T>`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tinyset::Set64;
+    ///
+    /// let a: Set64<u32> = vec![1, 2, 3].into_iter().collect();
+    /// let b: Set64<u32> = vec![3, 4, 5].into_iter().collect();
+    ///
+    /// let set = &a | &b;
+    ///
+    /// let mut i = 0;
+    /// let expected = [1, 2, 3, 4, 5];
+    /// for x in &set {
+    ///     assert!(expected.contains(&x));
+    ///     i += 1;
+    /// }
+    /// assert_eq!(i, expected.len());
+    /// ```
+    fn bitor(self, rhs: &Set64<T>) -> Set64<T> {
+        let mut s: Set64<T> = Set64::with_capacity(self.len() + rhs.len());
+        for x in self.iter() {
+            s.insert(x);
+        }
+        for x in rhs.iter() {
+            s.insert(x);
+        }
+        s
     }
 }
