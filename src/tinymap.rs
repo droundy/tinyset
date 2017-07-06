@@ -132,6 +132,34 @@ impl<K: Hash+Eq, T> TinyMap<K,T> {
             &mut TinyMap::V(ref mut m) => m.get_mut(k),
         }
     }
+    /// return iterator over key/value pairs
+    pub fn iter<'a>(&'a self) -> Box<Iterator<Item=(&'a K, &'a T)> + 'a> {
+        match self {
+            &TinyMap::Sm(ref v) => Box::new(v.iter().map(|x| (&x.0, &x.1))),
+            &TinyMap::V(ref m) => Box::new(m.iter()),
+        }
+    }
+    /// return iterator over keys
+    pub fn keys<'a>(&'a self) -> Box<Iterator<Item=&'a K> + 'a> {
+        match self {
+            &TinyMap::Sm(ref v) => Box::new(v.iter().map(|x| &x.0)),
+            &TinyMap::V(ref m) => Box::new(m.keys()),
+        }
+    }
+    /// return iterator over values
+    pub fn values<'a>(&'a self) -> Box<Iterator<Item=&'a T> + 'a> {
+        match self {
+            &TinyMap::Sm(ref v) => Box::new(v.iter().map(|x| &x.1)),
+            &TinyMap::V(ref m) => Box::new(m.values()),
+        }
+    }
+    /// return iterator over mutable values
+    pub fn values_mut<'a>(&'a mut self) -> Box<Iterator<Item=&'a mut T> + 'a> {
+        match self {
+            &mut TinyMap::Sm(ref mut v) => Box::new(v.iter_mut().map(|x| &mut x.1)),
+            &mut TinyMap::V(ref mut m) => Box::new(m.values_mut()),
+        }
+    }
 }
 
 #[cfg(test)]
