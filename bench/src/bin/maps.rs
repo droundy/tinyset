@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use fnv::FnvHashMap;
 use ordermap::OrderMap;
 use flat_map::FlatMap;
+use tinyset::TinyMap;
 
 macro_rules! time_me {
     ($fn: expr, $num: expr) => {{
@@ -26,14 +27,13 @@ macro_rules! time_me {
 }
 
 macro_rules! initialize {
-    ($map: expr, $item: ident, $num: expr, $mx: expr) => {{
+    ($map: expr, $item: ident, $vexpr: expr, $num: expr, $mx: expr) => {{
         let mut rng = XorShiftRng::from_seed([$num as u32,$num as u32,3,4]);
         let before = david_allocator::net_allocation();
         let mut map = $map;
         if $num > 0 {
             while map.len() < $num {
-                map.insert($item::rand(&mut rng) % ($mx as $item),
-                           $item::rand(&mut rng) % ($mx as $item));
+                map.insert($item::rand(&mut rng) % ($mx as $item), $vexpr);
                 map.remove(& ($item::rand(&mut rng) % ($mx as $item)));
             }
         }
@@ -44,15 +44,14 @@ macro_rules! initialize {
 }
 
 macro_rules! bench_remove_insert {
-    ($map: expr, $item: ident, $size: expr, $mx: expr, $iters: expr) => {{
-        let (mut map, my_stack, my_size) = initialize!($map, $item, $size, $mx);
+    ($map: expr, $item: ident, $v: expr, $size: expr, $mx: expr, $iters: expr) => {{
+        let (mut map, my_stack, my_size) = initialize!($map, $item, $v, $size, $mx);
         let mut rng = XorShiftRng::from_seed([$size as u32,$iters as u32,1,1000]);
         let my_time = time_me!({
             let i = $item::rand(&mut rng)%(2*$size as $item);
-            let j = $item::rand(&mut rng)%(2*$size as $item);
-            if map.remove(&i).is_some() { map.insert(i, j); }
+            if let Some(e) = map.remove(&i) { map.insert(i, e); }
         }, $iters);
-        print!(" {:6.1} ({:5.1}/{:5.1})",
+        print!(" {:5.1} ({:6.1}/{:6.1})",
                my_time*1e9/$iters as f64,
                ((my_stack+my_size) as f64/$size as f64),
                (my_size as f64/$size as f64));
@@ -61,27 +60,30 @@ macro_rules! bench_remove_insert {
 }
 
 macro_rules! bench_all_insert_remove {
-    ($item: ident, $iters: expr, $maxsz: expr) => {{
-        print!("{:10}\n---------\n{:>5}", "ins/rem", "size");
-        print!("{:^8}( tot / heap)", "fnv");
-        print!("{:^8}( tot / heap)", "hash");
-        print!("{:^8}( tot / heap)", "btree");
-        print!("{:^8}( tot / heap)", "order");
-        print!("{:^8}( tot / heap)", "flat");
+    ($item: ident, $vty: ty, $v: expr, $iters: expr, $maxsz: expr) => {{
+        print!("{:10}\n---------\n{:>6}", "ins/rem", "size");
+        print!("{:^7}(  tot / heap )", "fnv");
+        print!("{:^7}(  tot / heap )", "hash");
+        print!("{:^7}(  tot / heap )", "btree");
+        print!("{:^7}(  tot / heap )", "order");
+        print!("{:^7}(  tot / heap )", "flat");
+        print!("{:^7}(  tot / heap )", "tiny");
         println!();
         for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
                                   .filter(|&x|x<$maxsz)) {
-            print!("{:5}",size);
+            print!("{:6}",size);
 
-            bench_remove_insert!(FnvHashMap::<$item,$item>::default(), $item, size,
+            bench_remove_insert!(FnvHashMap::<$item,$vty>::default(), $item, $v, size,
                                  2*size, $iters);
-            bench_remove_insert!(HashMap::<$item,$item>::default(), $item, size,
+            bench_remove_insert!(HashMap::<$item,$vty>::default(), $item, $v, size,
                                  2*size, $iters);
-            bench_remove_insert!(BTreeMap::<$item,$item>::default(), $item, size,
+            bench_remove_insert!(BTreeMap::<$item,$vty>::default(), $item, $v, size,
                                  2*size, $iters);
-            bench_remove_insert!(OrderMap::<$item,$item>::default(), $item, size,
+            bench_remove_insert!(OrderMap::<$item,$vty>::default(), $item, $v, size,
                                  2*size, $iters);
-            bench_remove_insert!(FlatMap::<$item,$item>::default(), $item, size,
+            bench_remove_insert!(FlatMap::<$item,$vty>::default(), $item, $v, size,
+                                 2*size, $iters);
+            bench_remove_insert!(TinyMap::<$item,$vty>::new(), $item, $v, size,
                                  2*size, $iters);
             println!();
         }
@@ -92,8 +94,12 @@ fn main() {
     let iters = 10000000;
 
     let maxsz = 10*iters;
-    println!("\n==============\n    usize\n==============");
-    bench_all_insert_remove!(usize, iters, maxsz);
+    println!("\n==============\n    usize,usize\n==============");
+    bench_all_insert_remove!(usize, usize, 5, iters, maxsz);
+
+    let maxsz = 120;
+    println!("\n==============\n    u8, [u8;128]\n==============");
+    bench_all_insert_remove!(u8, [u8;128], [3;128], iters, maxsz);
 }
 
 fn duration_to_f64(t: Duration) -> f64 {

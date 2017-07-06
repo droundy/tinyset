@@ -76,6 +76,9 @@ pub use usizeset::USizeSet;
 pub mod u64set;
 pub use u64set::{Set64, Fits64, U64Set};
 
+pub mod tinymap;
+pub use tinymap::TinyMap;
+
 #[cfg(test)]
 extern crate rand;
 
