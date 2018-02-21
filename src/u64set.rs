@@ -2652,6 +2652,88 @@ impl U64Map {
             U64Map::Vu64 {sz, keys:_, vals:_ } => sz as usize,
         }
     }
+    /// Iterate over tuples
+    fn iter(&self) -> U64MapIter {
+        U64MapIter { m: self, which: 0, nleft: self.len() }
+    }
+}
+
+/// Iterator for u64map
+pub struct U64MapIter<'a> {
+    m: &'a U64Map,
+    which: usize,
+    nleft: usize,
+}
+
+impl<'a> Iterator for U64MapIter<'a> {
+    type Item = (u64,u64);
+    fn next(&mut self) -> Option<(u64,u64)> {
+        if self.nleft == 0 {
+            return None;
+        }
+        self.nleft -= 1;
+        match self.m {
+            &U64Map::Su8 { sz:_, ref keys, ref vals } => {
+                while keys[self.which] == u8::invalid() {
+                    self.which += 1;
+                }
+                self.which += 1;
+                Some((keys[self.which-1] as u64, vals[self.which-1] as u64))
+            },
+            &U64Map::Su16 { sz:_, ref keys, ref vals } => {
+                while keys[self.which] == u16::invalid() {
+                    self.which += 1;
+                }
+                self.which += 1;
+                Some((keys[self.which-1] as u64, vals[self.which-1] as u64))
+            },
+            &U64Map::Su32 { sz:_, ref keys, ref vals } => {
+                while keys[self.which] == u32::invalid() {
+                    self.which += 1;
+                }
+                self.which += 1;
+                Some((keys[self.which-1] as u64, vals[self.which-1] as u64))
+            },
+            &U64Map::Su64 { sz:_, ref keys, ref vals } => {
+                while keys[self.which] == u64::invalid() {
+                    self.which += 1;
+                }
+                self.which += 1;
+                Some((keys[self.which-1] as u64, vals[self.which-1] as u64))
+            },
+            &U64Map::Vu8 { sz:_, ref keys, ref vals } => {
+                while keys[self.which] == u8::invalid() {
+                    self.which += 1;
+                }
+                self.which += 1;
+                Some((keys[self.which-1] as u64, vals[self.which-1] as u64))
+            },
+            &U64Map::Vu16 { sz:_, ref keys, ref vals } => {
+                while keys[self.which] == u16::invalid() {
+                    self.which += 1;
+                }
+                self.which += 1;
+                Some((keys[self.which-1] as u64, vals[self.which-1] as u64))
+            },
+            &U64Map::Vu32 { sz:_, ref keys, ref vals } => {
+                while keys[self.which] == u32::invalid() {
+                    self.which += 1;
+                }
+                self.which += 1;
+                Some((keys[self.which-1] as u64, vals[self.which-1] as u64))
+            },
+            &U64Map::Vu64 { sz:_, ref keys, ref vals } => {
+                while keys[self.which] == u64::invalid() {
+                    self.which += 1;
+                }
+                self.which += 1;
+                Some((keys[self.which-1] as u64, vals[self.which-1] as u64))
+            },
+        }
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.nleft, Some(self.nleft))
+    }
 }
 
 fn mapsteal<K: HasInvalid, V>(k: &mut [K], v: &mut [V], mut i: usize, mut elem: K, mut val: V) {
@@ -2755,7 +2837,7 @@ pub struct Map64<K: Fits64, T> {
     ph: PhantomData<K>,
 }
 
-impl<K: Fits64 + std::fmt::Display,T: std::fmt::Debug> Map64<K,T> {
+impl<K: Fits64,T> Map64<K,T> {
     /// Create a Map64
     pub fn new() -> Self {
         Map64 {
@@ -2792,6 +2874,32 @@ impl<K: Fits64 + std::fmt::Display,T: std::fmt::Debug> Map64<K,T> {
             return Some(&self.data[i as usize])
         }
         None
+    }
+    /// Iterate over tuples
+    pub fn iter(&self) -> Map64Iter<K,T> {
+        Map64Iter {
+            m: self,
+            it: self.m.iter(),
+        }
+    }
+}
+
+/// Iterator for u64map
+pub struct Map64Iter<'a, K: Fits64+'a, T: 'a> {
+    m: &'a Map64<K,T>,
+    it: U64MapIter<'a>,
+}
+
+impl<'a, K: Fits64+'a, T: 'a> Iterator for Map64Iter<'a, K, T> {
+    type Item = (K,&'a T);
+    fn next(&mut self) -> Option<(K,&'a T)> {
+        if let Some((k,i)) = self.it.next() {
+            return Some((unsafe { K::from_u64(k) }, &self.m.data[i as usize]));
+        }
+        None
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.it.size_hint()
     }
 }
 
@@ -2840,31 +2948,30 @@ mod map64_tests {
         assert_eq!(m.len(), 1);
     }
 
-    // #[cfg(test)]
-    // quickcheck! {
-    //     fn prop_matches(steps: Vec<Result<(u64,u64),u64>>) -> bool {
-    //         let mut map = U64Map::with_capacity(0);
-    //         let mut refmap = HashMap::<u64,u64>::new();
-    //         for x in steps {
-    //             match x {
-    //                 Ok((k,v)) => {
-    //                     map.insert(k,v); refmap.insert(k,v);
-    //                 },
-    //                 Err(k) => {
-    //                     map.remove(k); refmap.remove(&k);
-    //                 }
-    //             }
-    //             if map.len() != refmap.len() {
-    //                 return false;
-    //             }
-    //             for i in 0..2550 {
-    //                 if map.get(i) != refmap.get(&i).map(|&v| v) {
-    //                     return false;
-    //                 }
-    //             }
-    //         }
-    //         true
-    //     }
-    // }
-
+    #[cfg(test)]
+    quickcheck! {
+        fn prop_matches(steps: Vec<Result<(u64,u64),u64>>) -> bool {
+            let mut map = U64Map::with_capacity(0);
+            let mut refmap = HashMap::<u64,u64>::new();
+            for x in steps {
+                match x {
+                    Ok((k,v)) => {
+                        map.insert(k,v); refmap.insert(k,v);
+                    },
+                    Err(k) => {
+                        map.remove(k); refmap.remove(&k);
+                    }
+                }
+                if map.len() != refmap.len() {
+                    return false;
+                }
+                for i in 0..2550 {
+                    if map.get(i) != refmap.get(&i).map(|&v| v) {
+                        return false;
+                    }
+                }
+            }
+            true
+        }
+    }
 }
