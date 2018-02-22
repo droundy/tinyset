@@ -2135,7 +2135,7 @@ impl U64Map {
                 }
                 *self = n;
             },
-            U64Map::Su8 { sz, keys, vals } if sz as usize + additional > NUM_U8 => {
+            U64Map::Su8 { sz, keys, vals } if sz as usize + additional > MAP_NUM_U8 => {
                 let nextcap = capacity_to_rawcapacity(sz as usize + additional);
                 *self = U64Map::Vu8 {
                     sz: 0,
@@ -2154,7 +2154,7 @@ impl U64Map {
                 }
                 Some(n);
             },
-            U64Map::Su16 { sz, keys, vals } if sz as usize + additional > NUM_U16 => {
+            U64Map::Su16 { sz, keys, vals } if sz as usize + additional > MAP_NUM_U16 => {
                 let nextcap = capacity_to_rawcapacity(sz as usize + additional);
                 *self = U64Map::Vu16 {
                     sz: 0,
@@ -2173,7 +2173,7 @@ impl U64Map {
                 }
                 *self = n;
             },
-            U64Map::Su32 { sz, keys, vals } if sz as usize + additional > NUM_U32 => {
+            U64Map::Su32 { sz, keys, vals } if sz as usize + additional > MAP_NUM_U32 => {
                 let nextcap = capacity_to_rawcapacity(sz as usize + additional);
                 *self = U64Map::Vu32 {
                     sz: 0,
@@ -2192,7 +2192,7 @@ impl U64Map {
                 }
                 *self = n;
             },
-            U64Map::Su64 { sz, keys, vals } if sz as usize + additional > NUM_U64 => {
+            U64Map::Su64 { sz, keys, vals } if sz as usize + additional > MAP_NUM_U64 => {
                 let nextcap = capacity_to_rawcapacity(sz as usize + additional);
                 *self = U64Map::Vu64 {
                     sz: 0,
