@@ -1744,10 +1744,23 @@ impl<'a, 'b, T: Fits64> std::ops::BitOr<&'b Set64<T>> for &'a Set64<T> {
     }
 }
 
+#[cfg(target_pointer_width = "64")]
 const MAP_NUM_U8: usize = 23;
+#[cfg(target_pointer_width = "64")]
 const MAP_NUM_U16: usize = 15;
+#[cfg(target_pointer_width = "64")]
 const MAP_NUM_U32: usize = 9;
+#[cfg(target_pointer_width = "64")]
 const MAP_NUM_U64: usize = 4;
+
+#[cfg(not(target_pointer_width = "64"))]
+const MAP_NUM_U8: usize = 13;
+#[cfg(not(target_pointer_width = "64"))]
+const MAP_NUM_U16: usize = 8;
+#[cfg(not(target_pointer_width = "64"))]
+const MAP_NUM_U32: usize = 5;
+#[cfg(not(target_pointer_width = "64"))]
+const MAP_NUM_U64: usize = 2;
 
 /// A map of u64 elements to sequential integers
 #[derive(Debug, Clone)]
