@@ -1971,61 +1971,10 @@ impl U64Map {
                     },
                     SearchResult::Richer(i) => {
                         *sz += 1;
-                        let oldv = vals[i];
                         std::mem::swap(&mut keys[i], &mut k);
                         std::mem::swap(&mut vals[i], &mut v);
                         mapsteal(keys, vals, i, k, v);
-                        Some(oldv as u64)
-                    },
-                }
-            },
-            &mut U64Map::Vu32 { ref mut sz, ref mut keys, ref mut vals } => {
-                let mut k = k as u32;
-                let mut v = v as u32;
-                match search(keys, k) {
-                    SearchResult::Present(i) => {
-                        let oldv = vals[i];
-                        vals[i] = v;
-                        Some(oldv as u64)
-                    },
-                    SearchResult::Empty(i) => {
-                        keys[i] = k;
-                        vals[i] = v;
-                        *sz += 1;
                         None
-                    },
-                    SearchResult::Richer(i) => {
-                        *sz += 1;
-                        let oldv = vals[i];
-                        std::mem::swap(&mut keys[i], &mut k);
-                        std::mem::swap(&mut vals[i], &mut v);
-                        mapsteal(keys, vals, i, k, v);
-                        Some(oldv as u64)
-                    },
-                }
-            },
-            &mut U64Map::Vu64 { ref mut sz, ref mut keys, ref mut vals } => {
-                let mut k = k as u64;
-                let mut v = v as u64;
-                match search(keys, k) {
-                    SearchResult::Present(i) => {
-                        let oldv = vals[i];
-                        vals[i] = v;
-                        Some(oldv as u64)
-                    },
-                    SearchResult::Empty(i) => {
-                        keys[i] = k;
-                        vals[i] = v;
-                        *sz += 1;
-                        None
-                    },
-                    SearchResult::Richer(i) => {
-                        *sz += 1;
-                        let oldv = vals[i];
-                        std::mem::swap(&mut keys[i], &mut k);
-                        std::mem::swap(&mut vals[i], &mut v);
-                        mapsteal(keys, vals, i, k, v);
-                        Some(oldv as u64)
                     },
                 }
             },
@@ -2046,11 +1995,58 @@ impl U64Map {
                     },
                     SearchResult::Richer(i) => {
                         *sz += 1;
-                        let oldv = vals[i];
                         std::mem::swap(&mut keys[i], &mut k);
                         std::mem::swap(&mut vals[i], &mut v);
                         mapsteal(keys, vals, i, k, v);
+                        None
+                    },
+                }
+            },
+            &mut U64Map::Vu32 { ref mut sz, ref mut keys, ref mut vals } => {
+                let mut k = k as u32;
+                let mut v = v as u32;
+                match search(keys, k) {
+                    SearchResult::Present(i) => {
+                        let oldv = vals[i];
+                        vals[i] = v;
                         Some(oldv as u64)
+                    },
+                    SearchResult::Empty(i) => {
+                        keys[i] = k;
+                        vals[i] = v;
+                        *sz += 1;
+                        None
+                    },
+                    SearchResult::Richer(i) => {
+                        *sz += 1;
+                        std::mem::swap(&mut keys[i], &mut k);
+                        std::mem::swap(&mut vals[i], &mut v);
+                        mapsteal(keys, vals, i, k, v);
+                        None
+                    },
+                }
+            },
+            &mut U64Map::Vu64 { ref mut sz, ref mut keys, ref mut vals } => {
+                let mut k = k as u64;
+                let mut v = v as u64;
+                match search(keys, k) {
+                    SearchResult::Present(i) => {
+                        let oldv = vals[i];
+                        vals[i] = v;
+                        Some(oldv as u64)
+                    },
+                    SearchResult::Empty(i) => {
+                        keys[i] = k;
+                        vals[i] = v;
+                        *sz += 1;
+                        None
+                    },
+                    SearchResult::Richer(i) => {
+                        *sz += 1;
+                        std::mem::swap(&mut keys[i], &mut k);
+                        std::mem::swap(&mut vals[i], &mut v);
+                        mapsteal(keys, vals, i, k, v);
+                        None
                     },
                 }
             },
@@ -2093,7 +2089,6 @@ impl U64Map {
             &mut U64Map::Vu8 { sz:_, keys:_, ref mut vals } => {
                 for x in vals.iter_mut() {
                     if *x == oldv as u8 {
-                        println!("changing value from {} to {}", oldv, newv);
                         *x = newv as u8;
                     }
                 }
@@ -2873,6 +2868,10 @@ impl<K: Fits64,T> Map64<K,T> {
             self.data.push(v);
         }
     }
+    /// Reserve room for more data
+    pub fn reserve(&mut self, extra: usize) {
+        self.m.reserve_with_max(0,extra);
+    }
     /// Remove avalue
     pub fn remove(&mut self, k: K) -> Option<T> {
         if let Some(i) = self.m.remove(k.to_u64()) {
@@ -2931,6 +2930,37 @@ mod map64_tests {
     }
 
     #[test]
+    fn simple_u8() {
+        let mut m = Map64::<u8,u8>::new();
+        m.insert(5,1);
+        assert_eq!(m.len(), 1);
+        assert_eq!(m.get(0), None);
+        assert_eq!(m.get(5), Some(&1));
+        for i in 6..80 {
+            println!("inserting {}", i);
+            m.insert(i,i);
+            assert_eq!(m.get(5), Some(&1));
+        }
+        for i in 6..80 {
+            assert_eq!(m.get(i), Some(&i));
+        }
+        for i in 81..255 {
+            assert_eq!(m.get(i), None);
+        }
+        assert_eq!(m.get(5), Some(&1));
+        for i in 6..80 {
+            println!("removing {}", i);
+            assert_eq!(m.get(i), Some(&i));
+            assert_eq!(m.get(79), Some(&79));
+            assert_eq!(m.remove(i), Some(i));
+            assert_eq!(m.get(i), None);
+        }
+        assert_eq!(m.get(0), None);
+        assert_eq!(m.get(5), Some(&1));
+        assert_eq!(m.len(), 1);
+    }
+
+    #[test]
     fn simple() {
         let mut m = Map64::new();
         m.insert(5,1);
@@ -2961,10 +2991,44 @@ mod map64_tests {
         assert_eq!(m.len(), 1);
     }
 
+    #[test]
+    fn reproduce() {
+        // let i = vec![Ok((0, 0)), Ok((2, 0)), Ok((3, 0)), Ok((5, 0)), Ok((6, 0)), Ok((1, 0)), Ok((7, 0)), Ok((8, 0)), Ok((21, 0)), Ok((9, 0)), Ok((10, 0)), Ok((11, 0)), Ok((12, 0)), Ok((13, 0)), Ok((14, 0)), Ok((48, 0)), Ok((15, 0)), Ok((17, 0)), Ok((4, 0)), Ok((18, 0)), Ok((20, 0)), Ok((22, 0)), Ok((19, 0)), Ok((16, 1))];
+        let i = vec![Ok((0, 0)), Ok((7, 0)), Ok((3, 1))];
+
+        let mut map = Map64::<u8,u8>::new();
+        let mut refmap = HashMap::<u8,u8>::new();
+        for x in i {
+            println!("  {:?} with vec {:?}", map.m, map.data);
+            match x {
+                Ok((k,v)) => {
+                    println!("inputting key {} as {}", k, v);
+                    map.reserve(1);
+                    println!("  after reserving {:?} {:?}", map.get(7), map.m);
+                    map.insert(k,v); refmap.insert(k,v);
+                    assert_eq!(map.get(k), Some(&v));
+                },
+                Err(k) => {
+                    map.remove(k); refmap.remove(&k);
+                }
+            }
+            assert_eq!(map.len(), refmap.len());
+            for i in 0..255 {
+                // println!("testing {}", i);
+                if map.get(i) != refmap.get(&i) {
+                    println!("trouble with {}: {:?} and {:?}",
+                             i, map.get(i), refmap.get(&i));
+                    println!("  {:?} with data vec {:?}", map.m, map.data);
+                }
+                assert_eq!(map.get(i), refmap.get(&i));
+            }
+        }
+    }
+
     #[cfg(test)]
     quickcheck! {
         fn prop_matches(steps: Vec<Result<(u64,u64),u64>>) -> bool {
-            let mut map = U64Map::with_capacity(0);
+            let mut map = Map64::<u64,u64>::new();
             let mut refmap = HashMap::<u64,u64>::new();
             for x in steps {
                 match x {
@@ -2979,7 +3043,60 @@ mod map64_tests {
                     return false;
                 }
                 for i in 0..2550 {
-                    if map.get(i) != refmap.get(&i).map(|&v| v) {
+                    if map.get(i) != refmap.get(&i) {
+                        return false;
+                    }
+                }
+            }
+            true
+        }
+
+        fn prop_matches_u16(steps: Vec<Result<(u16,u16),u16>>) -> bool {
+            let mut map = Map64::<u16,u16>::new();
+            let mut refmap = HashMap::<u16,u16>::new();
+            for x in steps {
+                match x {
+                    Ok((k,v)) => {
+                        map.insert(k,v); refmap.insert(k,v);
+                    },
+                    Err(k) => {
+                        map.remove(k); refmap.remove(&k);
+                    }
+                }
+                if map.len() != refmap.len() {
+                    return false;
+                }
+                for (k,v) in map.iter() {
+                    if map.get(k) != refmap.get(&k) {
+                        return false;
+                    }
+                    if map.get(k) != Some(&v) {
+                        return false;
+                    }
+                }
+            }
+            true
+        }
+
+        fn map64_matches_u8(steps: Vec<Result<(u8,u8),u8>>) -> bool {
+            let mut map = Map64::<u8,u8>::new();
+            let mut refmap = HashMap::<u8,u8>::new();
+            for x in steps {
+                match x {
+                    Ok((k,v)) => {
+                        map.insert(k,v); refmap.insert(k,v);
+                    },
+                    Err(k) => {
+                        map.remove(k); refmap.remove(&k);
+                    }
+                }
+                assert_eq!(map.len(), refmap.len());
+                if map.len() != refmap.len() {
+                    return false;
+                }
+                for i in 0..255 {
+                    assert_eq!(map.get(i), refmap.get(&i));
+                    if map.get(i) != refmap.get(&i) {
                         return false;
                     }
                 }
