@@ -3039,7 +3039,7 @@ mod map64_tests {
             println!("removing {}", i);
             assert_eq!(m.get(i), Some(&i));
             assert_eq!(m.get(79), Some(&79));
-            assert_eq!(m.remove(i), Some(i));
+            assert_eq!(m.remove(&i), Some(i));
             assert_eq!(m.get(i), None);
         }
         assert_eq!(m.get(0), None);
@@ -3070,7 +3070,7 @@ mod map64_tests {
             println!("removing {}", i);
             assert_eq!(m.get(i), Some(&i));
             assert_eq!(m.get(79), Some(&79));
-            assert_eq!(m.remove(i), Some(i));
+            assert_eq!(m.remove(&i), Some(i));
             assert_eq!(m.get(i), None);
         }
         assert_eq!(m.get(0), None);
@@ -3123,7 +3123,7 @@ mod map64_tests {
                         map.insert(k,v); refmap.insert(k,v);
                     },
                     Err(k) => {
-                        map.remove(k); refmap.remove(&k);
+                        map.remove(&k); refmap.remove(&k);
                     }
                 }
                 if map.len() != refmap.len() {
@@ -3147,7 +3147,7 @@ mod map64_tests {
                         map.insert(k,v); refmap.insert(k,v);
                     },
                     Err(k) => {
-                        map.remove(k); refmap.remove(&k);
+                        map.remove(&k); refmap.remove(&k);
                     }
                 }
                 if map.len() != refmap.len() {
@@ -3174,7 +3174,7 @@ mod map64_tests {
                         map.insert(k,v); refmap.insert(k,v);
                     },
                     Err(k) => {
-                        map.remove(k); refmap.remove(&k);
+                        map.remove(&k); refmap.remove(&k);
                     }
                 }
                 assert_eq!(map.len(), refmap.len());
