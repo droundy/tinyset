@@ -1,4 +1,3 @@
-extern crate david_allocator;
 extern crate tinyset;
 extern crate rand;
 extern crate fnv;
@@ -15,6 +14,7 @@ use fnv::FnvHashMap;
 use ordermap::OrderMap;
 use flat_map::FlatMap;
 use tinyset::TinyMap;
+use tinyset::Map64;
 
 macro_rules! time_me {
     ($fn: expr, $num: expr) => {{
@@ -29,7 +29,6 @@ macro_rules! time_me {
 macro_rules! initialize {
     ($map: expr, $item: ident, $vexpr: expr, $num: expr, $mx: expr) => {{
         let mut rng = XorShiftRng::from_seed([$num as u32,$num as u32,3,4]);
-        let before = david_allocator::net_allocation();
         let mut map = $map;
         if $num > 0 {
             while map.len() < $num {
@@ -37,37 +36,34 @@ macro_rules! initialize {
                 map.remove(& ($item::rand(&mut rng) % ($mx as $item)));
             }
         }
-        let net_alloced = david_allocator::net_allocation() - before;
         let len_stack = std::mem::size_of_val(&map);
-        (map, len_stack, net_alloced)
+        (map, len_stack)
     }};
 }
 
 macro_rules! bench_remove_insert {
     ($map: expr, $item: ident, $v: expr, $size: expr, $mx: expr, $iters: expr) => {{
-        let (mut map, my_stack, my_size) = initialize!($map, $item, $v, $size, $mx);
+        let (mut map, my_stack) = initialize!($map, $item, $v, $size, $mx);
         let mut rng = XorShiftRng::from_seed([$size as u32,$iters as u32,1,1000]);
         let my_time = time_me!({
             let i = $item::rand(&mut rng)%(2*$size as $item);
             if let Some(e) = map.remove(&i) { map.insert(i, e); }
         }, $iters);
-        print!(" {:5.1} ({:6.1}/{:6.1})",
-               my_time*1e9/$iters as f64,
-               ((my_stack+my_size) as f64/$size as f64),
-               (my_size as f64/$size as f64));
-        (my_time, my_stack, my_size)
+        print!(" {:5.1}", my_time*1e9/$iters as f64);
+        (my_time, my_stack)
     }};
 }
 
 macro_rules! bench_all_insert_remove {
     ($item: ident, $vty: ty, $v: expr, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>6}", "ins/rem", "size");
-        print!("{:^7}(  tot / heap )", "fnv");
-        print!("{:^7}(  tot / heap )", "hash");
-        print!("{:^7}(  tot / heap )", "btree");
-        print!("{:^7}(  tot / heap )", "order");
-        print!("{:^7}(  tot / heap )", "flat");
-        print!("{:^7}(  tot / heap )", "tiny");
+        print!("{:^6}", "fnv");
+        print!("{:^6}", "hash");
+        print!("{:^6}", "btree");
+        print!("{:^6}", "order");
+        print!("{:^6}", "flat");
+        print!("{:^6}", "tiny");
+        print!("{:^6}", "map64");
         println!();
         for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
                                   .filter(|&x|x<$maxsz)) {
@@ -84,6 +80,8 @@ macro_rules! bench_all_insert_remove {
             bench_remove_insert!(FlatMap::<$item,$vty>::default(), $item, $v, size,
                                  2*size, $iters);
             bench_remove_insert!(TinyMap::<$item,$vty>::new(), $item, $v, size,
+                                 2*size, $iters);
+            bench_remove_insert!(Map64::<$item,$vty>::new(), $item, $v, size,
                                  2*size, $iters);
             println!();
         }

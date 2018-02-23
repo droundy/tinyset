@@ -70,9 +70,6 @@ pub use set::Set;
 pub mod tinyset;
 pub use tinyset::*;
 
-pub mod usizeset;
-pub use usizeset::USizeSet;
-
 pub mod u64set;
 pub use u64set::{Set64, Map64, Fits64};
 

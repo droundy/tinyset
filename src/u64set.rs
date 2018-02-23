@@ -2944,7 +2944,7 @@ impl<K: Fits64,V> Map64<K,V> {
     }
     /// Removes a key from the map, returning the value at the key if
     /// the key was previously in the map.
-    pub fn remove(&mut self, k: K) -> Option<V> {
+    pub fn remove(&mut self, k: &K) -> Option<V> {
         if let Some(i) = self.m.remove(k.to_u64()) {
             self.m.change_value(self.data.len() as u64-1, i);
             return Some(self.data.swap_remove(i as usize))
