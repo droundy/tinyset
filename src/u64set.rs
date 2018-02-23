@@ -1600,6 +1600,21 @@ impl<T: Fits64> Set64<T> {
     }
 }
 
+impl<T: Fits64> PartialEq for Set64<T> {
+    fn eq(&self, other: &Set64<T>) -> bool {
+        if self.len() != other.len() {
+            return false;
+        }
+        for k in other.iter() {
+            if !self.contains(k) {
+                return false;
+            }
+        }
+        true
+    }
+}
+impl<T: Fits64> Eq for Set64<T> {}
+
 impl<T: Fits64> std::iter::FromIterator<T> for Set64<T> {
     fn from_iter<I: IntoIterator<Item=T>>(iter: I) -> Self {
         let iter = iter.into_iter();
@@ -2666,6 +2681,21 @@ impl U64Map {
     }
 }
 
+impl PartialEq for U64Map {
+    fn eq(&self, other: &U64Map) -> bool {
+        if self.len() != other.len() {
+            return false;
+        }
+        for (k, v) in other.iter() {
+            if self.get(k) != Some(v) {
+                return false;
+            }
+        }
+        true
+    }
+}
+impl Eq for U64Map {}
+
 /// Iterator for u64map
 pub struct U64MapIter<'a> {
     m: &'a U64Map,
@@ -2838,15 +2868,46 @@ mod u64map_tests {
 
 }
 
-/// A mapping from small things
-pub struct Map64<K: Fits64, T> {
+/// A map type that can use any key that fits in a `u64` (i.e. that
+/// satisfies trait `Fits64`).  This map type is very space-efficient
+/// for keys that are small integers, while not being bad at storing
+/// large integers.
+///
+/// **Major caveat** The `Map64<K,V>` defines an iterator that
+/// iterates over `(K, &V)` rather than `(&K, &V)`.  This is a break
+/// with standard libray convention, and can be annoying if you are
+/// translating code from `HashMap` to `Map64`.  The motivation for
+/// this is several-fold:
+///
+/// 1. `Map64` does not store `K` directly in its data structures
+/// (which would waste space), so there is no reference to the data to
+/// take.  This does not make it impossible, but does mean we would
+/// have to fabricate a `K` and return a reference to it, which is
+/// awkward and ugly.
+///
+/// 2. There is no inefficiency involved in returning `K`, since it is
+/// necessarily no larger than a pointer (except on a 32-bit system).
+///
+/// # Examples
+///
+/// ```
+/// use tinyset::Map64;
+///
+/// let mut a: Map64<char,&str> = Map64::new();
+///
+/// a.insert('a', "hello");
+/// a.insert('b', "world");
+/// assert_eq!(a.get('a'), Some(&"hello"));
+/// assert_eq!(a.get('b'), Some(&"world"));
+#[derive(Clone)]
+pub struct Map64<K: Fits64, V> {
     m: U64Map,
-    data: Vec<T>,
+    data: Vec<V>,
     ph: PhantomData<K>,
 }
 
-impl<K: Fits64,T> Map64<K,T> {
-    /// Create a Map64
+impl<K: Fits64,V> Map64<K,V> {
+    /// Creates an empty `Map64`.
     pub fn new() -> Self {
         Map64 {
             m: U64Map::with_capacity(1),
@@ -2854,41 +2915,52 @@ impl<K: Fits64,T> Map64<K,T> {
             ph: PhantomData,
         }
     }
-    /// How many elems?
+    /// Returns the number of elements in the map.
     pub fn len(&self) -> usize {
         self.m.len()
     }
-    /// Insert a value
-    pub fn insert(&mut self, k: K, v: T) {
+    /// Inserts a key-value pair into the map.
+    ///
+    /// If the map did not have this key present, None is returned.
+    ///
+    /// If the map did have this key present, the value is updated,
+    /// and the old value is returned.
+    pub fn insert(&mut self, k: K, v: V) -> Option<V> {
         if let Some(i) = self.m.insert(k.to_u64(), self.data.len() as u64) {
             // FIXME: this is needlessly inefficient
             self.m.insert(k.to_u64(), i);
-            self.data[i as usize] = v;
+            Some(std::mem::replace(&mut self.data[i as usize], v))
         } else {
             self.data.push(v);
+            None
         }
     }
-    /// Reserve room for more data
-    pub fn reserve(&mut self, extra: usize) {
-        self.m.reserve_with_max(0,extra);
+    /// Reserves capacity for at least `additional` more elements to
+    /// be inserted in the `Map64`. The collection may reserve more
+    /// space to avoid frequent reallocations.
+    pub fn reserve(&mut self, additional: usize) {
+        self.m.reserve_with_max(0,additional);
+        self.data.reserve(additional);
     }
-    /// Remove avalue
-    pub fn remove(&mut self, k: K) -> Option<T> {
+    /// Removes a key from the map, returning the value at the key if
+    /// the key was previously in the map.
+    pub fn remove(&mut self, k: K) -> Option<V> {
         if let Some(i) = self.m.remove(k.to_u64()) {
             self.m.change_value(self.data.len() as u64-1, i);
             return Some(self.data.swap_remove(i as usize))
         }
         None
     }
-    /// Get an element
-    pub fn get(&self, k: K) -> Option<&T> {
+    /// Returns a reference to the value corresponding to the key.
+    pub fn get(&self, k: K) -> Option<&V> {
         if let Some(i) = self.m.get(k.to_u64()) {
             return Some(&self.data[i as usize])
         }
         None
     }
-    /// Iterate over tuples
-    pub fn iter(&self) -> Map64Iter<K,T> {
+    /// An iterator visiting all key-value pairs in arbitrary
+    /// order. The iterator element type is (K, &V).
+    pub fn iter(&self) -> Map64Iter<K,V> {
         Map64Iter {
             m: self,
             it: self.m.iter(),
@@ -2896,15 +2968,30 @@ impl<K: Fits64,T> Map64<K,T> {
     }
 }
 
+impl<K: Fits64,V: PartialEq> PartialEq for Map64<K,V> {
+    fn eq(&self, other: &Map64<K,V>) -> bool {
+        if self.len() != other.len() {
+            return false;
+        }
+        for (k, v) in other.iter() {
+            if self.get(k) != Some(v) {
+                return false;
+            }
+        }
+        true
+    }
+}
+impl<K: Fits64,V:Eq> Eq for Map64<K,V> {}
+
 /// Iterator for u64map
-pub struct Map64Iter<'a, K: Fits64+'a, T: 'a> {
-    m: &'a Map64<K,T>,
+pub struct Map64Iter<'a, K: Fits64+'a, V: 'a> {
+    m: &'a Map64<K,V>,
     it: U64MapIter<'a>,
 }
 
-impl<'a, K: Fits64+'a, T: 'a> Iterator for Map64Iter<'a, K, T> {
-    type Item = (K,&'a T);
-    fn next(&mut self) -> Option<(K,&'a T)> {
+impl<'a, K: Fits64+'a, V: 'a> Iterator for Map64Iter<'a, K, V> {
+    type Item = (K,&'a V);
+    fn next(&mut self) -> Option<(K,&'a V)> {
         if let Some((k,i)) = self.it.next() {
             return Some((unsafe { K::from_u64(k) }, &self.m.data[i as usize]));
         }
