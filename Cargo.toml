@@ -1,6 +1,6 @@
 [package]
 name = "tinyset"
-version = "0.0.12"
+version = "0.1.0"
 authors = ["David Roundy <daveroundy@gmail.com>"]
 
 description = "Size-optimized sets"
