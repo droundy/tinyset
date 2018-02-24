@@ -2897,8 +2897,8 @@ mod u64map_tests {
 ///
 /// a.insert('a', "hello");
 /// a.insert('b', "world");
-/// assert_eq!(a.get('a'), Some(&"hello"));
-/// assert_eq!(a.get('b'), Some(&"world"));
+/// assert_eq!(a.get(&'a'), Some(&"hello"));
+/// assert_eq!(a.get(&'b'), Some(&"world"));
 #[derive(Clone)]
 pub struct Map64<K: Fits64, V> {
     m: U64Map,
@@ -2952,7 +2952,7 @@ impl<K: Fits64,V> Map64<K,V> {
         None
     }
     /// Returns a reference to the value corresponding to the key.
-    pub fn get(&self, k: K) -> Option<&V> {
+    pub fn get(&self, k: &K) -> Option<&V> {
         if let Some(i) = self.m.get(k.to_u64()) {
             return Some(&self.data[i as usize])
         }
@@ -2974,7 +2974,7 @@ impl<K: Fits64,V: PartialEq> PartialEq for Map64<K,V> {
             return false;
         }
         for (k, v) in other.iter() {
-            if self.get(k) != Some(v) {
+            if self.get(&k) != Some(v) {
                 return false;
             }
         }
@@ -3021,29 +3021,29 @@ mod map64_tests {
         let mut m = Map64::<u8,u8>::new();
         m.insert(5,1);
         assert_eq!(m.len(), 1);
-        assert_eq!(m.get(0), None);
-        assert_eq!(m.get(5), Some(&1));
+        assert_eq!(m.get(&0), None);
+        assert_eq!(m.get(&5), Some(&1));
         for i in 6..80 {
             println!("inserting {}", i);
             m.insert(i,i);
-            assert_eq!(m.get(5), Some(&1));
+            assert_eq!(m.get(&5), Some(&1));
         }
         for i in 6..80 {
-            assert_eq!(m.get(i), Some(&i));
+            assert_eq!(m.get(&i), Some(&i));
         }
         for i in 81..255 {
-            assert_eq!(m.get(i), None);
+            assert_eq!(m.get(&i), None);
         }
-        assert_eq!(m.get(5), Some(&1));
+        assert_eq!(m.get(&5), Some(&1));
         for i in 6..80 {
             println!("removing {}", i);
-            assert_eq!(m.get(i), Some(&i));
-            assert_eq!(m.get(79), Some(&79));
+            assert_eq!(m.get(&i), Some(&i));
+            assert_eq!(m.get(&79), Some(&79));
             assert_eq!(m.remove(&i), Some(i));
-            assert_eq!(m.get(i), None);
+            assert_eq!(m.get(&i), None);
         }
-        assert_eq!(m.get(0), None);
-        assert_eq!(m.get(5), Some(&1));
+        assert_eq!(m.get(&0), None);
+        assert_eq!(m.get(&5), Some(&1));
         assert_eq!(m.len(), 1);
     }
 
@@ -3052,29 +3052,29 @@ mod map64_tests {
         let mut m = Map64::new();
         m.insert(5,1);
         assert_eq!(m.len(), 1);
-        assert_eq!(m.get(0), None);
-        assert_eq!(m.get(5), Some(&1));
+        assert_eq!(m.get(&0), None);
+        assert_eq!(m.get(&5), Some(&1));
         for i in 6..80 {
             println!("inserting {}", i);
             m.insert(i,i);
-            assert_eq!(m.get(5), Some(&1));
+            assert_eq!(m.get(&5), Some(&1));
         }
         for i in 6..80 {
-            assert_eq!(m.get(i), Some(&i));
+            assert_eq!(m.get(&i), Some(&i));
         }
         for i in 81..300 {
-            assert_eq!(m.get(i), None);
+            assert_eq!(m.get(&i), None);
         }
-        assert_eq!(m.get(5), Some(&1));
+        assert_eq!(m.get(&5), Some(&1));
         for i in 6..80 {
             println!("removing {}", i);
-            assert_eq!(m.get(i), Some(&i));
-            assert_eq!(m.get(79), Some(&79));
+            assert_eq!(m.get(&i), Some(&i));
+            assert_eq!(m.get(&79), Some(&79));
             assert_eq!(m.remove(&i), Some(i));
-            assert_eq!(m.get(i), None);
+            assert_eq!(m.get(&i), None);
         }
-        assert_eq!(m.get(0), None);
-        assert_eq!(m.get(5), Some(&1));
+        assert_eq!(m.get(&0), None);
+        assert_eq!(m.get(&5), Some(&1));
         assert_eq!(m.len(), 1);
     }
 
@@ -3091,9 +3091,9 @@ mod map64_tests {
                 Ok((k,v)) => {
                     println!("inputting key {} as {}", k, v);
                     map.reserve(1);
-                    println!("  after reserving {:?} {:?}", map.get(7), map.m);
+                    println!("  after reserving {:?} {:?}", map.get(&7), map.m);
                     map.insert(k,v); refmap.insert(k,v);
-                    assert_eq!(map.get(k), Some(&v));
+                    assert_eq!(map.get(&k), Some(&v));
                 },
                 Err(k) => {
                     map.remove(k); refmap.remove(&k);
@@ -3102,12 +3102,12 @@ mod map64_tests {
             assert_eq!(map.len(), refmap.len());
             for i in 0..255 {
                 // println!("testing {}", i);
-                if map.get(i) != refmap.get(&i) {
+                if map.get(&i) != refmap.get(&i) {
                     println!("trouble with {}: {:?} and {:?}",
-                             i, map.get(i), refmap.get(&i));
+                             i, map.get(&i), refmap.get(&i));
                     println!("  {:?} with data vec {:?}", map.m, map.data);
                 }
-                assert_eq!(map.get(i), refmap.get(&i));
+                assert_eq!(map.get(&i), refmap.get(&i));
             }
         }
     }
@@ -3130,7 +3130,7 @@ mod map64_tests {
                     return false;
                 }
                 for i in 0..2550 {
-                    if map.get(i) != refmap.get(&i) {
+                    if map.get(&i) != refmap.get(&i) {
                         return false;
                     }
                 }
@@ -3154,10 +3154,10 @@ mod map64_tests {
                     return false;
                 }
                 for (k,v) in map.iter() {
-                    if map.get(k) != refmap.get(&k) {
+                    if map.get(&k) != refmap.get(&k) {
                         return false;
                     }
-                    if map.get(k) != Some(&v) {
+                    if map.get(&k) != Some(&v) {
                         return false;
                     }
                 }
@@ -3182,8 +3182,316 @@ mod map64_tests {
                     return false;
                 }
                 for i in 0..255 {
-                    assert_eq!(map.get(i), refmap.get(&i));
-                    if map.get(i) != refmap.get(&i) {
+                    assert_eq!(map.get(&i), refmap.get(&i));
+                    if map.get(&i) != refmap.get(&i) {
+                        return false;
+                    }
+                }
+            }
+            true
+        }
+    }
+}
+
+
+/// A map type that can use any key that fits in a `u64` (i.e. that
+/// satisfies trait `Fits64`).  This map type is very space-efficient
+/// for keys that are small integers, while not being bad at storing
+/// large integers.
+///
+/// **Major caveat** The `Map6464<K,V>` defines an iterator that
+/// iterates over `(K, &V)` rather than `(&K, &V)`.  This is a break
+/// with standard libray convention, and can be annoying if you are
+/// translating code from `HashMap` to `Map6464`.  The motivation for
+/// this is several-fold:
+///
+/// 1. `Map6464` does not store `K` directly in its data structures
+/// (which would waste space), so there is no reference to the data to
+/// take.  This does not make it impossible, but does mean we would
+/// have to fabricate a `K` and return a reference to it, which is
+/// awkward and ugly.
+///
+/// 2. There is no inefficiency involved in returning `K`, since it is
+/// necessarily no larger than a pointer (except on a 32-bit system).
+///
+/// # Examples
+///
+/// ```
+/// use tinyset::Map6464;
+///
+/// let mut a: Map6464<char,usize> = Map6464::new();
+///
+/// a.insert('a', 1);
+/// a.insert('b', 2);
+/// assert_eq!(a.get(&'a'), Some(1));
+/// assert_eq!(a.get(&'b'), Some(2));
+#[derive(Clone, PartialEq, Eq)]
+pub struct Map6464<K: Fits64, V: Fits64> {
+    m: U64Map,
+    phk: PhantomData<K>,
+    phv: PhantomData<V>,
+}
+
+impl<K: Fits64,V: Fits64> Map6464<K,V> {
+    /// Creates an empty `Map6464`.
+    pub fn new() -> Self {
+        Map6464 {
+            m: U64Map::with_capacity(1),
+            phk: PhantomData,
+            phv: PhantomData,
+        }
+    }
+    /// Returns the number of elements in the map.
+    pub fn len(&self) -> usize {
+        self.m.len()
+    }
+    /// Inserts a key-value pair into the map.
+    ///
+    /// If the map did not have this key present, None is returned.
+    ///
+    /// If the map did have this key present, the value is updated,
+    /// and the old value is returned.
+    pub fn insert(&mut self, k: K, v: V) -> Option<V> {
+        if let Some(i) = self.m.insert(k.to_u64(), V::to_u64(v)) {
+            Some( unsafe { V::from_u64(i) } )
+        } else {
+            None
+        }
+    }
+    /// Reserves capacity for at least `additional` more elements to
+    /// be inserted in the `Map6464`. The collection may reserve more
+    /// space to avoid frequent reallocations.
+    pub fn reserve(&mut self, additional: usize) {
+        self.m.reserve_with_max(0,additional);
+    }
+    /// Removes a key from the map, returning the value at the key if
+    /// the key was previously in the map.
+    pub fn remove(&mut self, k: &K) -> Option<V> {
+        if let Some(i) = self.m.remove(k.to_u64()) {
+            return Some( unsafe { V::from_u64(i) } );
+        }
+        None
+    }
+    /// Returns the value corresponding to the key.
+    pub fn get(&self, k: &K) -> Option<V> {
+        if let Some(i) = self.m.get(k.to_u64()) {
+            return Some( unsafe { V::from_u64(i) } );
+        }
+        None
+    }
+    /// An iterator visiting all key-value pairs in arbitrary
+    /// order. The iterator element type is (K, &V).
+    pub fn iter(&self) -> Map6464Iter<K,V> {
+        Map6464Iter {
+            it: self.m.iter(),
+            phk: PhantomData,
+            phv: PhantomData,
+        }
+    }
+}
+
+/// Iterator for u64map
+pub struct Map6464Iter<'a, K, V> {
+    it: U64MapIter<'a>,
+    phk: PhantomData<K>,
+    phv: PhantomData<V>,
+}
+
+impl<'a, K: Fits64+'a, V: Fits64+'a> Iterator for Map6464Iter<'a, K, V> {
+    type Item = (K,V);
+    fn next(&mut self) -> Option<(K,V)> {
+        if let Some((k,i)) = self.it.next() {
+            return Some(unsafe { (K::from_u64(k), V::from_u64(i)) });
+        }
+        None
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.it.size_hint()
+    }
+}
+
+#[cfg(test)]
+mod map6464_tests {
+    use super::*;
+    use std::collections::HashMap;
+    #[test]
+    fn size_unwasted() {
+        println!("box size: {}", std::mem::size_of::<Box<[u64]>>());
+        println!("small size: {}", std::mem::size_of::<Map6464<u64,u64>>());
+        println!(" hash size: {}", std::mem::size_of::<HashMap<u64,u64>>());
+        assert!(std::mem::size_of::<Map6464<u64,u64>>() <=
+                2*std::mem::size_of::<HashMap<u64,u64>>());
+        assert!(std::mem::size_of::<Map6464<u64,u64>>() <= 72);
+    }
+
+    #[test]
+    fn simple_u8() {
+        let mut m = Map6464::<u8,u8>::new();
+        m.insert(5,1);
+        assert_eq!(m.len(), 1);
+        assert_eq!(m.get(&0), None);
+        assert_eq!(m.get(&5), Some(1));
+        for i in 6..80 {
+            println!("inserting {}", i);
+            m.insert(i,i);
+            assert_eq!(m.get(&5), Some(1));
+        }
+        for i in 6..80 {
+            assert_eq!(m.get(&i), Some(i));
+        }
+        for i in 81..255 {
+            assert_eq!(m.get(&i), None);
+        }
+        assert_eq!(m.get(&5), Some(1));
+        for i in 6..80 {
+            println!("removing {}", i);
+            assert_eq!(m.get(&i), Some(i));
+            assert_eq!(m.get(&79), Some(79));
+            assert_eq!(m.remove(&i), Some(i));
+            assert_eq!(m.get(&i), None);
+        }
+        assert_eq!(m.get(&0), None);
+        assert_eq!(m.get(&5), Some(1));
+        assert_eq!(m.len(), 1);
+    }
+
+    #[test]
+    fn simple() {
+        let mut m = Map6464::new();
+        m.insert(5,1);
+        assert_eq!(m.len(), 1);
+        assert_eq!(m.get(&0), None);
+        assert_eq!(m.get(&5), Some(1));
+        for i in 6..80 {
+            println!("inserting {}", i);
+            m.insert(i,i);
+            assert_eq!(m.get(&5), Some(1));
+        }
+        for i in 6..80 {
+            assert_eq!(m.get(&i), Some(i));
+        }
+        for i in 81..300 {
+            assert_eq!(m.get(&i), None);
+        }
+        assert_eq!(m.get(&5), Some(1));
+        for i in 6..80 {
+            println!("removing {}", i);
+            assert_eq!(m.get(&i), Some(i));
+            assert_eq!(m.get(&79), Some(79));
+            assert_eq!(m.remove(&i), Some(i));
+            assert_eq!(m.get(&i), None);
+        }
+        assert_eq!(m.get(&0), None);
+        assert_eq!(m.get(&5), Some(1));
+        assert_eq!(m.len(), 1);
+    }
+
+    #[test]
+    fn reproduce() {
+        // let i = vec![Ok((0, 0)), Ok((2, 0)), Ok((3, 0)), Ok((5, 0)), Ok((6, 0)), Ok((1, 0)), Ok((7, 0)), Ok((8, 0)), Ok((21, 0)), Ok((9, 0)), Ok((10, 0)), Ok((11, 0)), Ok((12, 0)), Ok((13, 0)), Ok((14, 0)), Ok((48, 0)), Ok((15, 0)), Ok((17, 0)), Ok((4, 0)), Ok((18, 0)), Ok((20, 0)), Ok((22, 0)), Ok((19, 0)), Ok((16, 1))];
+        let i = vec![Ok((0, 0)), Ok((7, 0)), Ok((3, 1))];
+
+        let mut map = Map6464::<u8,u8>::new();
+        let mut refmap = HashMap::<u8,u8>::new();
+        for x in i {
+            println!("  {:?}", map.m);
+            match x {
+                Ok((k,v)) => {
+                    println!("inputting key {} as {}", k, v);
+                    map.reserve(1);
+                    println!("  after reserving {:?} {:?}", map.get(&7), map.m);
+                    map.insert(k,v); refmap.insert(k,v);
+                    assert_eq!(map.get(&k), Some(&v).map(|&x|x));
+                },
+                Err(k) => {
+                    map.remove(k); refmap.remove(&k);
+                }
+            }
+            assert_eq!(map.len(), refmap.len());
+            for i in 0..255 {
+                // println!("testing {}", i);
+                if map.get(&i) != refmap.get(&i).map(|&x|x) {
+                    println!("trouble with {}: {:?} and {:?}",
+                             i, map.get(&i), refmap.get(&i));
+                    println!("  {:?}", map.m);
+                }
+                assert_eq!(map.get(&i), refmap.get(&i).map(|&x|x));
+            }
+        }
+    }
+
+    #[cfg(test)]
+    quickcheck! {
+        fn prop_matches(steps: Vec<Result<(u64,u64),u64>>) -> bool {
+            let mut map = Map6464::<u64,u64>::new();
+            let mut refmap = HashMap::<u64,u64>::new();
+            for x in steps {
+                match x {
+                    Ok((k,v)) => {
+                        map.insert(k,v); refmap.insert(k,v);
+                    },
+                    Err(k) => {
+                        map.remove(&k); refmap.remove(&k);
+                    }
+                }
+                if map.len() != refmap.len() {
+                    return false;
+                }
+                for i in 0..2550 {
+                    if map.get(&i) != refmap.get(&i).map(|&x|x) {
+                        return false;
+                    }
+                }
+            }
+            true
+        }
+
+        fn prop_matches_u16(steps: Vec<Result<(u16,u16),u16>>) -> bool {
+            let mut map = Map6464::<u16,u16>::new();
+            let mut refmap = HashMap::<u16,u16>::new();
+            for x in steps {
+                match x {
+                    Ok((k,v)) => {
+                        map.insert(k,v); refmap.insert(k,v);
+                    },
+                    Err(k) => {
+                        map.remove(&k); refmap.remove(&k);
+                    }
+                }
+                if map.len() != refmap.len() {
+                    return false;
+                }
+                for (k,v) in map.iter() {
+                    if map.get(&k) != refmap.get(&k).map(|&x|x) {
+                        return false;
+                    }
+                    if map.get(&k) != Some(v) {
+                        return false;
+                    }
+                }
+            }
+            true
+        }
+
+        fn map64_matches_u8(steps: Vec<Result<(u8,u8),u8>>) -> bool {
+            let mut map = Map6464::<u8,u8>::new();
+            let mut refmap = HashMap::<u8,u8>::new();
+            for x in steps {
+                match x {
+                    Ok((k,v)) => {
+                        map.insert(k,v); refmap.insert(k,v);
+                    },
+                    Err(k) => {
+                        map.remove(&k); refmap.remove(&k);
+                    }
+                }
+                assert_eq!(map.len(), refmap.len());
+                if map.len() != refmap.len() {
+                    return false;
+                }
+                for i in 0..255 {
+                    assert_eq!(map.get(&i), refmap.get(&i).map(|&x|x));
+                    if map.get(&i) != refmap.get(&i).map(|&x|x) {
                         return false;
                     }
                 }
