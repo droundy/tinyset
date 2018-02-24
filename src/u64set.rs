@@ -1853,10 +1853,10 @@ impl U64Map {
             }
         }
     }
-    fn with_max_cap(max: u64, cap: usize) -> U64Map {
+    fn with_maxes_cap(max_k: u64, max_v: u64, cap: usize) -> U64Map {
         let nextcap = capacity_to_rawcapacity(cap);
-        if max < u8::invalid() as u64 {
-            if cap <= NUM_U8 {
+        if max_k < u8::invalid() as u64 {
+            if cap <= NUM_U8 && max_v < 256 {
                 U64Map::Su8 { sz: 0, keys: [0; MAP_NUM_U8], vals: [0; MAP_NUM_U8] }
             } else {
                 U64Map::Vu8 {
@@ -1865,8 +1865,8 @@ impl U64Map {
                     vals: vec![u8::invalid(); nextcap].into_boxed_slice(),
                 }
             }
-        } else if max < u16::invalid() as u64 {
-            if cap <= NUM_U16 {
+        } else if max_k < u16::invalid() as u64 {
+            if cap <= NUM_U16 && max_v < 256 {
                 U64Map::Su16 {
                     sz: 0,
                     keys: [u16::invalid(); MAP_NUM_U16],
@@ -1879,8 +1879,8 @@ impl U64Map {
                     vals: vec![u16::invalid(); nextcap].into_boxed_slice(),
                 }
             }
-        } else if max < u32::invalid() as u64 {
-            if cap <= NUM_U32 {
+        } else if max_k < u32::invalid() as u64 {
+            if cap <= NUM_U32 && max_v < 256 {
                 U64Map::Su32 {
                     sz: 0,
                     keys: [u32::invalid(); MAP_NUM_U32],
@@ -1893,8 +1893,8 @@ impl U64Map {
                     vals: vec![u32::invalid(); nextcap].into_boxed_slice(),
                 }
             }
-        } else if max < u64::invalid() as u64 {
-            if cap <= NUM_U64 {
+        } else if max_k < u64::invalid() as u64 {
+            if cap <= NUM_U64 && max_v < 256 {
                 U64Map::Su64 {
                     sz: 0,
                     keys: [u64::invalid(); MAP_NUM_U64],
@@ -2067,79 +2067,15 @@ impl U64Map {
             },
         }
     }
-    fn change_value(&mut self, oldv: u64, newv: u64) {
-        match self {
-            &mut U64Map::Su8 { sz, keys:_, ref mut vals } => {
-                for x in vals.iter_mut().take(sz as usize) {
-                    if *x == oldv as u8 {
-                        *x = newv as u8;
-                        return;
-                    }
-                }
-            },
-            &mut U64Map::Su16 { sz, keys:_, ref mut vals } => {
-                for x in vals.iter_mut().take(sz as usize) {
-                    if *x == oldv as u8 {
-                        *x = newv as u8;
-                        return;
-                    }
-                }
-            },
-            &mut U64Map::Su32 { sz, keys:_, ref mut vals } => {
-                for x in vals.iter_mut().take(sz as usize) {
-                    if *x == oldv as u8 {
-                        *x = newv as u8;
-                        return;
-                    }
-                }
-            },
-            &mut U64Map::Su64 { sz, keys:_, ref mut vals } => {
-                for x in vals.iter_mut().take(sz as usize) {
-                    if *x == oldv as u8 {
-                        *x = newv as u8;
-                        return;
-                    }
-                }
-            },
-            &mut U64Map::Vu8 { sz:_, keys:_, ref mut vals } => {
-                for x in vals.iter_mut() {
-                    if *x == oldv as u8 {
-                        *x = newv as u8;
-                    }
-                }
-            },
-            &mut U64Map::Vu16 { sz:_, keys:_, ref mut vals } => {
-                for x in vals.iter_mut() {
-                    if *x == oldv as u16 {
-                        *x = newv as u16;
-                    }
-                }
-            },
-            &mut U64Map::Vu32 { sz:_, keys:_, ref mut vals } => {
-                for x in vals.iter_mut() {
-                    if *x == oldv as u32 {
-                        *x = newv as u32;
-                    }
-                }
-            },
-            &mut U64Map::Vu64 { sz:_, keys:_, ref mut vals } => {
-                for x in vals.iter_mut() {
-                    if *x == oldv as u64 {
-                        *x = newv as u64;
-                    }
-                }
-            },
-        }
-    }
     /// Reserves capacity for at least `additional` more elements to
     /// be inserted in the set, with maximum value of `max`. The
     /// collection may reserve more space to avoid frequent
     /// reallocations.
-    fn reserve_with_max(&mut self, max: u64, additional: usize) {
+    fn reserve_with_maxes(&mut self, max_k: u64, max_v: u64, additional: usize) {
         let mut newself: Option<U64Map> = None;
         match *self {
-            U64Map::Su8 { sz, keys: k, vals: v } if max >= u8::invalid() as u64 => {
-                let mut n = Self::with_max_cap(max, sz as usize + additional);
+            U64Map::Su8 { sz, keys: k, vals: v } if max_k >= u8::invalid() as u64 => {
+                let mut n = Self::with_maxes_cap(max_k, max_v, sz as usize + additional);
                 for i in 0..sz as usize {
                     n.insert_unchecked(k[i] as u64, v[i] as u64);
                 }
@@ -2157,8 +2093,8 @@ impl U64Map {
                 }
             },
             U64Map::Su8 {sz:_,keys:_,vals:_} => (),
-            U64Map::Su16 { sz, keys: k, vals: v } if max >= u16::invalid() as u64 => {
-                let mut n = Self::with_max_cap(max, sz as usize + additional);
+            U64Map::Su16 { sz, keys: k, vals: v } if max_k >= u16::invalid() as u64 => {
+                let mut n = Self::with_maxes_cap(max_k, max_v, sz as usize + additional);
                 for i in 0..sz as usize {
                     n.insert_unchecked(k[i] as u64, v[i] as u64);
                 }
@@ -2176,8 +2112,8 @@ impl U64Map {
                 }
             },
             U64Map::Su16 {sz:_,keys:_,vals:_} => (),
-            U64Map::Su32 { sz, keys: k, vals: v } if max >= u32::invalid() as u64 => {
-                let mut n = Self::with_max_cap(max, sz as usize + additional);
+            U64Map::Su32 { sz, keys: k, vals: v } if max_k >= u32::invalid() as u64 => {
+                let mut n = Self::with_maxes_cap(max_k, max_v, sz as usize + additional);
                 for i in 0..sz as usize {
                     n.insert_unchecked(k[i] as u64, v[i] as u64);
                 }
@@ -2195,8 +2131,8 @@ impl U64Map {
                 }
             },
             U64Map::Su32 {sz:_,keys:_,vals:_} => (),
-            U64Map::Su64 { sz, keys: k, vals: v } if max >= u64::invalid() as u64 => {
-                let mut n = Self::with_max_cap(max, sz as usize + additional);
+            U64Map::Su64 { sz, keys: k, vals: v } if max_k >= u64::invalid() as u64 => {
+                let mut n = Self::with_maxes_cap(max_k, max_v, sz as usize + additional);
                 for i in 0..sz as usize {
                     n.insert_unchecked(k[i] as u64, v[i] as u64);
                 }
@@ -2214,8 +2150,8 @@ impl U64Map {
                 }
             },
             U64Map::Su64 {sz:_,keys:_,vals:_} => (),
-            U64Map::Vu8 {sz,ref keys,ref vals} if max >= u8::invalid() as u64 => {
-                let mut n = Self::with_max_cap(max, sz as usize + additional);
+            U64Map::Vu8 {sz,ref keys,ref vals} if max_k >= u8::invalid() as u64 => {
+                let mut n = Self::with_maxes_cap(max_k, max_v, sz as usize + additional);
                 for i in 0..keys.len() {
                     if keys[i] != u8::invalid() {
                         n.insert_unchecked(keys[i] as u64, vals[i] as u64);
@@ -2249,8 +2185,8 @@ impl U64Map {
                 }
             },
             U64Map::Vu8 {sz:_,keys:_,vals:_} => (),
-            U64Map::Vu16 {sz,ref keys,ref vals} if max >= u16::invalid() as u64 => {
-                let mut n = Self::with_max_cap(max, sz as usize + additional);
+            U64Map::Vu16 {sz,ref keys,ref vals} if max_k >= u16::invalid() as u64 => {
+                let mut n = Self::with_maxes_cap(max_k, max_v, sz as usize + additional);
                 for i in 0..keys.len() {
                     if keys[i] != u16::invalid() {
                         n.insert_unchecked(keys[i] as u64, vals[i] as u64);
@@ -2284,8 +2220,8 @@ impl U64Map {
                 }
             },
             U64Map::Vu16 {sz:_,keys:_,vals:_} => (),
-            U64Map::Vu32 {sz,ref keys,ref vals} if max >= u32::invalid() as u64 => {
-                let mut n = Self::with_max_cap(max, sz as usize + additional);
+            U64Map::Vu32 {sz,ref keys,ref vals} if max_k >= u32::invalid() as u64 => {
+                let mut n = Self::with_maxes_cap(max_k, max_v, sz as usize + additional);
                 for i in 0..keys.len() {
                     if keys[i] != u32::invalid() {
                         n.insert_unchecked(keys[i] as u64, vals[i] as u64);
@@ -2319,8 +2255,8 @@ impl U64Map {
                 }
             },
             U64Map::Vu32 {sz:_,keys:_,vals:_} => (),
-            U64Map::Vu64 {sz,ref keys,ref vals} if max >= u64::invalid() as u64 => {
-                let mut n = Self::with_max_cap(max, sz as usize + additional);
+            U64Map::Vu64 {sz,ref keys,ref vals} if max_k >= u64::invalid() as u64 => {
+                let mut n = Self::with_maxes_cap(max_k, max_v, sz as usize + additional);
                 for i in 0..keys.len() {
                     if keys[i] != u64::invalid() {
                         n.insert_unchecked(keys[i] as u64, vals[i] as u64);
@@ -2360,7 +2296,7 @@ impl U64Map {
         }
     }
     fn insert(&mut self, k: u64, v: u64) -> Option<u64> {
-        self.reserve_with_max(k,1);
+        self.reserve_with_maxes(k,v,1);
         self.insert_unchecked(k,v)
     }
     fn get(&self, k: u64) -> Option<u64> {
@@ -2902,7 +2838,7 @@ mod u64map_tests {
 #[derive(Clone)]
 pub struct Map64<K: Fits64, V> {
     m: U64Map,
-    data: Vec<V>,
+    data: Vec<(K,V)>,
     ph: PhantomData<K>,
 }
 
@@ -2929,9 +2865,9 @@ impl<K: Fits64,V> Map64<K,V> {
         if let Some(i) = self.m.insert(k.to_u64(), self.data.len() as u64) {
             // FIXME: this is needlessly inefficient
             self.m.insert(k.to_u64(), i);
-            Some(std::mem::replace(&mut self.data[i as usize], v))
+            Some(std::mem::replace(&mut self.data[i as usize].1, v))
         } else {
-            self.data.push(v);
+            self.data.push((k,v));
             None
         }
     }
@@ -2939,31 +2875,38 @@ impl<K: Fits64,V> Map64<K,V> {
     /// be inserted in the `Map64`. The collection may reserve more
     /// space to avoid frequent reallocations.
     pub fn reserve(&mut self, additional: usize) {
-        self.m.reserve_with_max(0,additional);
+        self.m.reserve_with_maxes(0,0,additional);
         self.data.reserve(additional);
     }
     /// Removes a key from the map, returning the value at the key if
     /// the key was previously in the map.
     pub fn remove(&mut self, k: &K) -> Option<V> {
         if let Some(i) = self.m.remove(k.to_u64()) {
-            self.m.change_value(self.data.len() as u64-1, i);
-            return Some(self.data.swap_remove(i as usize))
+            if i < self.data.len() as u64 - 1 {
+                let (kk,vv) = self.data.pop().unwrap();
+                self.m.insert(kk.to_u64(), i);
+                return Some( std::mem::replace(&mut self.data[i as usize], (kk,vv)).1 );
+            }
+            return Some( self.data.pop().unwrap().1 );
         }
         None
     }
     /// Returns a reference to the value corresponding to the key.
     pub fn get(&self, k: &K) -> Option<&V> {
         if let Some(i) = self.m.get(k.to_u64()) {
-            return Some(&self.data[i as usize])
+            return Some(&self.data[i as usize].1)
         }
         None
     }
     /// An iterator visiting all key-value pairs in arbitrary
     /// order. The iterator element type is (K, &V).
     pub fn iter(&self) -> Map64Iter<K,V> {
+        // fn tweak_reference(x: &(K,V)) -> (K, &V) {
+        //     (x.0, &x.1)
+        // }
+        // self.data.iter().map(tweak_reference)
         Map64Iter {
-            m: self,
-            it: self.m.iter(),
+            it: self.data.iter(),
         }
     }
 }
@@ -2985,15 +2928,14 @@ impl<K: Fits64,V:Eq> Eq for Map64<K,V> {}
 
 /// Iterator for u64map
 pub struct Map64Iter<'a, K: Fits64+'a, V: 'a> {
-    m: &'a Map64<K,V>,
-    it: U64MapIter<'a>,
+    it: std::slice::Iter<'a, (K,V)>,
 }
 
 impl<'a, K: Fits64+'a, V: 'a> Iterator for Map64Iter<'a, K, V> {
     type Item = (K,&'a V);
     fn next(&mut self) -> Option<(K,&'a V)> {
-        if let Some((k,i)) = self.it.next() {
-            return Some((unsafe { K::from_u64(k) }, &self.m.data[i as usize]));
+        if let Some(&(k,ref v)) = self.it.next() {
+            return Some( (k, v) );
         }
         None
     }
@@ -3097,6 +3039,52 @@ mod map64_tests {
                 },
                 Err(k) => {
                     map.remove(k); refmap.remove(&k);
+                }
+            }
+            assert_eq!(map.len(), refmap.len());
+            for i in 0..255 {
+                // println!("testing {}", i);
+                if map.get(&i) != refmap.get(&i) {
+                    println!("trouble with {}: {:?} and {:?}",
+                             i, map.get(&i), refmap.get(&i));
+                    println!("  {:?} with data vec {:?}", map.m, map.data);
+                }
+                assert_eq!(map.get(&i), refmap.get(&i));
+            }
+        }
+    }
+
+    #[test]
+    fn reproduce2() {
+        let i = vec![Ok((66, 0)), Ok((85, 0)), Ok((0, 0)), Err(85), Err(66)];
+
+        let mut map = Map64::<u8,u8>::new();
+        let mut refmap = HashMap::<u8,u8>::new();
+        for x in i {
+            println!("  {:?} with vec {:?}", map.m, map.data);
+            match x {
+                Ok((k,v)) => {
+                    println!("inputting key {} as {}", k, v);
+                    map.reserve(1);
+                    println!("  after reserving {:?}", map.m);
+                    for (k, ref v) in map.iter() {
+                        println!("       {}: {}", k, v);
+                    }
+                    map.insert(k,v); refmap.insert(k,v);
+                    assert_eq!(map.get(&k), Some(&v));
+                },
+                Err(k) => {
+                    println!("before removing {}:", k);
+                    println!("  ............. {:?}", map.m);
+                    for (k, ref v) in map.iter() {
+                        println!("       {}: {}", k, v);
+                    }
+                    map.remove(&k); refmap.remove(&k);
+                    println!("after removing {}:", k);
+                    println!("  ............. {:?}", map.m);
+                    for (k, ref v) in map.iter() {
+                        println!("       {}: {}", k, v);
+                    }
                 }
             }
             assert_eq!(map.len(), refmap.len());
@@ -3252,7 +3240,10 @@ impl<K: Fits64,V: Fits64> Map6464<K,V> {
     /// If the map did have this key present, the value is updated,
     /// and the old value is returned.
     pub fn insert(&mut self, k: K, v: V) -> Option<V> {
-        if let Some(i) = self.m.insert(k.to_u64(), V::to_u64(v)) {
+        let kk = k.to_u64();
+        let vv = v.to_u64();
+        self.m.reserve_with_maxes(kk, vv, 1);
+        if let Some(i) = self.m.insert_unchecked(kk, vv) {
             Some( unsafe { V::from_u64(i) } )
         } else {
             None
@@ -3262,7 +3253,7 @@ impl<K: Fits64,V: Fits64> Map6464<K,V> {
     /// be inserted in the `Map6464`. The collection may reserve more
     /// space to avoid frequent reallocations.
     pub fn reserve(&mut self, additional: usize) {
-        self.m.reserve_with_max(0,additional);
+        self.m.reserve_with_maxes(0,0,additional);
     }
     /// Removes a key from the map, returning the value at the key if
     /// the key was previously in the map.
