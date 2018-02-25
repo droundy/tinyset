@@ -3373,7 +3373,7 @@ impl<K: Fits64,V: PartialEq> PartialEq for Map64<K,V> {
 }
 impl<K: Fits64,V:Eq> Eq for Map64<K,V> {}
 
-/// Iterator for u64map
+/// Iterator for Map64
 pub struct Map64Iter<'a, K: Fits64+'a, V: 'a> {
     it: std::slice::Iter<'a, (K,V)>,
 }
@@ -3728,7 +3728,7 @@ impl<K: Fits64,V: Fits64> Map6464<K,V> {
     }
 }
 
-/// Iterator for u64map
+/// Iterator for Map6464Iter
 pub struct Map6464Iter<'a, K, V> {
     it: U64MapIter<'a>,
     phk: PhantomData<K>,
@@ -3967,12 +3967,12 @@ impl<K: Fits64+std::fmt::Debug, V: std::fmt::Debug> std::fmt::Debug for MMap64<K
     }
 }
 
-impl<K: Fits64, V: Clone> MMap64<K,V> {
-    /// allocate
+impl<K: Fits64, V> MMap64<K,V> {
+    /// Creates an empty `MMap64`.
     pub fn new() -> MMap64<K,V> {
         MMap64::with_capacity(0)
     }
-    /// allocate
+    /// Creates an empty `MMap64` with the specified capacity.
     pub fn with_capacity(cap: usize) -> MMap64<K,V> {
         let set = U64Set::with_capacity(cap);
         let mut v = Vec::new();
@@ -3997,7 +3997,12 @@ impl<K: Fits64, V: Clone> MMap64<K,V> {
             ph: PhantomData,
         }
     }
-    /// insert
+    /// Inserts a key-value pair into the map.
+    ///
+    /// If the map did not have this key present, None is returned.
+    ///
+    /// If the map did have this key present, the value is updated,
+    /// and the old value is returned.
     pub fn insert(&mut self, k: K, v: V) -> Option<V> {
         // First reserve space for the new thingy.
         let nextcap = capacity_to_rawcapacity(self.set.len()+1);
@@ -4024,18 +4029,28 @@ impl<K: Fits64, V: Clone> MMap64<K,V> {
         self.set.co_insert_unchecked(&mut self.data, k.to_u64(), v)
             .map(|x| ManuallyDrop::into_inner(x))
     }
-    /// remove
+    /// Removes a key from the map, returning the value at the key if
+    /// the key was previously in the map.
     pub fn remove(&mut self, k: &K) -> Option<V> {
         self.set.co_remove(&mut self.data, k.to_u64())
             .map(|x| ManuallyDrop::into_inner(x))
     }
-    /// get
+    /// Returns a reference to the value corresponding to the key.
     pub fn get(&self, k: &K) -> Option<&V> {
         self.set.contains(&k.to_u64()).map(|i| &*self.data[i])
     }
     /// len
     pub fn len(&self) -> usize {
         self.set.len()
+    }
+    /// An iterator visiting all key-value pairs in arbitrary
+    /// order. The iterator element type is (K, &V).
+    pub fn iter(&self) -> MMap64Iter<K,V> {
+        MMap64Iter {
+            m: self,
+            which: 0,
+            nleft: self.len(),
+        }
     }
 }
 
@@ -4047,6 +4062,48 @@ impl<K: Fits64, V> Drop for MMap64<K,V> {
                 unsafe { ManuallyDrop::drop(&mut self.data[i]); }
             }
         }
+    }
+}
+
+impl<K: Fits64, V: PartialEq> PartialEq for MMap64<K,V> {
+    fn eq(&self, other: &MMap64<K,V>) -> bool {
+        if self.len() != other.len() {
+            return false;
+        }
+        for (k, v) in other.iter() {
+            if self.get(&k) != Some(v) {
+                return false;
+            }
+        }
+        true
+    }
+}
+impl<K: Fits64, V: Eq> Eq for MMap64<K,V> {}
+
+/// Iterator for MMap64
+pub struct MMap64Iter<'a, K: Fits64+'a, V: 'a> {
+    m: &'a MMap64<K,V>,
+    which: usize,
+    nleft: usize,
+}
+
+impl<'a,K: Fits64, V: 'a> Iterator for MMap64Iter<'a,K,V> {
+    type Item = (K, &'a V);
+    fn next(&mut self) -> Option<(K,&'a V)> {
+        if self.nleft == 0 {
+            return None;
+        }
+        self.nleft -= 1;
+        for i in self.which .. self.m.set.rawcapacity() {
+            if let Some(k) = self.m.set.index(i) {
+                self.which = i+1;
+                return Some((unsafe { K::from_u64(k) }, &self.m.data[i]));
+            }
+        }
+        None
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.nleft, Some(self.nleft))
     }
 }
 
@@ -4125,6 +4182,14 @@ mod mm64 {
                     return false;
                 }
                 for (k,v) in refmap.iter() {
+                    if map.get(&k) != refmap.get(&k) {
+                        return false;
+                    }
+                    if map.get(&k) != Some(&v) {
+                        return false;
+                    }
+                }
+                for (k,v) in map.iter() {
                     if map.get(&k) != refmap.get(&k) {
                         return false;
                     }
