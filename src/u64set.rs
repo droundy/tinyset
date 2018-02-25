@@ -114,15 +114,15 @@ impl U64Set {
     }
     /// Returns the array size.
     fn rawcapacity(&self) -> usize {
-        match &self.v {
-            &Data::Su8(_,_) => NUM_U8,
-            &Data::Vu8(_,ref v) => v.len(),
-            &Data::Su16(_,_) => NUM_U16,
-            &Data::Vu16(_,ref v) => v.len(),
-            &Data::Su32(_,_) => NUM_U32,
-            &Data::Vu32(_,ref v) => v.len(),
-            &Data::Su64(_,_) => NUM_U64,
-            &Data::Vu64(_,ref v) => v.len(),
+        match self.v {
+            Data::Su8(_,_) => NUM_U8,
+            Data::Vu8(_,ref v) => v.len(),
+            Data::Su16(_,_) => NUM_U16,
+            Data::Vu16(_,ref v) => v.len(),
+            Data::Su32(_,_) => NUM_U32,
+            Data::Vu32(_,ref v) => v.len(),
+            Data::Su64(_,_) => NUM_U64,
+            Data::Vu64(_,ref v) => v.len(),
         }
     }
     /// Reserves capacity for at least `additional` more elements to be
@@ -642,99 +642,99 @@ impl U64Set {
         }
     }
     /// Returns true if the set contains a value.
-    pub fn contains(&self, value: &u64) -> bool {
+    pub fn contains(&self, value: &u64) -> Option<usize> {
         let value = *value;
         match self.v {
             Data::Su8(sz, ref v) => {
                 if value >= u8::invalid() as u64 {
-                    return false;
+                    return None;
                 }
                 let value = value as u8;
-                for &x in v.iter().take(sz as usize) {
+                for (i,&x) in v.iter().enumerate().take(sz as usize) {
                     if x == value {
-                        return true;
+                        return Some(i);
                     }
                 }
-                false
+                None
             },
             Data::Su16(sz, ref v) => {
                 if value >= u16::invalid() as u64 {
-                    return false;
+                    return None;
                 }
                 let value = value as u16;
-                for &x in v.iter().take(sz as usize) {
+                for (i,&x) in v.iter().enumerate().take(sz as usize) {
                     if x == value {
-                        return true;
+                        return Some(i);
                     }
                 }
-                false
+                None
             },
             Data::Su32(sz, ref v) => {
                 if value >= u32::invalid() as u64 {
-                    return false;
+                    return None;
                 }
                 let value = value as u32;
-                for &x in v.iter().take(sz as usize) {
+                for (i,&x) in v.iter().enumerate().take(sz as usize) {
                     if x == value {
-                        return true;
+                        return Some(i);
                     }
                 }
-                false
+                None
             },
             Data::Su64(sz, ref v) => {
                 if value >= u64::invalid() as u64 {
-                    return false;
+                    return None;
                 }
                 let value = value as u64;
-                for &x in v.iter().take(sz as usize) {
+                for (i,&x) in v.iter().enumerate().take(sz as usize) {
                     if x == value {
-                        return true;
+                        return Some(i);
                     }
                 }
-                false
+                None
             },
             Data::Vu8(_, ref v) => {
                 if value >= u8::invalid() as u64 {
-                    return false;
+                    return None;
                 }
                 let value = value as u8;
                 match search(v, value) {
-                    SearchResult::Present(_) => true,
-                    SearchResult::Empty(_) => false,
-                    SearchResult::Richer(_) => false,
+                    SearchResult::Present(i) => Some(i),
+                    SearchResult::Empty(_) => None,
+                    SearchResult::Richer(_) => None,
                 }
             },
             Data::Vu16(_, ref v) => {
                 if value >= u16::invalid() as u64 {
-                    return false;
+                    return None;
                 }
                 let value = value as u16;
                 match search(v, value) {
-                    SearchResult::Present(_) => true,
-                    SearchResult::Empty(_) => false,
-                    SearchResult::Richer(_) => false,
+                    SearchResult::Present(i) => Some(i),
+                    SearchResult::Empty(_) => None,
+                    SearchResult::Richer(_) => None,
                 }
             },
             Data::Vu32(_, ref v) => {
                 if value >= u32::invalid() as u64 {
-                    return false;
+                    return None;
                 }
                 let value = value as u32;
                 match search(v, value) {
-                    SearchResult::Present(_) => true,
-                    SearchResult::Empty(_) => false,
-                    SearchResult::Richer(_) => false,
+                    SearchResult::Present(i) => Some(i),
+                    SearchResult::Empty(_) => None,
+                    SearchResult::Richer(_) => None,
                 }
             },
             Data::Vu64(_, ref v) => {
                 if value >= u64::invalid() as u64 {
-                    return false;
+                    return None;
                 }
                 let value = value as u64;
                 match search(v, value) {
-                    SearchResult::Present(_) => true,
-                    SearchResult::Empty(_) => false,
-                    SearchResult::Richer(_) => false,
+                    SearchResult::Present(i) => Some(i),
+                    SearchResult::Empty(_) => None,
+                    SearchResult::Richer(_) => None,
                 }
             },
         }
@@ -1575,9 +1575,9 @@ mod tests {
             println!("refset: {:?}", refset);
             assert_eq!(set.len(), refset.len());
             for i in 0..255 {
-                if set.contains(&i) != refset.contains(&i) {
+                if set.contains(&i).is_some() != refset.contains(&i) {
                     println!("trouble at {}", i);
-                    assert_eq!(set.contains(&i), refset.contains(&i));
+                    assert_eq!(set.contains(&i).is_some(), refset.contains(&i));
                 }
             }
         }
@@ -1601,7 +1601,7 @@ mod tests {
                 }
                 if set.len() != refset.len() { return false; }
                 for i in 0..2550 {
-                    if set.contains(&i) != refset.contains(&i) { return false; }
+                    if set.contains(&i).is_some() != refset.contains(&i) { return false; }
                 }
             }
         }
@@ -1699,14 +1699,14 @@ mod tests {
                 }
                 if set.len() != refset.len() { return false; }
                 for i in 0..2550 {
-                    if set.contains(&i) != refset.contains(&i) {
+                    if set.contains(&i).is_some() != refset.contains(&i) {
                         println!("refset: {:?}", &refset);
                         println!("set: {:?}", &set);
                         for x in set.iter() {
                             print!(" {}", x);
                         }
                         println!();
-                        assert_eq!(set.contains(&i), refset.contains(&i));
+                        assert_eq!(set.contains(&i).is_some(), refset.contains(&i));
                         return false;
                     }
                 }
@@ -1746,14 +1746,14 @@ mod tests {
             }
             assert_eq!(set.len(), refset.len());
             for i in 0..2550 {
-                if set.contains(&i) != refset.contains(&i) {
+                if set.contains(&i).is_some() != refset.contains(&i) {
                     println!("refset: {:?}", &refset);
                     println!("set: {:?}", &set);
                     for x in set.iter() {
                         print!(" {}", x);
                     }
                     println!();
-                    assert_eq!(set.contains(&i), refset.contains(&i));
+                    assert_eq!(set.contains(&i).is_some(), refset.contains(&i));
                 }
             }
         }
@@ -2030,7 +2030,7 @@ impl<T: Fits64> Set64<T> {
     /// Returns true if the set contains a value.
     pub fn contains<R: std::borrow::Borrow<T>>(&self, value: R) -> bool {
         let x = value.borrow().clone().to_u64();
-        self.0.contains(&x)
+        self.0.contains(&x).is_some()
     }
     /// Removes an element, and returns true if that element was present.
     pub fn remove(&mut self, value: &T) -> bool {
@@ -3951,7 +3951,9 @@ impl<K: Fits64+std::fmt::Debug, V: std::fmt::Debug> std::fmt::Debug for MMap64<K
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         f.write_str("MMap64 {\n  ")?;
         self.set.fmt(f)?;
-        f.write_str(",\n  [ ")?;
+        f.write_str(",\n  ")?;
+        std::fmt::Pointer::fmt(&self.data, f)?;
+        f.write_str(" [ ")?;
         let curcap = self.set.rawcapacity();
         for i in 0..curcap {
             if self.set.index(i).is_some() {
@@ -4012,6 +4014,9 @@ impl<K: Fits64, V: Clone> MMap64<K,V> {
                     n.insert_unchecked(kkk, vvv);
                 }
             }
+            std::mem::swap(&mut self.set, &mut n.set);
+            n.set = U64Set::with_capacity(0);
+            std::mem::swap(&mut self.data, &mut n.data);
         }
         self.insert_unchecked(k,ManuallyDrop::new(v))
     }
@@ -4020,9 +4025,17 @@ impl<K: Fits64, V: Clone> MMap64<K,V> {
             .map(|x| ManuallyDrop::into_inner(x))
     }
     /// remove
-    pub fn remove(&mut self, k: K) -> Option<V> {
+    pub fn remove(&mut self, k: &K) -> Option<V> {
         self.set.co_remove(&mut self.data, k.to_u64())
             .map(|x| ManuallyDrop::into_inner(x))
+    }
+    /// get
+    pub fn get(&self, k: &K) -> Option<&V> {
+        self.set.contains(&k.to_u64()).map(|i| &*self.data[i])
+    }
+    /// len
+    pub fn len(&self) -> usize {
+        self.set.len()
     }
 }
 
@@ -4054,8 +4067,8 @@ mod mm64 {
     fn simple() {
         let mut m = MMap64::<u64, String>::new();
         m.insert(0, String::from("hello"));
-        assert_eq!(m.remove(1), None);
-        assert_eq!(m.remove(0), Some(String::from("hello")));
+        assert_eq!(m.remove(&1), None);
+        assert_eq!(m.remove(&0), Some(String::from("hello")));
         println!("goodbye {:?}", &m);
     }
 
@@ -4063,10 +4076,125 @@ mod mm64 {
     fn simple_u64() {
         let mut m = MMap64::<u64, u64>::new();
         m.insert(0, 3);
-        assert_eq!(m.remove(1), None);
+        assert_eq!(m.remove(&1), None);
         println!("hello {:?}", &m);
-        assert_eq!(m.remove(0), Some(3));
+        assert_eq!(m.remove(&0), Some(3));
         println!("goodbye {:?}", &m);
     }
 
+
+    #[cfg(test)]
+    quickcheck! {
+        fn prop_matches(steps: Vec<Result<(u64,u64),u64>>) -> bool {
+            let mut map = MMap64::<u64,u64>::new();
+            let mut refmap = HashMap::<u64,u64>::new();
+            for x in steps {
+                match x {
+                    Ok((k,v)) => {
+                        map.insert(k,v); refmap.insert(k,v);
+                    },
+                    Err(k) => {
+                        map.remove(&k); refmap.remove(&k);
+                    }
+                }
+                if map.len() != refmap.len() {
+                    return false;
+                }
+                for i in 0..2550 {
+                    if map.get(&i) != refmap.get(&i) {
+                        return false;
+                    }
+                }
+            }
+            true
+        }
+
+        fn prop_matches_u16(steps: Vec<Result<(u16,u16),u16>>) -> bool {
+            let mut map = MMap64::<u16,u16>::new();
+            let mut refmap = HashMap::<u16,u16>::new();
+            for x in steps {
+                match x {
+                    Ok((k,v)) => {
+                        map.insert(k,v); refmap.insert(k,v);
+                    },
+                    Err(k) => {
+                        map.remove(&k); refmap.remove(&k);
+                    }
+                }
+                if map.len() != refmap.len() {
+                    return false;
+                }
+                for (k,v) in refmap.iter() {
+                    if map.get(&k) != refmap.get(&k) {
+                        return false;
+                    }
+                    if map.get(&k) != Some(&v) {
+                        return false;
+                    }
+                }
+            }
+            true
+        }
+
+        fn map64_matches_u8(steps: Vec<Result<(u8,u8),u8>>) -> bool {
+            let mut map = MMap64::<u8,u8>::new();
+            let mut refmap = HashMap::<u8,u8>::new();
+            for x in steps {
+                match x {
+                    Ok((k,v)) => {
+                        assert_eq!(map.insert(k,v), refmap.insert(k,v));
+                    },
+                    Err(k) => {
+                        map.remove(&k); refmap.remove(&k);
+                    }
+                }
+                assert_eq!(map.len(), refmap.len());
+                if map.len() != refmap.len() {
+                    return false;
+                }
+                for i in 0..255 {
+                    assert_eq!(map.get(&i), refmap.get(&i));
+                    if map.get(&i) != refmap.get(&i) {
+                        return false;
+                    }
+                }
+            }
+            true
+        }
+    }
+
+    #[test]
+    fn reproduce() {
+        let i = vec![Ok((0, 0)), Ok((1, 0)), Ok((2, 0)), Ok((3, 0)), Ok((4, 0)),
+                     Ok((5, 0)), Ok((6, 0)), Ok((7, 0)), Ok((8, 0)), Ok((9, 0)),
+                     Ok((10, 0)), Ok((11, 0)), Ok((12, 0)), Ok((13, 0)), Ok((14, 0)),
+                     Ok((0, 0))];
+
+        let mut map = MMap64::<u8,u8>::new();
+        let mut refmap = HashMap::<u8,u8>::new();
+        for x in i {
+            println!("  {:?}", map);
+            match x {
+                Ok((k,v)) => {
+                    println!("inputting key {} as {}", k, v);
+                    assert_eq!(map.insert(k,v), refmap.insert(k,v));
+                    assert_eq!(map.get(&k), Some(&v));
+                },
+                Err(k) => {
+                    map.remove(k); refmap.remove(&k);
+                }
+            }
+            println!("afterwards:  {:?}", map);
+            assert_eq!(map.len(), refmap.len());
+            for i in 0..255 {
+                // println!("testing {}", i);
+                if map.get(&i) != refmap.get(&i) {
+                    println!("trouble with {}: {:?} and {:?}",
+                             i, map.get(&i), refmap.get(&i));
+                    println!("  {:?}", map);
+                }
+                assert_eq!(map.get(&i), refmap.get(&i));
+            }
+        }
+    }
 }
