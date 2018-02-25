@@ -3,6 +3,7 @@
 use std;
 
 use tinyset::HasInvalid;
+use std::mem::ManuallyDrop;
 
 enum SearchResult {
     Present(usize),
@@ -111,6 +112,19 @@ impl U64Set {
             &Data::Vu64(sz,_) => sz as usize,
         }
     }
+    /// Returns the array size.
+    fn rawcapacity(&self) -> usize {
+        match &self.v {
+            &Data::Su8(_,_) => NUM_U8,
+            &Data::Vu8(_,ref v) => v.len(),
+            &Data::Su16(_,_) => NUM_U16,
+            &Data::Vu16(_,ref v) => v.len(),
+            &Data::Su32(_,_) => NUM_U32,
+            &Data::Vu32(_,ref v) => v.len(),
+            &Data::Su64(_,_) => NUM_U64,
+            &Data::Vu64(_,ref v) => v.len(),
+        }
+    }
     /// Reserves capacity for at least `additional` more elements to be
     /// inserted in the set. The collection may reserve more space
     /// to avoid frequent reallocations.
@@ -121,7 +135,7 @@ impl U64Set {
                                            ((sz as usize+additional)*11/10).next_power_of_two()]
                                    .into_boxed_slice());
                 for i in 0..sz as usize {
-                    self.insert_unchecked(v[i] as u64);
+                    self.insert_unchecked(v[i] as u64).ok();
                 }
             },
             Data::Su8(_,_) => (),
@@ -137,7 +151,7 @@ impl U64Set {
             Data::Su8(sz, v) if max >= u8::invalid() as u64 => {
                 let mut n = Self::with_max_and_capacity(max, sz as usize + additional);
                 for i in 0..sz as usize {
-                    n.insert_unchecked(v[i] as u64);
+                    n.insert_unchecked(v[i] as u64).ok();
                 }
                 *self = n;
             },
@@ -146,14 +160,14 @@ impl U64Set {
                                            ((sz as usize+additional)*11/10).next_power_of_two()]
                                    .into_boxed_slice());
                 for i in 0..sz as usize {
-                    self.insert_unchecked(v[i] as u64);
+                    self.insert_unchecked(v[i] as u64).ok();
                 }
             },
             Data::Su8(_,_) => (),
             Data::Su16(sz, v) if max >= u16::invalid() as u64 => {
                 let mut n = Self::with_max_and_capacity(max, sz as usize + additional);
                 for i in 0..sz as usize {
-                    n.insert_unchecked(v[i] as u64);
+                    n.insert_unchecked(v[i] as u64).ok();
                 }
                 *self = n;
             },
@@ -162,14 +176,14 @@ impl U64Set {
                                             ((sz as usize+additional)*11/10).next_power_of_two()]
                                     .into_boxed_slice());
                 for i in 0..sz as usize {
-                    self.insert_unchecked(v[i] as u64);
+                    self.insert_unchecked(v[i] as u64).ok();
                 }
             },
             Data::Su16(_,_) => (),
             Data::Su32(sz, v) if max >= u32::invalid() as u64 => {
                 let mut n = Self::with_max_and_capacity(max, sz as usize + additional);
                 for i in 0..sz as usize {
-                    n.insert_unchecked(v[i] as u64);
+                    n.insert_unchecked(v[i] as u64).ok();
                 }
                 *self = n;
             },
@@ -178,14 +192,14 @@ impl U64Set {
                                             ((sz as usize+additional)*11/10).next_power_of_two()]
                                     .into_boxed_slice());
                 for i in 0..sz as usize {
-                    self.insert_unchecked(v[i] as u64);
+                    self.insert_unchecked(v[i] as u64).ok();
                 }
             },
             Data::Su32(_,_) => (),
             Data::Su64(sz, v) if max >= u64::invalid() as u64 => {
                 let mut n = Self::with_max_and_capacity(max, sz as usize + additional);
                 for i in 0..sz as usize {
-                    n.insert_unchecked(v[i] as u64);
+                    n.insert_unchecked(v[i] as u64).ok();
                 }
                 *self = n;
             },
@@ -194,28 +208,28 @@ impl U64Set {
                                             ((sz as usize+additional)*11/10).next_power_of_two()]
                                     .into_boxed_slice());
                 for i in 0..sz as usize {
-                    self.insert_unchecked(v[i] as u64);
+                    self.insert_unchecked(v[i] as u64).ok();
                 }
             },
             Data::Su64(_,_) => (),
             Data::Vu8(sz, _) if max >= u8::invalid() as u64 => {
                 let mut n = Self::with_max_and_capacity(max, sz as usize + additional);
                 for x in self.iter() {
-                    n.insert_unchecked(x);
+                    n.insert_unchecked(x).ok();
                 }
                 *self = n;
             },
             Data::Vu16(sz, _) if max >= u16::invalid() as u64 => {
                 let mut n = Self::with_max_and_capacity(max, sz as usize + additional);
                 for x in self.iter() {
-                    n.insert_unchecked(x);
+                    n.insert_unchecked(x).ok();
                 }
                 *self = n;
             },
             Data::Vu32(sz, _) if max >= u32::invalid() as u64 => {
                 let mut n = Self::with_max_and_capacity(max, sz as usize + additional);
                 for x in self.iter() {
-                    n.insert_unchecked(x);
+                    n.insert_unchecked(x).ok();
                 }
                 *self = n;
             },
@@ -300,6 +314,70 @@ impl U64Set {
             Data::Vu64(_,_) => (),
         }
     }
+    fn current_max(&self) -> u64 {
+        match self.v {
+            Data::Su8(_, _) => u8::invalid() as u64 - 1,
+            Data::Su16(_, _) => u16::invalid() as u64 - 1,
+            Data::Su32(_, _) => u32::invalid() as u64 - 1,
+            Data::Su64(_, _) => u64::invalid() as u64 - 1,
+            Data::Vu8(_, _) => u8::invalid() as u64 - 1,
+            Data::Vu16(_, _) => u16::invalid() as u64 - 1,
+            Data::Vu32(_, _) => u32::invalid() as u64 - 1,
+            Data::Vu64(_, _) => u64::invalid() as u64 - 1,
+        }
+    }
+    fn index(&self, i: usize) -> Option<u64> {
+        match self.v {
+            Data::Su8(sz, ref v) =>
+                if i < sz as usize && v[i] != u8::invalid() {
+                    Some(v[i] as u64)
+                } else {
+                    None
+                },
+            Data::Su16(sz, ref v) =>
+                if i < sz as usize && v[i] != u16::invalid() {
+                    Some(v[i] as u64)
+                } else {
+                    None
+                },
+            Data::Su32(sz, ref v) =>
+                if i < sz as usize && v[i] != u32::invalid() {
+                    Some(v[i] as u64)
+                } else {
+                    None
+                },
+            Data::Su64(sz, ref v) =>
+                if i < sz as usize && v[i] != u64::invalid() {
+                    Some(v[i] as u64)
+                } else {
+                    None
+                },
+            Data::Vu8(_, ref v) =>
+                if v[i] != u8::invalid() {
+                    Some(v[i] as u64)
+                } else {
+                    None
+                },
+            Data::Vu16(_, ref v) =>
+                if v[i] != u16::invalid() {
+                    Some(v[i] as u64)
+                } else {
+                    None
+                },
+            Data::Vu32(_, ref v) =>
+                if v[i] != u32::invalid() {
+                    Some(v[i] as u64)
+                } else {
+                    None
+                },
+            Data::Vu64(_, ref v) =>
+                if v[i] != u64::invalid() {
+                    Some(v[i] as u64)
+                } else {
+                    None
+                },
+        }
+    }
     /// Adds a value to the set.
     ///
     /// If the set did not have this value present, `true` is returned.
@@ -307,121 +385,257 @@ impl U64Set {
     /// If the set did have this value present, `false` is returned.
     fn insert(&mut self, elem: u64) -> bool {
         self.reserve_with_max(elem, 1);
-        self.insert_unchecked(elem)
+        self.insert_unchecked(elem).is_ok()
     }
-    fn insert_unchecked(&mut self, value: u64) -> bool {
+    /// An Ok value means that this is a new value, an Err value
+    /// (sorry!) means that this thing was already in the set.
+    fn insert_unchecked(&mut self, value: u64) -> Result<usize,usize> {
         match self.v {
             Data::Su8(ref mut sz, ref mut v) => {
                 let value = value as u8;
-                for &x in v.iter().take(*sz as usize) {
+                for (i,&x) in v.iter().enumerate().take(*sz as usize) {
                     if x == value {
-                        return false;
+                        return Err(i);
                     }
                 }
                 v[*sz as usize] = value;
                 *sz += 1;
-                true
+                Ok(*sz as usize -1)
             },
             Data::Su16(ref mut sz, ref mut v) => {
                 let value = value as u16;
-                for &x in v.iter().take(*sz as usize) {
+                for (i,&x) in v.iter().enumerate().take(*sz as usize) {
                     if x == value {
-                        return false;
+                        return Err(i);
                     }
                 }
                 v[*sz as usize] = value;
                 *sz += 1;
-                true
+                Ok(*sz as usize -1)
             },
             Data::Su32(ref mut sz, ref mut v) => {
                 let value = value as u32;
-                for &x in v.iter().take(*sz as usize) {
+                for (i,&x) in v.iter().enumerate().take(*sz as usize) {
                     if x == value {
-                        return false;
+                        return Err(i);
                     }
                 }
                 v[*sz as usize] = value;
                 *sz += 1;
-                true
+                Ok(*sz as usize -1)
             },
             Data::Su64(ref mut sz, ref mut v) => {
                 let value = value as u64;
-                for &x in v.iter().take(*sz as usize) {
+                for (i,&x) in v.iter().enumerate().take(*sz as usize) {
                     if x == value {
-                        return false;
+                        return Err(i);
                     }
                 }
                 v[*sz as usize] = value;
                 *sz += 1;
-                true
+                Ok(*sz as usize -1)
             },
             Data::Vu8(ref mut sz, ref mut v) => {
                 let mut value = value as u8;
                 match search(v, value) {
-                    SearchResult::Present(_) => false,
+                    SearchResult::Present(i) => Err(i),
                     SearchResult::Empty(i) => {
                         v[i] = value;
                         *sz += 1;
-                        true
+                        Ok(i)
                     },
                     SearchResult::Richer(i) => {
                         *sz += 1;
                         std::mem::swap(&mut v[i], &mut value);
                         steal(v, i, value);
-                        true
+                        Ok(i)
                     },
                 }
             },
             Data::Vu16(ref mut sz, ref mut v) => {
                 let mut value = value as u16;
                 match search(v, value) {
-                    SearchResult::Present(_) => false,
+                    SearchResult::Present(i) => Err(i),
                     SearchResult::Empty(i) => {
                         v[i] = value;
                         *sz += 1;
-                        true
+                        Ok(i)
                     },
                     SearchResult::Richer(i) => {
                         *sz += 1;
                         std::mem::swap(&mut v[i], &mut value);
                         steal(v, i, value);
-                        true
+                        Ok(i)
                     },
                 }
             },
             Data::Vu32(ref mut sz, ref mut v) => {
                 let mut value = value as u32;
                 match search(v, value) {
-                    SearchResult::Present(_) => {
-                        false
-                    },
+                    SearchResult::Present(i) => Err(i),
                     SearchResult::Empty(i) => {
                         v[i] = value;
                         *sz += 1;
-                        true
+                        Ok(i)
                     },
                     SearchResult::Richer(i) => {
                         *sz += 1;
                         std::mem::swap(&mut v[i], &mut value);
                         steal(v, i, value);
-                        true
+                        Ok(i)
                     },
                 }
             },
             Data::Vu64(ref mut sz, ref mut v) => {
                 let mut value = value as u64;
                 match search(v, value) {
-                    SearchResult::Present(_) => false,
+                    SearchResult::Present(i) => Err(i),
                     SearchResult::Empty(i) => {
                         v[i] = value;
                         *sz += 1;
-                        true
+                        Ok(i)
                     },
                     SearchResult::Richer(i) => {
                         *sz += 1;
                         std::mem::swap(&mut v[i], &mut value);
                         steal(v, i, value);
-                        true
+                        Ok(i)
+                    },
+                }
+            },
+        }
+    }
+    fn co_insert_unchecked<V>(&mut self, vals: &mut [V], k: u64, mut v: V) -> Option<V> {
+        match self.v {
+            Data::Su8(ref mut sz, ref mut keys) => {
+                let k = k as u8;
+                for i in 0..*sz as usize {
+                    if keys[i] == k {
+                        return Some(std::mem::replace(&mut vals[i], v));
+                    }
+                }
+                keys[*sz as usize] = k;
+                vals[*sz as usize] = v;
+                *sz += 1;
+                None
+            },
+            Data::Su16(ref mut sz, ref mut keys) => {
+                let k = k as u16;
+                for i in 0..*sz as usize {
+                    if keys[i] == k {
+                        return Some(std::mem::replace(&mut vals[i], v));
+                    }
+                }
+                keys[*sz as usize] = k;
+                vals[*sz as usize] = v;
+                *sz += 1;
+                None
+            },
+            Data::Su32(ref mut sz, ref mut keys) => {
+                let k = k as u32;
+                for i in 0..*sz as usize {
+                    if keys[i] == k {
+                        return Some(std::mem::replace(&mut vals[i], v));
+                    }
+                }
+                keys[*sz as usize] = k;
+                vals[*sz as usize] = v;
+                *sz += 1;
+                None
+            },
+            Data::Su64(ref mut sz, ref mut keys) => {
+                let k = k as u64;
+                for i in 0..*sz as usize {
+                    if keys[i] == k {
+                        return Some(std::mem::replace(&mut vals[i], v));
+                    }
+                }
+                keys[*sz as usize] = k;
+                vals[*sz as usize] = v;
+                *sz += 1;
+                None
+            },
+            Data::Vu8(ref mut sz, ref mut keys) => {
+                let mut k = k as u8;
+                match search(keys, k) {
+                    SearchResult::Present(i) => {
+                        return Some(std::mem::replace(&mut vals[i], v));
+                    },
+                    SearchResult::Empty(i) => {
+                        keys[i] = k;
+                        vals[i] = v;
+                        *sz += 1;
+                        None
+                    },
+                    SearchResult::Richer(i) => {
+                        *sz += 1;
+                        std::mem::swap(&mut keys[i], &mut k);
+                        std::mem::swap(&mut vals[i], &mut v);
+                        mapsteal(keys, vals, i, k, v);
+                        None
+                    },
+                }
+            },
+            Data::Vu16(ref mut sz, ref mut keys) => {
+                let mut k = k as u16;
+                match search(keys, k) {
+                    SearchResult::Present(i) => {
+                        return Some(std::mem::replace(&mut vals[i], v));
+                    },
+                    SearchResult::Empty(i) => {
+                        keys[i] = k;
+                        vals[i] = v;
+                        *sz += 1;
+                        None
+                    },
+                    SearchResult::Richer(i) => {
+                        *sz += 1;
+                        std::mem::swap(&mut keys[i], &mut k);
+                        std::mem::swap(&mut vals[i], &mut v);
+                        mapsteal(keys, vals, i, k, v);
+                        None
+                    },
+                }
+            },
+            Data::Vu32(ref mut sz, ref mut keys) => {
+                let mut k = k as u32;
+                match search(keys, k) {
+                    SearchResult::Present(i) => {
+                        return Some(std::mem::replace(&mut vals[i], v));
+                    },
+                    SearchResult::Empty(i) => {
+                        keys[i] = k;
+                        vals[i] = v;
+                        *sz += 1;
+                        None
+                    },
+                    SearchResult::Richer(i) => {
+                        *sz += 1;
+                        std::mem::swap(&mut keys[i], &mut k);
+                        std::mem::swap(&mut vals[i], &mut v);
+                        mapsteal(keys, vals, i, k, v);
+                        None
+                    },
+                }
+            },
+            Data::Vu64(ref mut sz, ref mut keys) => {
+                let mut k = k as u64;
+                match search(keys, k) {
+                    SearchResult::Present(i) => {
+                        return Some(std::mem::replace(&mut vals[i], v));
+                    },
+                    SearchResult::Empty(i) => {
+                        keys[i] = k;
+                        vals[i] = v;
+                        *sz += 1;
+                        None
+                    },
+                    SearchResult::Richer(i) => {
+                        *sz += 1;
+                        std::mem::swap(&mut keys[i], &mut k);
+                        std::mem::swap(&mut vals[i], &mut v);
+                        mapsteal(keys, vals, i, k, v);
+                        None
                     },
                 }
             },
@@ -711,6 +925,239 @@ impl U64Set {
                     },
                     SearchResult::Empty(_) => false,
                     SearchResult::Richer(_) => false,
+                }
+            },
+        }
+    }
+    /// Removes an element, and returns true if that element was present.
+    pub fn co_remove<V>(&mut self, vals: &mut [V], k: u64) -> Option<V> {
+        match self.v {
+            Data::Su8(ref mut sz, ref mut keys) => {
+                if k >= u8::invalid() as u64 {
+                    return None;
+                }
+                let k = k as u8;
+                let mut i = None;
+                for (j, &x) in keys.iter().enumerate().take(*sz as usize) {
+                    if x == k {
+                        i = Some(j);
+                        break;
+                    }
+                }
+                return if let Some(i) = i {
+                    if i == *sz as usize - 1 {
+                        *sz -= 1;
+                        Some(std::mem::replace(&mut vals[i],
+                                               unsafe {std::mem::uninitialized()}))
+                    } else {
+                        let lastv = std::mem::replace(&mut vals[*sz as usize -1],
+                                                      unsafe {std::mem::uninitialized()});
+                        let oldv = std::mem::replace(&mut vals[i], lastv);
+                        keys[i] = keys[*sz as usize -1];
+                        *sz -= 1;
+                        Some(oldv)
+                    }
+                } else {
+                    None
+                };
+            },
+            Data::Su16(ref mut sz, ref mut keys) => {
+                if k >= u16::invalid() as u64 {
+                    return None;
+                }
+                let k = k as u16;
+                let mut i = None;
+                for (j, &x) in keys.iter().enumerate().take(*sz as usize) {
+                    if x == k {
+                        i = Some(j);
+                        break;
+                    }
+                }
+                return if let Some(i) = i {
+                    if i == *sz as usize - 1 {
+                        *sz -= 1;
+                        Some(std::mem::replace(&mut vals[i],
+                                               unsafe {std::mem::uninitialized()}))
+                    } else {
+                        let lastv = std::mem::replace(&mut vals[*sz as usize -1],
+                                                      unsafe {std::mem::uninitialized()});
+                        let oldv = std::mem::replace(&mut vals[i], lastv);
+                        keys[i] = keys[*sz as usize -1];
+                        *sz -= 1;
+                        Some(oldv)
+                    }
+                } else {
+                    None
+                };
+            },
+            Data::Su32(ref mut sz, ref mut keys) => {
+                if k >= u32::invalid() as u64 {
+                    return None;
+                }
+                let k = k as u32;
+                let mut i = None;
+                for (j, &x) in keys.iter().enumerate().take(*sz as usize) {
+                    if x == k {
+                        i = Some(j);
+                        break;
+                    }
+                }
+                return if let Some(i) = i {
+                    if i == *sz as usize - 1 {
+                        *sz -= 1;
+                        Some(std::mem::replace(&mut vals[i],
+                                               unsafe {std::mem::uninitialized()}))
+                    } else {
+                        let lastv = std::mem::replace(&mut vals[*sz as usize -1],
+                                                      unsafe {std::mem::uninitialized()});
+                        let oldv = std::mem::replace(&mut vals[i], lastv);
+                        keys[i] = keys[*sz as usize -1];
+                        *sz -= 1;
+                        Some(oldv)
+                    }
+                } else {
+                    None
+                };
+            },
+            Data::Su64(ref mut sz, ref mut keys) => {
+                if k >= u64::invalid() as u64 {
+                    return None;
+                }
+                let k = k as u64;
+                let mut i = None;
+                for (j, &x) in keys.iter().enumerate().take(*sz as usize) {
+                    if x == k {
+                        i = Some(j);
+                        break;
+                    }
+                }
+                return if let Some(i) = i {
+                    if i == *sz as usize - 1 {
+                        *sz -= 1;
+                        Some(std::mem::replace(&mut vals[i],
+                                               unsafe {std::mem::uninitialized()}))
+                    } else {
+                        let lastv = std::mem::replace(&mut vals[*sz as usize -1],
+                                                      unsafe {std::mem::uninitialized()});
+                        let oldv = std::mem::replace(&mut vals[i], lastv);
+                        keys[i] = keys[*sz as usize -1];
+                        *sz -= 1;
+                        Some(oldv)
+                    }
+                } else {
+                    None
+                };
+            },
+            Data::Vu8(ref mut sz, ref mut keys) => {
+                if k >= u8::invalid() as u64 {
+                    return None;
+                }
+                let k = k as u8;
+                match search(keys, k) {
+                    SearchResult::Present(mut i) => {
+                        *sz -= 1;
+                        let mask = keys.len() - 1;
+                        let invalid = u8::invalid();
+                        loop {
+                            let iplus1 = (i+1) & mask;
+                            if keys[iplus1] == invalid ||
+                                (keys[iplus1].hash_usize().wrapping_sub(iplus1) & mask) == 0
+                            {
+                                keys[i] = invalid;
+                                return Some(std::mem::replace(&mut vals[i],
+                                                              unsafe {std::mem::uninitialized()}));
+                            }
+                            keys[i] = keys[iplus1];
+                            vals.swap(i, iplus1);
+                            i = iplus1;
+                        }
+                    },
+                    SearchResult::Empty(_) => None,
+                    SearchResult::Richer(_) => None,
+                }
+            },
+            Data::Vu16(ref mut sz, ref mut keys) => {
+                if k >= u16::invalid() as u64 {
+                    return None;
+                }
+                let k = k as u16;
+                match search(keys, k) {
+                    SearchResult::Present(mut i) => {
+                        *sz -= 1;
+                        let mask = keys.len() - 1;
+                        let invalid = u16::invalid();
+                        loop {
+                            let iplus1 = (i+1) & mask;
+                            if keys[iplus1] == invalid ||
+                                (keys[iplus1].hash_usize().wrapping_sub(iplus1) & mask) == 0
+                            {
+                                keys[i] = invalid;
+                                return Some(std::mem::replace(&mut vals[i],
+                                                              unsafe {std::mem::uninitialized()}));
+                            }
+                            keys[i] = keys[iplus1];
+                            vals.swap(i, iplus1);
+                            i = iplus1;
+                        }
+                    },
+                    SearchResult::Empty(_) => None,
+                    SearchResult::Richer(_) => None,
+                }
+            },
+            Data::Vu32(ref mut sz, ref mut keys) => {
+                if k >= u32::invalid() as u64 {
+                    return None;
+                }
+                let k = k as u32;
+                match search(keys, k) {
+                    SearchResult::Present(mut i) => {
+                        *sz -= 1;
+                        let mask = keys.len() - 1;
+                        let invalid = u32::invalid();
+                        loop {
+                            let iplus1 = (i+1) & mask;
+                            if keys[iplus1] == invalid ||
+                                (keys[iplus1].hash_usize().wrapping_sub(iplus1) & mask) == 0
+                            {
+                                keys[i] = invalid;
+                                return Some(std::mem::replace(&mut vals[i],
+                                                              unsafe {std::mem::uninitialized()}));
+                            }
+                            keys[i] = keys[iplus1];
+                            vals.swap(i, iplus1);
+                            i = iplus1;
+                        }
+                    },
+                    SearchResult::Empty(_) => None,
+                    SearchResult::Richer(_) => None,
+                }
+            },
+            Data::Vu64(ref mut sz, ref mut keys) => {
+                if k >= u64::invalid() as u64 {
+                    return None;
+                }
+                let k = k as u64;
+                match search(keys, k) {
+                    SearchResult::Present(mut i) => {
+                        *sz -= 1;
+                        let mask = keys.len() - 1;
+                        let invalid = u64::invalid();
+                        loop {
+                            let iplus1 = (i+1) & mask;
+                            if keys[iplus1] == invalid ||
+                                (keys[iplus1].hash_usize().wrapping_sub(iplus1) & mask) == 0
+                            {
+                                keys[i] = invalid;
+                                return Some(std::mem::replace(&mut vals[i],
+                                                              unsafe {std::mem::uninitialized()}));
+                            }
+                            keys[i] = keys[iplus1];
+                            vals.swap(i, iplus1);
+                            i = iplus1;
+                        }
+                    },
+                    SearchResult::Empty(_) => None,
+                    SearchResult::Richer(_) => None,
                 }
             },
         }
@@ -3490,4 +3937,136 @@ mod map6464_tests {
             true
         }
     }
+}
+
+/// Hello
+#[derive(Clone)]
+pub struct MMap64<K: Fits64, V> {
+    set: U64Set,
+    data: Box<[ManuallyDrop<V>]>,
+    ph: PhantomData<K>,
+}
+
+impl<K: Fits64+std::fmt::Debug, V: std::fmt::Debug> std::fmt::Debug for MMap64<K,V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        f.write_str("MMap64 {\n  ")?;
+        self.set.fmt(f)?;
+        f.write_str(",\n  [ ")?;
+        let curcap = self.set.rawcapacity();
+        for i in 0..curcap {
+            if self.set.index(i).is_some() {
+                (*self.data[i]).fmt(f)?;
+            }
+            if i < curcap-1 {
+                f.write_str(",")?;
+            }
+        }
+        f.write_str(" ]\n}")
+    }
+}
+
+impl<K: Fits64, V: Clone> MMap64<K,V> {
+    /// allocate
+    pub fn new() -> MMap64<K,V> {
+        MMap64::with_capacity(0)
+    }
+    /// allocate
+    pub fn with_capacity(cap: usize) -> MMap64<K,V> {
+        let set = U64Set::with_capacity(cap);
+        let mut v = Vec::new();
+        for _ in 0..set.rawcapacity() {
+            v.push(ManuallyDrop::new(unsafe{std::mem::uninitialized()}));
+        }
+        MMap64 {
+            set: set,
+            data: v.into_boxed_slice(),
+            ph: PhantomData,
+        }
+    }
+    fn with_max_cap(max: u64, cap: usize) -> MMap64<K,V> {
+        let set = U64Set::with_max_and_capacity(max, cap);
+        let mut v = Vec::new();
+        for _ in 0..set.rawcapacity() {
+            v.push(ManuallyDrop::new(unsafe{std::mem::uninitialized()}));
+        }
+        MMap64 {
+            set: set,
+            data: v.into_boxed_slice(),
+            ph: PhantomData,
+        }
+    }
+    /// insert
+    pub fn insert(&mut self, k: K, v: V) -> Option<V> {
+        // First reserve space for the new thingy.
+        let nextcap = capacity_to_rawcapacity(self.set.len()+1);
+        let kk = k.to_u64();
+        let curmax = self.set.current_max();
+        let curcap = self.set.rawcapacity();
+        if kk > curmax || nextcap > curcap {
+            let max = if kk > curmax { kk } else { curmax };
+            let mut n = MMap64::with_max_cap(max, nextcap);
+            for i in 0..curcap {
+                if let Some(kkk) = self.set.index(i) {
+                    let vvv = std::mem::replace(&mut self.data[i],
+                                                ManuallyDrop::new(unsafe{std::mem::uninitialized()}));
+                    n.insert_unchecked(kkk, vvv);
+                }
+            }
+        }
+        self.insert_unchecked(k,ManuallyDrop::new(v))
+    }
+    fn insert_unchecked(&mut self, k: K, v: ManuallyDrop<V>) -> Option<V> {
+        self.set.co_insert_unchecked(&mut self.data, k.to_u64(), v)
+            .map(|x| ManuallyDrop::into_inner(x))
+    }
+    /// remove
+    pub fn remove(&mut self, k: K) -> Option<V> {
+        self.set.co_remove(&mut self.data, k.to_u64())
+            .map(|x| ManuallyDrop::into_inner(x))
+    }
+}
+
+impl<K: Fits64, V> Drop for MMap64<K,V> {
+    fn drop(&mut self) {
+        let curcap = self.set.rawcapacity();
+        for i in 0..curcap {
+            if self.set.index(i).is_some() {
+                unsafe { ManuallyDrop::drop(&mut self.data[i]); }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod mm64 {
+    use super::*;
+    use std::collections::HashMap;
+    #[test]
+    fn size_unwasted() {
+        println!("\nsmall size: {}", std::mem::size_of::<MMap64<u64,u64>>());
+        println!(" hash size: {}", std::mem::size_of::<HashMap<u64,u64>>());
+        assert!(std::mem::size_of::<MMap64<u64,u64>>() <=
+                2*std::mem::size_of::<HashMap<u64,u64>>());
+        assert!(std::mem::size_of::<MMap64<u64,u64>>() <= 48);
+    }
+
+    #[test]
+    fn simple() {
+        let mut m = MMap64::<u64, String>::new();
+        m.insert(0, String::from("hello"));
+        assert_eq!(m.remove(1), None);
+        assert_eq!(m.remove(0), Some(String::from("hello")));
+        println!("goodbye {:?}", &m);
+    }
+
+    #[test]
+    fn simple_u64() {
+        let mut m = MMap64::<u64, u64>::new();
+        m.insert(0, 3);
+        assert_eq!(m.remove(1), None);
+        println!("hello {:?}", &m);
+        assert_eq!(m.remove(0), Some(3));
+        println!("goodbye {:?}", &m);
+    }
+
 }
