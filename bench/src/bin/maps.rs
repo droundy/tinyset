@@ -14,7 +14,7 @@ use fnv::FnvHashMap;
 use ordermap::OrderMap;
 use flat_map::FlatMap;
 use tinyset::TinyMap;
-use tinyset::{Map64, Map6464, MMap64};
+use tinyset::{Map64, Map6464};
 
 macro_rules! time_me {
     ($fn: expr, $num: expr) => {{
@@ -72,7 +72,6 @@ macro_rules! bench_all_insert_remove {
         print!("{:>7}", "flat");
         print!("{:>7}", "tiny");
         print!("{:>7}", "map64");
-        print!("{:>7}", "mmap64");
         print!("{:>7}", "ma6464");
         println!();
         for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
@@ -92,8 +91,6 @@ macro_rules! bench_all_insert_remove {
             bench_remove_insert!(TinyMap::<$item,$vty>::new(), $item, $v, size,
                                  2*size, $iters);
             bench_remove_insert!(Map64::<$item,$vty>::new(), $item, $v, size,
-                                 2*size, $iters);
-            bench_remove_insert!(MMap64::<$item,$vty>::new(), $item, $v, size,
                                  2*size, $iters);
             // bench_remove_insert!(Map6464::<$item,$vty>::new(), $item, $v, size,
             //                      2*size, $iters);
