@@ -3694,6 +3694,10 @@ impl<K: Fits64, V> Map64<K,V> {
         self.set.co_remove(&mut self.data, k.to_u64())
             .map(|x| ManuallyDrop::into_inner(x))
     }
+    /// Returns true if the key is in the map.
+    pub fn contains_key(&self, k: &K) -> bool {
+        self.set.contains(&k.to_u64()).is_some()
+    }
     /// Returns a reference to the value corresponding to the key.
     pub fn get(&self, k: &K) -> Option<&V> {
         self.set.contains(&k.to_u64()).map(|i| &*self.data[i])
