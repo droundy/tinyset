@@ -1,10 +1,10 @@
 [package]
 name = "tinyset"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["David Roundy <daveroundy@gmail.com>"]
 
 description = "Size-optimized sets"
-license = "MPL-2.0"
+license = "MIT/Apache-2.0"
 repository = "https://github.com/droundy/tinyset"
 
 [dev-dependencies]
