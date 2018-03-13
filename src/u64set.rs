@@ -2069,6 +2069,16 @@ impl<T: Fits64> PartialEq for Set64<T> {
 }
 impl<T: Fits64> Eq for Set64<T> {}
 
+impl<T: Fits64> std::hash::Hash for Set64<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        let mut membs: Vec<u64> = self.iter().map(|i| i.to_u64()).collect();
+        membs.sort();
+        for memb in membs {
+            memb.hash(state);
+        }
+    }
+}
+
 impl<T: Fits64> std::iter::FromIterator<T> for Set64<T> {
     fn from_iter<I: IntoIterator<Item=T>>(iter: I) -> Self {
         let iter = iter.into_iter();
