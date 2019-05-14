@@ -70,13 +70,15 @@ macro_rules! present_bench {
     ($i: expr, $name_small: ident, $name_hash: ident) => {
         #[bench]
         fn $name_small(b: &mut Bencher) {
-            let here = $i-1;
+            let i = $i;
+            let here = if i > 0 { i-1 } else { i + 1 };
             let set: tinyset::Set<usize> = (0..$i).collect();
             b.iter(|| set.contains(&here));
         }
         #[bench]
         fn $name_hash(b: &mut Bencher) {
-            let here = $i-1;
+            let i = $i;
+            let here = if i > 0 { i-1 } else { i + 1 };
             let set: HashSet<usize> = (0..$i).collect();
             b.iter(|| set.contains(&here));
         }
