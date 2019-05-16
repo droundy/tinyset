@@ -16,15 +16,24 @@ use std::borrow::Borrow;
 /// `FnvHashSet` implementation.
 pub const CAPACITY: usize = 8;
 
-/// A set that is a `FnvHashSet` when it has many elements, but is just
-/// an array for small set sizes.
+/// A set that is a `FnvHashSet` when it has many elements, but is
+/// just an array for small set sizes.
 ///
 /// As with the `FnvHashSet` type, a `Set` requires that the
 /// elements implement the Eq and Hash traits.  This can frequently be
-/// achieved by using #[derive(PartialEq, Eq, Hash)]. In addition,
+/// achieved by using `#[derive(PartialEq, Eq, Hash)]`. In addition,
 /// `Set` requires that the elements implement the `Copy` trait,
 /// and really they should be pretty small, since Set always
-/// stores room for `CAPACITY` elements.
+/// stores room for [`CAPACITY`](constant.CAPACITY.html) elements.
+///
+/// This set type may be wasteful if the elements are each large in
+/// size, since it always uses 8 times the size of a single element
+/// plus a discriminator.  Sets of up to 8 elements (the current value
+/// of [`CAPACITY`](constant.CAPACITY.html)) are stored on the stack
+/// in a simple unordered array.  Larger sets are stored in an
+/// `FnvHashSet`.  It would be smarter to determine the number stored
+/// on the stack based on the element size, but that requires const
+/// functions.
 #[derive(Debug, Clone)]
 pub struct Set<T: Copy + Eq + Hash> {
     inner: SS<T>,

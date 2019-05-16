@@ -55,7 +55,12 @@ enum SearchResult {
     Richer(usize),
 }
 
-/// A set implemented for types that have an invalid value
+/// A set implemented for types that have an invalid value and can be
+/// quickly hashed to a u32.
+///
+/// This set stores two elements without heap allocation, and
+/// otherwise will store the set using a Robin Hood hash table, but
+/// with the hashes not being stored to save space.
 #[derive(Debug,Clone)]
 pub struct TinySet<T: HasInvalid> {
     v: Data<T>,

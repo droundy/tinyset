@@ -7,28 +7,29 @@
 
 //! `tinyset` contains a few collections that are optimized to scale
 //! in size well for small numbers of elements, while still scaling
-//! well in time (and size) for numbers of elements.  We have two set types:
+//! well in time (and size) for numbers of elements.  We have three set types:
 //!
-//! 1. `Set` is basically interchangeable with `HashSet`, although it
-//!    does require that its elements implement the `Copy` trait,
-//!    since otherwise I would have to learn to write correct `unsafe`
-//!    code, which would be scary.  It uses FNV hashing when there are
-//!    large numbers of elements.
+//! 1. [`Set`](set/struct.Set.html) is basically interchangeable with
+//!    `HashSet`, although it does require that its elements implement
+//!    the `Copy` trait, since otherwise I would have to learn to
+//!    write correct `unsafe` code, which would be scary.  It uses FNV
+//!    hashing when there are large numbers of elements.
 //!
-//! 2. `TinySet` is places a stronger requirement on its elements,
-//!     which must have trait `HasInvalid`.  This is intended for
-//!     elements that are `Copy`, are `Hash`, and have an "invalid"
-//!     value.  For the unsigned integer types, we take their maximum
-//!     value to mean invalid.  This constraint allows us to save a
-//!     bit more space.
+//! 2. [`TinySet`](tinyset/struct.TinySet.html) is places a stronger
+//!     requirement on its elements, which must have trait
+//!     `HasInvalid`.  This is intended for elements that are `Copy`,
+//!     are `Hash`, and have an "invalid" value.  For the unsigned
+//!     integer types, we take their maximum value to mean invalid.
+//!     This constraint allows us to save a bit more space.
 //!
-//! 3. `Set64` is a set for types that are 64 bits in size or less and are
-//!    `Copy`, intended for essentially integer types.  This is our most
-//!    efficient type, since it can store values in less space than
-//!    `std::mem::size_of::<T>()`, in the common case that they are small
-//!    numbers.  It is also essentially as fast as any of the other set
-//!    types (faster than many), and can avoid heap allocations
-//!    entirely for small sets.
+//! 3. [`Set64`](u64set/struct.Set64.html) is a set for types that are
+//!    64 bits in size or less and are `Copy`, intended for
+//!    essentially integer types.  This is our most efficient type,
+//!    since it can store values in less space than
+//!    `std::mem::size_of::<T>()`, in the common case that they are
+//!    small numbers.  It is also essentially as fast as any of the
+//!    other set types (faster than many), and can avoid heap
+//!    allocations entirely for small sets.
 //!
 //! All of these set types will do no heap allocation for small sets of
 //! small elements.  `TinySet` will store up to 16 bytes of elements
