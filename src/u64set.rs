@@ -3549,7 +3549,7 @@ mod u64map_tests {
 /// translating code from `HashMap` to `Map6464`.  The motivation for
 /// this is several-fold:
 ///
-/// 1. `Map6464` does not store `K` directly in its data structures
+/// 1. `Map6464` does not store `K` or `V` directly in its data structures
 /// (which would waste space), so there is no reference to the data to
 /// take.  This does not make it impossible, but does mean we would
 /// have to fabricate a `K` and return a reference to it, which is

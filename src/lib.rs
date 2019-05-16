@@ -64,6 +64,29 @@
 //! s.insert(1);
 //! assert!(s.contains(&1));
 //! ```
+//!
+//! # Hash mapsj
+//!
+//! In addition to the sets that `tinyset` is named for, we export a
+//! couple of space-efficient hash map implentations, which are
+//! closely related to `Set64` described above.  These are
+//!
+//! 1. [`Map64`](u64set/struct.Map64.html) is a map from types that are
+//!    64 bits in size or less and are `Copy`, intended for
+//!    essentially integer types.  The value can be of any type, and
+//!    the memory use (especially for small or empty maps) is far
+//!    lower than that of a standard `HashMap`.
+//! 1. [`Map6464`](u64set/struct.Map6464.html) is a map from types
+//!    that are 64 bits in size or less and are `Copy`, to values that
+//!    are also small and `Copy`.  This is an incredibly
+//!    space-efficient data type with no heap storage when you have
+//!    just a few small keys and values.  On a 64-bit system, the size
+//!    of a `Map6464` is 48 bytes, and if your keys and values both
+//!    fit in 8 bits, you can hold 23 items without using the heap.
+//!    If they fit in 16 bits, you can hold 15 itmes without resorting
+//!    to the heap, and so on.  You can even hold a whopping 4 64-bit
+//!    key-value pairs without resorting to the heap, making this very
+//!    efficent.
 
 #![deny(missing_docs)]
 
@@ -80,9 +103,6 @@ pub use tinyset::*;
 
 pub mod u64set;
 pub use u64set::{Set64, Map64, Map6464, Fits64};
-
-pub mod tinymap;
-pub use tinymap::TinyMap;
 
 #[cfg(test)]
 extern crate rand;

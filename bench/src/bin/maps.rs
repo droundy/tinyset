@@ -20,7 +20,6 @@ use std::collections::HashMap;
 use fnv::FnvHashMap;
 use ordermap::OrderMap;
 use flat_map::FlatMap;
-use tinyset::TinyMap;
 use tinyset::{Map64, Map6464};
 
 macro_rules! time_me {
@@ -77,7 +76,6 @@ macro_rules! bench_all_insert_remove {
         print!("{:>7}", "btree");
         print!("{:>7}", "order");
         print!("{:>7}", "flat");
-        print!("{:>7}", "tiny");
         print!("{:>7}", "map64");
         print!("{:>7}", "ma6464");
         println!();
@@ -94,8 +92,6 @@ macro_rules! bench_all_insert_remove {
             bench_remove_insert!(OrderMap::<$item,$vty>::default(), $item, $v, size,
                                  2*size, $iters);
             bench_remove_insert!(FlatMap::<$item,$vty>::default(), $item, $v, size,
-                                 2*size, $iters);
-            bench_remove_insert!(TinyMap::<$item,$vty>::new(), $item, $v, size,
                                  2*size, $iters);
             bench_remove_insert!(Map64::<$item,$vty>::new(), $item, $v, size,
                                  2*size, $iters);
