@@ -42,6 +42,7 @@ enum Data {
     Vu32(u32, Box<[u32]>),
     Su64(u32, [u64; NUM_U64]),
     Vu64(u32, Box<[u64]>),
+    Badu64(u32, Box<[u64]>),
 }
 impl Data {
     fn new() -> Data {
@@ -77,7 +78,8 @@ impl Data {
                            .into_boxed_slice())
             }
         } else {
-            unimplemented!()
+            Data::Badu64(0, vec![u64::invalid(); ((cap+1)*11/10).next_power_of_two()+1]
+                         .into_boxed_slice())
         }
     }
 }
@@ -117,6 +119,7 @@ impl U64Set {
             &Data::Vu32(sz,_) => sz as usize,
             &Data::Su64(sz,_) => sz as usize,
             &Data::Vu64(sz,_) => sz as usize,
+            &Data::Badu64(sz,_) => sz as usize,
         }
     }
     /// Returns the array size.
@@ -130,6 +133,7 @@ impl U64Set {
             Data::Vu32(_,ref v) => v.len(),
             Data::Su64(_,_) => NUM_U64,
             Data::Vu64(_,ref v) => v.len(),
+            Data::Badu64(_,ref v) => v.len()-1,
         }
     }
     /// Reserves capacity for at least `additional` more elements to be
@@ -250,12 +254,12 @@ impl U64Set {
                 for &x in oldv.iter() {
                     if x != u8::invalid() {
                         let mut value = x;
-                        match search(v, value) {
+                        match search(v, value, u8::invalid()) {
                             SearchResult::Present(_) => (),
                             SearchResult::Empty(i) => { v[i] = value; },
                             SearchResult::Richer(i) => {
                                 std::mem::swap(&mut v[i], &mut value);
-                                steal(v, i, value);
+                                steal(v, i, value, u8::invalid());
                             },
                         }
                     }
@@ -269,12 +273,12 @@ impl U64Set {
                 for &x in oldv.iter() {
                     if x != u16::invalid() {
                         let mut value = x;
-                        match search(v, value) {
+                        match search(v, value, u16::invalid()) {
                             SearchResult::Present(_) => (),
                             SearchResult::Empty(i) => { v[i] = value; },
                             SearchResult::Richer(i) => {
                                 std::mem::swap(&mut v[i], &mut value);
-                                steal(v, i, value);
+                                steal(v, i, value, u16::invalid());
                             },
                         }
                     }
@@ -288,12 +292,12 @@ impl U64Set {
                 for &x in oldv.iter() {
                     if x != u32::invalid() {
                         let mut value = x;
-                        match search(v, value) {
+                        match search(v, value, u32::invalid()) {
                             SearchResult::Present(_) => (),
                             SearchResult::Empty(i) => { v[i] = value; },
                             SearchResult::Richer(i) => {
                                 std::mem::swap(&mut v[i], &mut value);
-                                steal(v, i, value);
+                                steal(v, i, value, u32::invalid());
                             },
                         }
                     }
@@ -307,18 +311,40 @@ impl U64Set {
                 for &x in oldv.iter() {
                     if x != u64::invalid() {
                         let mut value = x;
-                        match search(v, value) {
+                        match search(v, value, u64::invalid()) {
                             SearchResult::Present(_) => (),
                             SearchResult::Empty(i) => { v[i] = value; },
                             SearchResult::Richer(i) => {
                                 std::mem::swap(&mut v[i], &mut value);
-                                steal(v, i, value);
+                                steal(v, i, value, u64::invalid());
                             },
                         }
                     }
                 }
             },
             Data::Vu64(_,_) => (),
+            Data::Badu64(sz, ref mut v) if sz as usize + additional + 1 > v.len()*10/11 => {
+                let newcap = ((sz as usize+additional+1)*11/10).next_power_of_two();
+                let invalid = v[v.len()-1];
+                let oldv = std::mem::replace(v, vec![invalid; newcap+1]
+                                             .into_boxed_slice());
+                for &x in oldv.iter() {
+                    if x != invalid {
+                        let vlen = v.len();
+                        let mut v = &mut v[..vlen-1];
+                        let mut value = x;
+                        match search(v, value, invalid) {
+                            SearchResult::Present(_) => (),
+                            SearchResult::Empty(i) => { v[i] = value; },
+                            SearchResult::Richer(i) => {
+                                std::mem::swap(&mut v[i], &mut value);
+                                steal(v, i, value, invalid);
+                            },
+                        }
+                    }
+                }
+            },
+            Data::Badu64(_,_) => (),
         }
     }
     fn current_max(&self) -> u64 {
@@ -331,6 +357,7 @@ impl U64Set {
             Data::Vu16(_, _) => u16::invalid() as u64 - 1,
             Data::Vu32(_, _) => u32::invalid() as u64 - 1,
             Data::Vu64(_, _) => u64::invalid() as u64 - 1,
+            Data::Badu64(_, _) => u64::invalid(),
         }
     }
     fn index(&self, i: usize) -> Option<u64> {
@@ -383,6 +410,14 @@ impl U64Set {
                 } else {
                     None
                 },
+            Data::Badu64(_, ref v) => {
+                let invalid = v[v.len()-1];
+                if v[i] != invalid {
+                    Some(v[i] as u64)
+                } else {
+                    None
+                }
+            },
         }
     }
     /// Adds a value to the set.
@@ -444,7 +479,7 @@ impl U64Set {
             },
             Data::Vu8(ref mut sz, ref mut v) => {
                 let mut value = value as u8;
-                match search(v, value) {
+                match search(v, value, u8::invalid()) {
                     SearchResult::Present(i) => Err(i),
                     SearchResult::Empty(i) => {
                         v[i] = value;
@@ -454,14 +489,14 @@ impl U64Set {
                     SearchResult::Richer(i) => {
                         *sz += 1;
                         std::mem::swap(&mut v[i], &mut value);
-                        steal(v, i, value);
+                        steal(v, i, value, u8::invalid());
                         Ok(i)
                     },
                 }
             },
             Data::Vu16(ref mut sz, ref mut v) => {
                 let mut value = value as u16;
-                match search(v, value) {
+                match search(v, value, u16::invalid()) {
                     SearchResult::Present(i) => Err(i),
                     SearchResult::Empty(i) => {
                         v[i] = value;
@@ -471,14 +506,14 @@ impl U64Set {
                     SearchResult::Richer(i) => {
                         *sz += 1;
                         std::mem::swap(&mut v[i], &mut value);
-                        steal(v, i, value);
+                        steal(v, i, value, u16::invalid());
                         Ok(i)
                     },
                 }
             },
             Data::Vu32(ref mut sz, ref mut v) => {
                 let mut value = value as u32;
-                match search(v, value) {
+                match search(v, value, u32::invalid()) {
                     SearchResult::Present(i) => Err(i),
                     SearchResult::Empty(i) => {
                         v[i] = value;
@@ -488,14 +523,14 @@ impl U64Set {
                     SearchResult::Richer(i) => {
                         *sz += 1;
                         std::mem::swap(&mut v[i], &mut value);
-                        steal(v, i, value);
+                        steal(v, i, value, u32::invalid());
                         Ok(i)
                     },
                 }
             },
             Data::Vu64(ref mut sz, ref mut v) => {
                 let mut value = value as u64;
-                match search(v, value) {
+                match search(v, value, u64::invalid()) {
                     SearchResult::Present(i) => Err(i),
                     SearchResult::Empty(i) => {
                         v[i] = value;
@@ -505,9 +540,52 @@ impl U64Set {
                     SearchResult::Richer(i) => {
                         *sz += 1;
                         std::mem::swap(&mut v[i], &mut value);
-                        steal(v, i, value);
+                        steal(v, i, value, u64::invalid());
                         Ok(i)
                     },
+                }
+            },
+            Data::Badu64(_,_) => {
+                let mut invalid = 0;
+                let mut old_invalid = 0;
+                let mut value = value as u64;
+                if let Data::Badu64(_, ref v) = self.v {
+                    invalid = v[v.len()-1];
+                    old_invalid = invalid;
+                    if value == invalid {
+                        // Need to pick a new invalid value.
+                        invalid = invalid.wrapping_sub(1);
+                        while self.contains(&invalid).is_some() {
+                            invalid = invalid.wrapping_sub(1);
+                        }
+                    }
+                }
+                if let Data::Badu64(ref mut sz, ref mut v) = self.v {
+                    let vlen = v.len();
+                    if old_invalid != invalid {
+                        for x in v.iter_mut() {
+                            if *x == old_invalid {
+                                *x = invalid;
+                            }
+                        }
+                    }
+                    let mut v = &mut v[..vlen-1];
+                    match search(v, value, invalid) {
+                        SearchResult::Present(i) => Err(i),
+                        SearchResult::Empty(i) => {
+                            v[i] = value;
+                            *sz += 1;
+                            Ok(i)
+                        },
+                        SearchResult::Richer(i) => {
+                            *sz += 1;
+                            std::mem::swap(&mut v[i], &mut value);
+                            steal(v, i, value, invalid);
+                            Ok(i)
+                        },
+                    }
+                } else {
+                    unreachable!()
                 }
             },
         }
@@ -564,7 +642,7 @@ impl U64Set {
             },
             Data::Vu8(ref mut sz, ref mut keys) => {
                 let mut k = k as u8;
-                match search(keys, k) {
+                match search(keys, k, u8::invalid()) {
                     SearchResult::Present(i) => {
                         return Some(std::mem::replace(&mut vals[i], v));
                     },
@@ -585,7 +663,7 @@ impl U64Set {
             },
             Data::Vu16(ref mut sz, ref mut keys) => {
                 let mut k = k as u16;
-                match search(keys, k) {
+                match search(keys, k, u16::invalid()) {
                     SearchResult::Present(i) => {
                         return Some(std::mem::replace(&mut vals[i], v));
                     },
@@ -606,7 +684,7 @@ impl U64Set {
             },
             Data::Vu32(ref mut sz, ref mut keys) => {
                 let mut k = k as u32;
-                match search(keys, k) {
+                match search(keys, k, u32::invalid()) {
                     SearchResult::Present(i) => {
                         return Some(std::mem::replace(&mut vals[i], v));
                     },
@@ -627,7 +705,31 @@ impl U64Set {
             },
             Data::Vu64(ref mut sz, ref mut keys) => {
                 let mut k = k as u64;
-                match search(keys, k) {
+                match search(keys, k, u64::invalid()) {
+                    SearchResult::Present(i) => {
+                        return Some(std::mem::replace(&mut vals[i], v));
+                    },
+                    SearchResult::Empty(i) => {
+                        keys[i] = k;
+                        vals[i] = v;
+                        *sz += 1;
+                        None
+                    },
+                    SearchResult::Richer(i) => {
+                        *sz += 1;
+                        std::mem::swap(&mut keys[i], &mut k);
+                        std::mem::swap(&mut vals[i], &mut v);
+                        mapsteal(keys, vals, i, k, v);
+                        None
+                    },
+                }
+            },
+            Data::Badu64(ref mut sz, ref mut keys) => {
+                let invalid = keys[keys.len()-1];
+                let mut k = k as u64;
+                let vlen = keys.len();
+                let mut keys = &mut keys[..vlen-1];
+                match search(keys, k, invalid) {
                     SearchResult::Present(i) => {
                         return Some(std::mem::replace(&mut vals[i], v));
                     },
@@ -705,7 +807,7 @@ impl U64Set {
                     return None;
                 }
                 let value = value as u8;
-                match search(v, value) {
+                match search(v, value, u8::invalid()) {
                     SearchResult::Present(i) => Some(i),
                     SearchResult::Empty(_) => None,
                     SearchResult::Richer(_) => None,
@@ -716,7 +818,7 @@ impl U64Set {
                     return None;
                 }
                 let value = value as u16;
-                match search(v, value) {
+                match search(v, value, u16::invalid()) {
                     SearchResult::Present(i) => Some(i),
                     SearchResult::Empty(_) => None,
                     SearchResult::Richer(_) => None,
@@ -727,7 +829,7 @@ impl U64Set {
                     return None;
                 }
                 let value = value as u32;
-                match search(v, value) {
+                match search(v, value, u32::invalid()) {
                     SearchResult::Present(i) => Some(i),
                     SearchResult::Empty(_) => None,
                     SearchResult::Richer(_) => None,
@@ -738,7 +840,21 @@ impl U64Set {
                     return None;
                 }
                 let value = value as u64;
-                match search(v, value) {
+                match search(v, value, u64::invalid()) {
+                    SearchResult::Present(i) => Some(i),
+                    SearchResult::Empty(_) => None,
+                    SearchResult::Richer(_) => None,
+                }
+            },
+            Data::Badu64(_, ref v) => {
+                let invalid = v[v.len()-1];
+                if value == invalid as u64 {
+                    return None;
+                }
+                let value = value as u64;
+                let vlen = v.len();
+                let mut v = &v[..vlen-1];
+                match search(v, value, invalid) {
                     SearchResult::Present(i) => Some(i),
                     SearchResult::Empty(_) => None,
                     SearchResult::Richer(_) => None,
@@ -835,7 +951,7 @@ impl U64Set {
                     return false;
                 }
                 let value = value as u8;
-                match search(v, value) {
+                match search(v, value, u8::invalid()) {
                     SearchResult::Present(mut i) => {
                         *sz -= 1;
                         let mask = v.len() - 1;
@@ -861,7 +977,7 @@ impl U64Set {
                     return false;
                 }
                 let value = value as u16;
-                match search(v, value) {
+                match search(v, value, u16::invalid()) {
                     SearchResult::Present(mut i) => {
                         *sz -= 1;
                         let mask = v.len() - 1;
@@ -887,7 +1003,7 @@ impl U64Set {
                     return false;
                 }
                 let value = value as u32;
-                match search(v, value) {
+                match search(v, value, u32::invalid()) {
                     SearchResult::Present(mut i) => {
                         *sz -= 1;
                         let mask = v.len() - 1;
@@ -913,11 +1029,39 @@ impl U64Set {
                     return false;
                 }
                 let value = value as u64;
-                match search(v, value) {
+                match search(v, value, u64::invalid()) {
                     SearchResult::Present(mut i) => {
                         *sz -= 1;
                         let mask = v.len() - 1;
                         let invalid = u64::invalid();
+                        loop {
+                            let iplus1 = (i+1) & mask;
+                            if v[iplus1] == invalid ||
+                                (v[iplus1].hash_usize().wrapping_sub(iplus1) & mask) == 0
+                            {
+                                v[i] = invalid;
+                                return true;
+                            }
+                            v[i] = v[iplus1];
+                            i = iplus1;
+                        }
+                    },
+                    SearchResult::Empty(_) => false,
+                    SearchResult::Richer(_) => false,
+                }
+            },
+            Data::Badu64(ref mut sz, ref mut v) => {
+                let invalid = v[v.len()-1];
+                if value == invalid as u64 {
+                    return false;
+                }
+                let value = value as u64;
+                let vlen = v.len();
+                let mut v = &mut v[..vlen-1];
+                match search(v, value, invalid) {
+                    SearchResult::Present(mut i) => {
+                        *sz -= 1;
+                        let mask = v.len() - 1;
                         loop {
                             let iplus1 = (i+1) & mask;
                             if v[iplus1] == invalid ||
@@ -1060,7 +1204,7 @@ impl U64Set {
                     return None;
                 }
                 let k = k as u8;
-                match search(keys, k) {
+                match search(keys, k, u8::invalid()) {
                     SearchResult::Present(mut i) => {
                         *sz -= 1;
                         let mask = keys.len() - 1;
@@ -1088,7 +1232,7 @@ impl U64Set {
                     return None;
                 }
                 let k = k as u16;
-                match search(keys, k) {
+                match search(keys, k, u16::invalid()) {
                     SearchResult::Present(mut i) => {
                         *sz -= 1;
                         let mask = keys.len() - 1;
@@ -1116,7 +1260,7 @@ impl U64Set {
                     return None;
                 }
                 let k = k as u32;
-                match search(keys, k) {
+                match search(keys, k, u32::invalid()) {
                     SearchResult::Present(mut i) => {
                         *sz -= 1;
                         let mask = keys.len() - 1;
@@ -1144,11 +1288,41 @@ impl U64Set {
                     return None;
                 }
                 let k = k as u64;
-                match search(keys, k) {
+                match search(keys, k, u64::invalid()) {
                     SearchResult::Present(mut i) => {
                         *sz -= 1;
                         let mask = keys.len() - 1;
                         let invalid = u64::invalid();
+                        loop {
+                            let iplus1 = (i+1) & mask;
+                            if keys[iplus1] == invalid ||
+                                (keys[iplus1].hash_usize().wrapping_sub(iplus1) & mask) == 0
+                            {
+                                keys[i] = invalid;
+                                return Some(std::mem::replace(&mut vals[i],
+                                                              unsafe {std::mem::uninitialized()}));
+                            }
+                            keys[i] = keys[iplus1];
+                            vals.swap(i, iplus1);
+                            i = iplus1;
+                        }
+                    },
+                    SearchResult::Empty(_) => None,
+                    SearchResult::Richer(_) => None,
+                }
+            },
+            Data::Badu64(ref mut sz, ref mut keys) => {
+                let invalid = keys[keys.len()-1];
+                if k == invalid {
+                    return None;
+                }
+                let k = k as u64;
+                let vlen = keys.len();
+                let mut keys = &mut keys[..vlen-1];
+                match search(keys, k, invalid) {
+                    SearchResult::Present(mut i) => {
+                        *sz -= 1;
+                        let mask = keys.len() - 1;
                         loop {
                             let iplus1 = (i+1) & mask;
                             if keys[iplus1] == invalid ||
@@ -1210,13 +1384,22 @@ impl U64Set {
             },
             Data::Su64(sz, ref v) => {
                 Iter::U64 {
+                    invalid: u64::invalid(),
                     slice: &v[0..sz as usize],
                     nleft: sz as usize,
                 }
             },
             Data::Vu64(sz, ref v) => {
                 Iter::U64 {
+                    invalid: u64::invalid(),
                     slice: v,
+                    nleft: sz as usize,
+                }
+            },
+            Data::Badu64(sz, ref v) => {
+                Iter::U64 {
+                    invalid: v[v.len()-1],
+                    slice: &v[..v.len()-1],
                     nleft: sz as usize,
                 }
             },
@@ -1290,6 +1473,7 @@ impl U64Set {
                 let oldsz = std::mem::replace(sz, 0) as usize;
                 let oldv = Vec::from(&oldv[0..oldsz]);
                 Drain::U64 {
+                    invalid: u64::invalid(),
                     slice: oldv,
                     nleft: oldsz,
                 }
@@ -1301,6 +1485,19 @@ impl U64Set {
                 let oldsz = std::mem::replace(sz, 0) as usize;
                 let oldv = Vec::from(oldv);
                 Drain::U64 {
+                    invalid: u64::invalid(),
+                    slice: oldv,
+                    nleft: oldsz,
+                }
+            },
+            Data::Badu64(ref mut sz, ref mut v) => {
+                let len = v.len();
+                let oldv = std::mem::replace(v,
+                                             vec![u64::invalid(); len].into_boxed_slice());
+                let oldsz = std::mem::replace(sz, 0) as usize;
+                let oldv = Vec::from(oldv);
+                Drain::U64 {
+                    invalid: oldv[len-1],
                     slice: oldv,
                     nleft: oldsz,
                 }
@@ -1346,6 +1543,8 @@ pub enum Iter<'a> {
     },
     /// this really should be private
     U64 {
+        /// should be private
+        invalid: u64,
         /// this really should be private
         slice: &'a [u64],
         /// this really should be private
@@ -1377,6 +1576,8 @@ pub enum Drain {
     },
     /// this really should be private
     U64 {
+        /// this really should be private
+        invalid: u64,
         /// this really should be private
         slice: Vec<u64>,
         /// this really should be private
@@ -1430,12 +1631,12 @@ impl<'a> Iterator for Iter<'a> {
                     Some(val as u64)
                 }
             },
-            &mut Iter::U64{ref mut slice, ref mut nleft} => {
+            &mut Iter::U64{invalid, ref mut slice, ref mut nleft} => {
                 if *nleft == 0 {
                     None
                 } else {
                     assert!(slice.len() >= *nleft);
-                    while slice[0] == u64::invalid() {
+                    while slice[0] == invalid {
                         *slice = slice.split_first().unwrap().1;
                     }
                     let val = slice[0];
@@ -1451,7 +1652,7 @@ impl<'a> Iterator for Iter<'a> {
             &Iter::U8{slice: _, nleft} => (nleft, Some(nleft)),
             &Iter::U16{slice: _, nleft} => (nleft, Some(nleft)),
             &Iter::U32{slice: _, nleft} => (nleft, Some(nleft)),
-            &Iter::U64{slice: _, nleft} => (nleft, Some(nleft)),
+            &Iter::U64{nleft, ..} => (nleft, Some(nleft)),
         }
     }
 }
@@ -1499,13 +1700,13 @@ impl Iterator for Drain {
                     Some(val as u64)
                 }
             },
-            &mut Drain::U64{ref mut slice, ref mut nleft} => {
+            &mut Drain::U64{invalid, ref mut slice, ref mut nleft} => {
                 if *nleft == 0 {
                     None
                 } else {
                     assert!(slice.len() >= *nleft);
                     let mut val = slice.pop().unwrap();
-                    while val == u64::invalid() {
+                    while val == invalid {
                         val = slice.pop().unwrap();
                     }
                     *nleft -= 1;
@@ -1519,7 +1720,7 @@ impl Iterator for Drain {
             &Drain::U8{slice: _, nleft} => (nleft, Some(nleft)),
             &Drain::U16{slice: _, nleft} => (nleft, Some(nleft)),
             &Drain::U32{slice: _, nleft} => (nleft, Some(nleft)),
-            &Drain::U64{slice: _, nleft} => (nleft, Some(nleft)),
+            &Drain::U64{nleft, ..} => (nleft, Some(nleft)),
         }
     }
 }
@@ -1608,6 +1809,39 @@ mod tests {
                 }
                 if set.len() != refset.len() { return false; }
                 for i in 0..2550 {
+                    if set.contains(&i).is_some() != refset.contains(&i) { return false; }
+                }
+            }
+        }
+    }
+
+    #[cfg(test)]
+    quickcheck! {
+        fn prop_matches_with_invalid(steps: Vec<Result<u64,u64>>) -> bool {
+            let mut steps = steps;
+            steps.push(Ok(u64::invalid()));
+            let mut set = U64Set::with_capacity(1);
+            let mut refset = HashSet::<u64>::new();
+            loop {
+                match steps.pop() {
+                    Some(Ok(v)) => {
+                        set.insert(v);
+                        assert!(set.contains(&v).is_some());
+                        refset.insert(v);
+                    },
+                    Some(Err(v)) => {
+                        set.remove(&v);
+                        assert!(!set.contains(&v).is_some());
+                        refset.remove(&v);
+                    },
+                    None => return true,
+                }
+                if set.len() != refset.len() { return false; }
+                for i in 0..2550 {
+                    if set.contains(&i).is_some() != refset.contains(&i) { return false; }
+                }
+                let inv = u64::invalid();
+                for i in &[inv-3,inv-2,inv-1,inv] {
                     if set.contains(&i).is_some() != refset.contains(&i) { return false; }
                 }
             }
@@ -1823,9 +2057,8 @@ mod tests {
     }
 }
 
-fn search<T: HasInvalid>(v: &[T], elem: T) -> SearchResult {
+fn search<T: HasInvalid>(v: &[T], elem: T, invalid: T) -> SearchResult {
     let h = elem.hash_usize();
-    let invalid = T::invalid();
     let mut dist = 0;
     let mask = v.len() - 1;
     loop {
@@ -1846,10 +2079,9 @@ fn search<T: HasInvalid>(v: &[T], elem: T) -> SearchResult {
     }
 }
 
-fn search_from<T: HasInvalid>(v: &[T], i_start: usize, elem: T) -> SearchResult {
+fn search_from<T: HasInvalid>(v: &[T], i_start: usize, elem: T, invalid: T) -> SearchResult {
     let h = elem.hash_usize();
     let mask = v.len() - 1;
-    let invalid = T::invalid();
     let mut dist = i_start.wrapping_sub(h) & mask;
     loop {
         let i = h+dist & mask;
@@ -1869,9 +2101,9 @@ fn search_from<T: HasInvalid>(v: &[T], i_start: usize, elem: T) -> SearchResult 
     }
 }
 
-fn steal<T: HasInvalid>(v: &mut [T], mut i: usize, mut elem: T) {
+fn steal<T: HasInvalid>(v: &mut [T], mut i: usize, mut elem: T, invalid: T) {
     loop {
-        match search_from(v, i, elem) {
+        match search_from(v, i, elem, invalid) {
             SearchResult::Present(_) => return,
             SearchResult::Empty(i) => {
                 v[i] = elem;
@@ -1989,6 +2221,44 @@ define_ifits!(isize, usize);
 /// for x in &a {
 ///     assert!("Hello world".contains(x));
 /// }
+/// ```
+///
+/// # Storage details
+///
+/// A `Set64` is somewhat complicated in its data format, because it
+/// has 8 possibilities, and which of those formats it takes depends
+/// on the largest value stored and how many values are stored.  Note
+/// that the size of value is defined in terms of the `u64` that the
+/// element can be converted into.
+///
+/// 1. If there are 22 or less items that are less than 255, then the
+///    set is stored as an array of `u8` with a single byte
+///    indicating how many elements there are.  Search and addition is
+///    linear in the number of elements, and way faster than `O(1)`
+///    operations would be.  No heap storage is used.
+/// 1. If there are 11 or less items that are less than 2^16-1, then the
+///    set is stored as an array of `u16` with a single byte
+///    indicating how many elements there are.  Search and addition is
+///    linear in the number of elements, and way faster than `O(1)`
+///    operations would be.  No heap storage is used.
+/// 1. If there are 5 or less items that are less than 2^32-1, then the
+///    set is stored as an array of `u32` with a single byte
+///    indicating how many elements there are.  Search and addition is
+///    linear in the number of elements, and way faster than `O(1)`
+///    operations would be.  No heap storage is used.
+/// 1. If there are 2 or less items that are less than 2^64-1, then
+///    the set is stored as an array of `u64` with a single byte
+///    indicating how many elements there are.  Search and addition is
+///    linear in the number of elements, and way faster than `O(1)`
+///    operations would be.  No heap storage is used.
+/// 1. If there are many items that are less than 255, then the set is
+///    stored on the heap as a Robin Hood hash set of `u8` values.
+/// 1. If there are many items that are less than 2^16-1, then the set
+///    is stored on the heap as a Robin Hood hash set of `u16` values.
+/// 1. If there are many items that are less than 2^32-1, then the set
+///    is stored on the heap as a Robin Hood hash set of `u32` values.
+/// 1. If there are many large items, then the set is stored on the
+///    heap as a Robin Hood hash set of `u64` values.
 #[derive(Debug, Clone)]
 pub struct Set64<T: Fits64>(U64Set, PhantomData<T>);
 
@@ -2372,7 +2642,7 @@ impl U64Map {
                 }
             }
         } else {
-            unimplemented!()
+            unimplemented!() // FIXME needs Badu64 variant
         }
     }
     fn insert_unchecked(&mut self, k: u64, v: u64) -> Option<u64> {
@@ -2436,7 +2706,7 @@ impl U64Map {
             &mut U64Map::Vu8 { ref mut sz, ref mut keys, ref mut vals } => {
                 let mut k = k as u8;
                 let mut v = v as u8;
-                match search(keys, k) {
+                match search(keys, k, u8::invalid()) {
                     SearchResult::Present(i) => {
                         let oldv = vals[i];
                         vals[i] = v;
@@ -2460,7 +2730,7 @@ impl U64Map {
             &mut U64Map::Vu16 { ref mut sz, ref mut keys, ref mut vals } => {
                 let mut k = k as u16;
                 let mut v = v as u16;
-                match search(keys, k) {
+                match search(keys, k, u16::invalid()) {
                     SearchResult::Present(i) => {
                         let oldv = vals[i];
                         vals[i] = v;
@@ -2484,7 +2754,7 @@ impl U64Map {
             &mut U64Map::Vu32 { ref mut sz, ref mut keys, ref mut vals } => {
                 let mut k = k as u32;
                 let mut v = v as u32;
-                match search(keys, k) {
+                match search(keys, k, u32::invalid()) {
                     SearchResult::Present(i) => {
                         let oldv = vals[i];
                         vals[i] = v;
@@ -2508,7 +2778,7 @@ impl U64Map {
             &mut U64Map::Vu64 { ref mut sz, ref mut keys, ref mut vals } => {
                 let mut k = k as u64;
                 let mut v = v as u64;
-                match search(keys, k) {
+                match search(keys, k, u64::invalid()) {
                     SearchResult::Present(i) => {
                         let oldv = vals[i];
                         vals[i] = v;
@@ -2633,7 +2903,7 @@ impl U64Map {
                     if k != u8::invalid() {
                         let mut key = k;
                         let mut value = v;
-                        match search(keys, key) {
+                        match search(keys, key, u8::invalid()) {
                             SearchResult::Present(_) => (),
                             SearchResult::Empty(i) => {
                                 keys[i] = key;
@@ -2668,7 +2938,7 @@ impl U64Map {
                     if k != u16::invalid() {
                         let mut key = k;
                         let mut value = v;
-                        match search(keys, key) {
+                        match search(keys, key, u16::invalid()) {
                             SearchResult::Present(_) => (),
                             SearchResult::Empty(i) => {
                                 keys[i] = key;
@@ -2703,7 +2973,7 @@ impl U64Map {
                     if k != u32::invalid() {
                         let mut key = k;
                         let mut value = v;
-                        match search(keys, key) {
+                        match search(keys, key, u32::invalid()) {
                             SearchResult::Present(_) => (),
                             SearchResult::Empty(i) => {
                                 keys[i] = key;
@@ -2738,7 +3008,7 @@ impl U64Map {
                     if k != u64::invalid() {
                         let mut key = k;
                         let mut value = v;
-                        match search(keys, key) {
+                        match search(keys, key, u64::invalid()) {
                             SearchResult::Present(_) => (),
                             SearchResult::Empty(i) => {
                                 keys[i] = key;
@@ -2818,7 +3088,7 @@ impl U64Map {
                     return None;
                 }
                 let k = k as u8;
-                match search(keys, k) {
+                match search(keys, k, u8::invalid()) {
                     SearchResult::Present(i) => Some(vals[i] as u64),
                     SearchResult::Empty(_) => None,
                     SearchResult::Richer(_) => None,
@@ -2829,7 +3099,7 @@ impl U64Map {
                     return None;
                 }
                 let k = k as u16;
-                match search(keys, k) {
+                match search(keys, k, u16::invalid()) {
                     SearchResult::Present(i) => Some(vals[i] as u64),
                     SearchResult::Empty(_) => None,
                     SearchResult::Richer(_) => None,
@@ -2840,7 +3110,7 @@ impl U64Map {
                     return None;
                 }
                 let k = k as u32;
-                match search(keys, k) {
+                match search(keys, k, u32::invalid()) {
                     SearchResult::Present(i) => Some(vals[i] as u64),
                     SearchResult::Empty(_) => None,
                     SearchResult::Richer(_) => None,
@@ -2851,7 +3121,7 @@ impl U64Map {
                     return None;
                 }
                 let k = k as u64;
-                match search(keys, k) {
+                match search(keys, k, u64::invalid()) {
                     SearchResult::Present(i) => Some(vals[i] as u64),
                     SearchResult::Empty(_) => None,
                     SearchResult::Richer(_) => None,
@@ -2954,7 +3224,7 @@ impl U64Map {
                     return None;
                 }
                 let k = k as u8;
-                match search(keys, k) {
+                match search(keys, k, u8::invalid()) {
                     SearchResult::Present(mut i) => {
                         let oldval = vals[i];
                         *sz -= 1;
@@ -2982,7 +3252,7 @@ impl U64Map {
                     return None;
                 }
                 let k = k as u16;
-                match search(keys, k) {
+                match search(keys, k, u16::invalid()) {
                     SearchResult::Present(mut i) => {
                         let oldval = vals[i];
                         *sz -= 1;
@@ -3010,7 +3280,7 @@ impl U64Map {
                     return None;
                 }
                 let k = k as u32;
-                match search(keys, k) {
+                match search(keys, k, u32::invalid()) {
                     SearchResult::Present(mut i) => {
                         let oldval = vals[i];
                         *sz -= 1;
@@ -3038,7 +3308,7 @@ impl U64Map {
                     return None;
                 }
                 let k = k as u64;
-                match search(keys, k) {
+                match search(keys, k, u64::invalid()) {
                     SearchResult::Present(mut i) => {
                         let oldval = vals[i];
                         *sz -= 1;
@@ -3176,7 +3446,7 @@ impl<'a> Iterator for U64MapIter<'a> {
 
 fn mapsteal<K: HasInvalid, V>(k: &mut [K], v: &mut [V], mut i: usize, mut elem: K, mut val: V) {
     loop {
-        match search_from(k, i, elem) {
+        match search_from(k, i, elem, K::invalid()) {
             SearchResult::Present(i) => {
                 v[i] = val;
                 return;
