@@ -3995,6 +3995,19 @@ impl<K: Fits64, V> Map64<K,V> {
             nleft: self.len(),
         }
     }
+    /// An iterator visiting values in arbitrary
+    /// order. The iterator element type is `&V`.
+    pub fn values(&self) -> impl Iterator<Item=&V> + '_ {
+        self.iter().map(|(_,v)| v)
+    }
+    /// A mutable iterator visiting values in arbitrary order. The
+    /// iterator element type is `&mut V`.
+    pub fn values_mut(&mut self) -> impl Iterator<Item=&mut V> + '_ {
+        let set = &self.set;
+        self.data.iter_mut().enumerate()
+            .filter(move |(i,_)| set.index(*i).is_some())
+            .map(|(_,x)| &mut **x)
+    }
 }
 
 impl<K: Fits64, V> Drop for Map64<K,V> {
