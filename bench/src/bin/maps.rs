@@ -68,6 +68,39 @@ macro_rules! bench_remove_insert {
     }};
 }
 
+macro_rules! bench_most_insert_remove {
+    ($item: ident, $vty: ty, $v: expr, $iters: expr, $maxsz: expr) => {{
+        print!("{:10}\n---------\n{:>6}",
+               "ins/rem (time in ns per remove and possibly insert)",
+               "size");
+        print!("{:>7}", "fnv");
+        print!("{:>7}", "hash");
+        print!("{:>7}", "btree");
+        print!("{:>7}", "order");
+        print!("{:>7}", "flat");
+        print!("{:>7}", "map64");
+        println!();
+        for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
+                                  .filter(|&x|x<$maxsz)) {
+            print!("{:6}",size);
+
+            bench_remove_insert!(FnvHashMap::<$item,$vty>::default(), $item, $v, size,
+                                 2*size, $iters);
+            bench_remove_insert!(HashMap::<$item,$vty>::default(), $item, $v, size,
+                                 2*size, $iters);
+            bench_remove_insert!(BTreeMap::<$item,$vty>::default(), $item, $v, size,
+                                 2*size, $iters);
+            bench_remove_insert!(OrderMap::<$item,$vty>::default(), $item, $v, size,
+                                 2*size, $iters);
+            bench_remove_insert!(FlatMap::<$item,$vty>::default(), $item, $v, size,
+                                 2*size, $iters);
+            bench_remove_insert!(Map64::<$item,$vty>::new(), $item, $v, size,
+                                 2*size, $iters);
+            println!();
+        }
+    }};
+}
+
 macro_rules! bench_all_insert_remove {
     ($item: ident, $vty: ty, $v: expr, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>6}", "ins/rem", "size");
@@ -95,8 +128,8 @@ macro_rules! bench_all_insert_remove {
                                  2*size, $iters);
             bench_remove_insert!(Map64::<$item,$vty>::new(), $item, $v, size,
                                  2*size, $iters);
-            // bench_remove_insert!(Map6464::<$item,$vty>::new(), $item, $v, size,
-            //                      2*size, $iters);
+            bench_remove_insert!(Map6464::<$item,$vty>::new(), $item, $v, size,
+                                 2*size, $iters);
             println!();
         }
     }};
@@ -107,7 +140,7 @@ fn main() {
 
     let maxsz = 10*iters;
     println!("\n==============\n    u64, &str\n==============");
-    bench_all_insert_remove!(u64, &str, &"hello world", iters, maxsz);
+    bench_most_insert_remove!(u64, &str, &"hello world", iters, maxsz);
 
     let maxsz = 10*iters;
     println!("\n==============\n    usize,usize\n==============");
@@ -115,7 +148,7 @@ fn main() {
 
     let maxsz = 120;
     println!("\n==============\n    u8, [u8;128]\n==============");
-    bench_all_insert_remove!(u8, [u8;128], [3;128], iters, maxsz);
+    bench_most_insert_remove!(u8, [u8;128], [3;128], iters, maxsz);
 }
 
 fn duration_to_f64(t: Duration) -> f64 {

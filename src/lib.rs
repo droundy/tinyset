@@ -65,7 +65,7 @@
 //! assert!(s.contains(&1));
 //! ```
 //!
-//! # Hash mapsj
+//! # Hash maps
 //!
 //! In addition to the sets that `tinyset` is named for, we export a
 //! couple of space-efficient hash map implentations, which are
@@ -83,10 +83,10 @@
 //!    just a few small keys and values.  On a 64-bit system, the size
 //!    of a `Map6464` is 48 bytes, and if your keys and values both
 //!    fit in 8 bits, you can hold 23 items without using the heap.
-//!    If they fit in 16 bits, you can hold 15 itmes without resorting
-//!    to the heap, and so on.  You can even hold a whopping 4 64-bit
-//!    key-value pairs without resorting to the heap, making this very
-//!    efficent.
+//!    If the keys fit in 16 bits and the values in 8 bits, you can
+//!    hold 15 itmes without resorting to the heap, and so on.  You
+//!    can even hold a whopping 4 64-bit keys with 8-bit values
+//!    without resorting to the heap, making this very efficent.
 
 #![deny(missing_docs)]
 
