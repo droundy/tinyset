@@ -656,7 +656,7 @@ impl U64Set {
                         *sz += 1;
                         std::mem::swap(&mut keys[i], &mut k);
                         std::mem::swap(&mut vals[i], &mut v);
-                        mapsteal(keys, vals, i, k, v);
+                        mapsteal(keys, vals, i, k, v, u8::invalid());
                         None
                     },
                 }
@@ -677,7 +677,7 @@ impl U64Set {
                         *sz += 1;
                         std::mem::swap(&mut keys[i], &mut k);
                         std::mem::swap(&mut vals[i], &mut v);
-                        mapsteal(keys, vals, i, k, v);
+                        mapsteal(keys, vals, i, k, v, u16::invalid());
                         None
                     },
                 }
@@ -698,7 +698,7 @@ impl U64Set {
                         *sz += 1;
                         std::mem::swap(&mut keys[i], &mut k);
                         std::mem::swap(&mut vals[i], &mut v);
-                        mapsteal(keys, vals, i, k, v);
+                        mapsteal(keys, vals, i, k, v, u32::invalid());
                         None
                     },
                 }
@@ -719,7 +719,7 @@ impl U64Set {
                         *sz += 1;
                         std::mem::swap(&mut keys[i], &mut k);
                         std::mem::swap(&mut vals[i], &mut v);
-                        mapsteal(keys, vals, i, k, v);
+                        mapsteal(keys, vals, i, k, v, u64::invalid());
                         None
                     },
                 }
@@ -743,7 +743,7 @@ impl U64Set {
                         *sz += 1;
                         std::mem::swap(&mut keys[i], &mut k);
                         std::mem::swap(&mut vals[i], &mut v);
-                        mapsteal(keys, vals, i, k, v);
+                        mapsteal(keys, vals, i, k, v, invalid);
                         None
                     },
                 }
@@ -1052,7 +1052,7 @@ impl U64Set {
             },
             Data::Badu64(ref mut sz, ref mut v) => {
                 let invalid = v[v.len()-1];
-                if value == invalid as u64 {
+                if value == invalid {
                     return false;
                 }
                 let value = value as u64;
@@ -2511,7 +2511,7 @@ const MAP_NUM_U32: usize = 5;
 #[cfg(not(target_pointer_width = "64"))]
 const MAP_NUM_U64: usize = 2;
 
-/// A map of u64 elements to sequential integers
+/// A map of u64 elements to small integers
 #[derive(Debug, Clone)]
 enum U64Map {
     Su8 {
@@ -2582,12 +2582,13 @@ impl U64Map {
         } else {
             U64Map::Vu64 {
                 sz: 0,
-                keys: vec![u64::invalid(); nextcap].into_boxed_slice(),
+                keys: vec![u64::invalid(); nextcap+1].into_boxed_slice(),
                 vals: vec![u64::invalid(); nextcap].into_boxed_slice(),
             }
         }
     }
     fn with_maxes_cap(max_k: u64, max_v: u64, cap: usize) -> U64Map {
+        let max_k = if max_k > max_v { max_k } else { max_v };
         let nextcap = capacity_to_rawcapacity(cap);
         if max_k < u8::invalid() as u64 {
             if cap <= NUM_U8 && max_v < 256 {
@@ -2627,22 +2628,20 @@ impl U64Map {
                     vals: vec![u32::invalid(); nextcap].into_boxed_slice(),
                 }
             }
-        } else if max_k < u64::invalid() as u64 {
+        } else {
             if cap <= NUM_U64 && max_v < 256 {
                 U64Map::Su64 {
                     sz: 0,
-                    keys: [u64::invalid(); MAP_NUM_U64],
+                    keys: [0; MAP_NUM_U64],
                     vals: [0; MAP_NUM_U64]
                 }
             } else {
                 U64Map::Vu64 {
                     sz: 0,
-                    keys: vec![u64::invalid(); nextcap].into_boxed_slice(),
-                    vals: vec![u64::invalid(); nextcap].into_boxed_slice(),
+                    keys: vec![u64::invalid(); nextcap+1].into_boxed_slice(),
+                    vals: vec![137; nextcap].into_boxed_slice(),
                 }
             }
-        } else {
-            unimplemented!() // FIXME needs Badu64 variant
         }
     }
     fn insert_unchecked(&mut self, k: u64, v: u64) -> Option<u64> {
@@ -2722,7 +2721,7 @@ impl U64Map {
                         *sz += 1;
                         std::mem::swap(&mut keys[i], &mut k);
                         std::mem::swap(&mut vals[i], &mut v);
-                        mapsteal(keys, vals, i, k, v);
+                        mapsteal(keys, vals, i, k, v, u8::invalid());
                         None
                     },
                 }
@@ -2746,7 +2745,7 @@ impl U64Map {
                         *sz += 1;
                         std::mem::swap(&mut keys[i], &mut k);
                         std::mem::swap(&mut vals[i], &mut v);
-                        mapsteal(keys, vals, i, k, v);
+                        mapsteal(keys, vals, i, k, v, u16::invalid());
                         None
                     },
                 }
@@ -2770,33 +2769,60 @@ impl U64Map {
                         *sz += 1;
                         std::mem::swap(&mut keys[i], &mut k);
                         std::mem::swap(&mut vals[i], &mut v);
-                        mapsteal(keys, vals, i, k, v);
+                        mapsteal(keys, vals, i, k, v, u32::invalid());
                         None
                     },
                 }
             },
-            &mut U64Map::Vu64 { ref mut sz, ref mut keys, ref mut vals } => {
+            &mut U64Map::Vu64 { .. } => {
                 let mut k = k as u64;
                 let mut v = v as u64;
-                match search(keys, k, u64::invalid()) {
-                    SearchResult::Present(i) => {
-                        let oldv = vals[i];
-                        vals[i] = v;
-                        Some(oldv as u64)
-                    },
-                    SearchResult::Empty(i) => {
-                        keys[i] = k;
-                        vals[i] = v;
-                        *sz += 1;
-                        None
-                    },
-                    SearchResult::Richer(i) => {
-                        *sz += 1;
-                        std::mem::swap(&mut keys[i], &mut k);
-                        std::mem::swap(&mut vals[i], &mut v);
-                        mapsteal(keys, vals, i, k, v);
-                        None
-                    },
+                let mut invalid = 0;
+                let mut old_invalid = 0;
+                if let U64Map::Vu64 { ref keys, .. } = self {
+                    let klen = keys.len();
+                    invalid = keys[klen-1];
+                    old_invalid = invalid;
+                    if k == invalid {
+                        // Need to change our invalid
+                        invalid = invalid.wrapping_sub(1);
+                        while self.get(invalid).is_some() {
+                            invalid = invalid.wrapping_sub(1);
+                        }
+                    }
+                }
+                if let U64Map::Vu64 { ref mut sz, ref mut keys, ref mut vals } = self {
+                    let klen = keys.len();
+                    if old_invalid != invalid {
+                        for x in keys.iter_mut() {
+                            if *x == old_invalid {
+                                *x = invalid;
+                            }
+                        }
+                    }
+                    let keys = &mut keys[..klen-1];
+                    match search(keys, k, invalid) {
+                        SearchResult::Present(i) => {
+                            let oldv = vals[i];
+                            vals[i] = v;
+                            Some(oldv as u64)
+                        },
+                        SearchResult::Empty(i) => {
+                            keys[i] = k;
+                            vals[i] = v;
+                            *sz += 1;
+                            None
+                        },
+                        SearchResult::Richer(i) => {
+                            *sz += 1;
+                            std::mem::swap(&mut keys[i], &mut k);
+                            std::mem::swap(&mut vals[i], &mut v);
+                            mapsteal(keys, vals, i, k, v, invalid);
+                            None
+                        },
+                    }
+                } else {
+                    unreachable!()
                 }
             },
         }
@@ -2806,6 +2832,7 @@ impl U64Map {
     /// collection may reserve more space to avoid frequent
     /// reallocations.
     fn reserve_with_maxes(&mut self, max_k: u64, max_v: u64, additional: usize) {
+        let max_k = if max_k > max_v { max_k } else { max_v };
         let mut newself: Option<U64Map> = None;
         match *self {
             U64Map::Su8 { sz, keys: k, vals: v } if max_k >= u8::invalid() as u64 => {
@@ -2865,18 +2892,11 @@ impl U64Map {
                 }
             },
             U64Map::Su32 {sz:_,keys:_,vals:_} => (),
-            U64Map::Su64 { sz, keys: k, vals: v } if max_k >= u64::invalid() as u64 => {
-                let mut n = Self::with_maxes_cap(max_k, max_v, sz as usize + additional);
-                for i in 0..sz as usize {
-                    n.insert_unchecked(k[i] as u64, v[i] as u64);
-                }
-                *self = n;
-            },
             U64Map::Su64 { sz, keys, vals } if sz as usize + additional > MAP_NUM_U64 => {
                 let nextcap = capacity_to_rawcapacity(sz as usize + additional);
                 *self = U64Map::Vu64 {
                     sz: 0,
-                    keys: vec![u64::invalid(); nextcap].into_boxed_slice(),
+                    keys: vec![u64::invalid(); nextcap+1].into_boxed_slice(),
                     vals: vec![0; nextcap].into_boxed_slice(),
                 };
                 for i in 0..sz as usize {
@@ -2912,7 +2932,7 @@ impl U64Map {
                             SearchResult::Richer(i) => {
                                 std::mem::swap(&mut keys[i], &mut key);
                                 std::mem::swap(&mut vals[i], &mut value);
-                                mapsteal(keys, vals, i, key, value);
+                                mapsteal(keys, vals, i, key, value, u8::invalid());
                             },
                         }
                     }
@@ -2947,7 +2967,7 @@ impl U64Map {
                             SearchResult::Richer(i) => {
                                 std::mem::swap(&mut keys[i], &mut key);
                                 std::mem::swap(&mut vals[i], &mut value);
-                                mapsteal(keys, vals, i, key, value);
+                                mapsteal(keys, vals, i, key, value, u16::invalid());
                             },
                         }
                     }
@@ -2982,7 +3002,7 @@ impl U64Map {
                             SearchResult::Richer(i) => {
                                 std::mem::swap(&mut keys[i], &mut key);
                                 std::mem::swap(&mut vals[i], &mut value);
-                                mapsteal(keys, vals, i, key, value);
+                                mapsteal(keys, vals, i, key, value, u32::invalid());
                             },
                         }
                     }
@@ -2991,8 +3011,11 @@ impl U64Map {
             U64Map::Vu32 {sz:_,keys:_,vals:_} => (),
             U64Map::Vu64 {sz,ref keys,ref vals} if max_k >= u64::invalid() as u64 => {
                 let mut n = Self::with_maxes_cap(max_k, max_v, sz as usize + additional);
+                let klen = keys.len();
+                let invalid = keys[klen-1];
+                let keys = &keys[..klen-1];
                 for i in 0..keys.len() {
-                    if keys[i] != u64::invalid() {
+                    if keys[i] != invalid {
                         n.insert_unchecked(keys[i] as u64, vals[i] as u64);
                     }
                 }
@@ -3000,15 +3023,19 @@ impl U64Map {
             },
             U64Map::Vu64 {sz,ref mut keys,ref mut vals} if sz as usize + additional > keys.len()*10/11 => {
                 let newcap = capacity_to_rawcapacity(sz as usize+additional);
+                let klen = keys.len();
+                let invalid = keys[klen-1];
                 let oldkeys = std::mem::replace(keys,
-                                                vec![u64::invalid(); newcap].into_boxed_slice());
+                                                vec![invalid; newcap+1].into_boxed_slice());
                 let oldvals = std::mem::replace(vals,
                                                 vec![0; newcap].into_boxed_slice());
+                let oldkeys = &oldkeys[..klen-1];
+                let keys = &mut keys[..newcap];
                 for (&k, &v) in oldkeys.iter().zip(oldvals.iter()) {
-                    if k != u64::invalid() {
+                    if k != invalid {
                         let mut key = k;
                         let mut value = v;
-                        match search(keys, key, u64::invalid()) {
+                        match search(keys, key, invalid) {
                             SearchResult::Present(_) => (),
                             SearchResult::Empty(i) => {
                                 keys[i] = key;
@@ -3017,7 +3044,7 @@ impl U64Map {
                             SearchResult::Richer(i) => {
                                 std::mem::swap(&mut keys[i], &mut key);
                                 std::mem::swap(&mut vals[i], &mut value);
-                                mapsteal(keys, vals, i, key, value);
+                                mapsteal(keys, vals, i, key, value, invalid);
                             },
                         }
                     }
@@ -3030,7 +3057,9 @@ impl U64Map {
         }
     }
     fn insert(&mut self, k: u64, v: u64) -> Option<u64> {
+        println!("reserving with maxes {} and {}", k, v);
         self.reserve_with_maxes(k,v,1);
+        println!("   result is {:?}", self);
         self.insert_unchecked(k,v)
     }
     fn get(&self, k: u64) -> Option<u64> {
@@ -3072,9 +3101,6 @@ impl U64Map {
                 None
             },
             U64Map::Su64 { sz, ref keys, ref vals } => {
-                if k >= u64::invalid() as u64 {
-                    return None;
-                }
                 let k = k as u64;
                 for i in 0 .. sz as usize {
                     if keys[i] == k {
@@ -3117,11 +3143,14 @@ impl U64Map {
                 }
             },
             U64Map::Vu64 {sz:_, ref keys, ref vals } => {
-                if k >= u64::invalid() as u64 {
+                let klen = keys.len();
+                let invalid = keys[klen-1];
+                let keys = &keys[..klen-1];
+                if k == invalid as u64 {
                     return None;
                 }
                 let k = k as u64;
-                match search(keys, k, u64::invalid()) {
+                match search(keys, k, invalid) {
                     SearchResult::Present(i) => Some(vals[i] as u64),
                     SearchResult::Empty(_) => None,
                     SearchResult::Richer(_) => None,
@@ -3198,9 +3227,6 @@ impl U64Map {
                 };
             },
             U64Map::Su64 { ref mut sz, ref mut keys, ref mut vals } => {
-                if k >= u64::invalid() as u64 {
-                    return None;
-                }
                 let k = k as u64;
                 let mut i = None;
                 for (j, &x) in keys.iter().enumerate().take(*sz as usize) {
@@ -3304,16 +3330,19 @@ impl U64Map {
                 }
             },
             U64Map::Vu64 { ref mut sz, ref mut keys, ref mut vals } => {
-                if k >= u64::invalid() as u64 {
+                let klen = keys.len();
+                let invalid = keys[klen-1];
+                let keys = &mut keys[..klen-1];
+                if k == invalid as u64 {
                     return None;
                 }
                 let k = k as u64;
-                match search(keys, k, u64::invalid()) {
+                match search(keys, k, invalid) {
                     SearchResult::Present(mut i) => {
                         let oldval = vals[i];
                         *sz -= 1;
                         let mask = keys.len() - 1;
-                        let invalid = u64::invalid();
+                        let invalid = invalid;
                         loop {
                             let iplus1 = (i+1) & mask;
                             if keys[iplus1] == invalid ||
@@ -3403,9 +3432,6 @@ impl<'a> Iterator for U64MapIter<'a> {
                 Some((keys[self.which-1] as u64, vals[self.which-1] as u64))
             },
             &U64Map::Su64 { sz:_, ref keys, ref vals } => {
-                while keys[self.which] == u64::invalid() {
-                    self.which += 1;
-                }
                 self.which += 1;
                 Some((keys[self.which-1] as u64, vals[self.which-1] as u64))
             },
@@ -3431,7 +3457,10 @@ impl<'a> Iterator for U64MapIter<'a> {
                 Some((keys[self.which-1] as u64, vals[self.which-1] as u64))
             },
             &U64Map::Vu64 { sz:_, ref keys, ref vals } => {
-                while keys[self.which] == u64::invalid() {
+                let klen = keys.len();
+                let invalid = keys[klen-1];
+                let keys = &keys[..klen-1];
+                while keys[self.which] == invalid {
                     self.which += 1;
                 }
                 self.which += 1;
@@ -3444,9 +3473,9 @@ impl<'a> Iterator for U64MapIter<'a> {
     }
 }
 
-fn mapsteal<K: HasInvalid, V>(k: &mut [K], v: &mut [V], mut i: usize, mut elem: K, mut val: V) {
+fn mapsteal<K: HasInvalid, V>(k: &mut [K], v: &mut [V], mut i: usize, mut elem: K, mut val: V, invalid: K) {
     loop {
-        match search_from(k, i, elem, K::invalid()) {
+        match search_from(k, i, elem, invalid) {
             SearchResult::Present(i) => {
                 v[i] = val;
                 return;
@@ -3569,7 +3598,7 @@ mod u64map_tests {
 /// a.insert('b', 2);
 /// assert_eq!(a.get(&'a'), Some(1));
 /// assert_eq!(a.get(&'b'), Some(2));
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Map6464<K: Fits64, V: Fits64> {
     m: U64Map,
     phk: PhantomData<K>,
@@ -3789,6 +3818,51 @@ mod map6464_tests {
                         return false;
                     }
                 }
+            }
+            true
+        }
+
+        fn prop_matches_with_invalid(steps: Vec<Result<(u64,u64),u64>>) -> bool {
+            println!("\n\nstarting again...");
+            let mut map = Map6464::<u64,u64>::new();
+            let mut refmap = HashMap::<u64,u64>::new();
+            for x in steps {
+                match x {
+                    Ok((mut k,mut v)) => {
+                        if k == 8 {
+                            k = u64::invalid();
+                        }
+                        println!("inserting {} -> {}", k, v);
+                        if v == 32 {
+                            v = u64::invalid();
+                        }
+                        map.insert(k,v); refmap.insert(k,v);
+                        println!("map is now {:?}", map);
+                        for (k,v) in map.iter() {
+                            println!("    {}: {}", k, v);
+                        }
+                        println!("done with printing map... and asserting {} is some", k);
+                        assert_eq!(map.get(&k), Some(v));
+                        println!("done with assertion...");
+                    },
+                    Err(mut k) => {
+                        if k == 8 {
+                            k = u64::invalid();
+                        }
+                        println!("removing {}", k);
+                        map.remove(&k); refmap.remove(&k);
+                        assert!(map.get(&k).is_none());
+                    }
+                }
+                if map.len() != refmap.len() {
+                    return false;
+                }
+                for i in 0..2550 {
+                    if map.get(&i) != refmap.get(&i).map(|&x|x) {
+                        return false;
+                    }
+                }
+                println!("done with checking");
             }
             true
         }
