@@ -4082,6 +4082,11 @@ impl<K: Fits64, V> Map64<K,V> {
             .filter(move |(i,_)| set.index(*i).is_some())
             .map(|(_,x)| &mut **x)
     }
+    /// A mutable iterator visiting the keys in arbitrary order. The
+    /// iterator element type is `K`.
+    pub fn keys(&mut self) -> impl Iterator<Item=K> + '_ {
+        self.set.iter().map(|k| unsafe { K::from_u64(k) })
+    }
 }
 
 impl<K: Fits64, V> Drop for Map64<K,V> {
