@@ -10,6 +10,9 @@ extern crate rand;
 extern crate smallset;
 extern crate fnv;
 
+#[global_allocator]
+static GLOBAL: &stats_alloc::StatsAlloc<std::alloc::System> = &stats_alloc::INSTRUMENTED_SYSTEM;
+
 use std::time::{Instant, Duration};
 
 use rand::{XorShiftRng, SeedableRng, Rand};
@@ -27,6 +30,7 @@ type SmallSet<T> = smallset::SmallSet<[T; 8]>;
 macro_rules! initialize {
     ($set: expr, $item: ident, $num: expr, $mx: expr) => {{
         let mut rng = XorShiftRng::from_seed([$num as u32,$num as u32,3,4]);
+        let reg = stats_alloc::Region::new(&GLOBAL);
         let mut set = $set;
         if $num > 0 {
             while set.len() < $num {
@@ -34,8 +38,9 @@ macro_rules! initialize {
                 set.remove(& ($item::rand(&mut rng) % ($mx as $item)));
             }
         }
+        let heap_size = reg.change().bytes_allocated;
         let len_stack = std::mem::size_of_val(&set);
-        (set, len_stack)
+        (set, len_stack, heap_size)
     }};
 }
 
@@ -51,26 +56,26 @@ macro_rules! time_me {
 
 macro_rules! bench_contains {
     ($set: expr, $item: ident, $size: expr, $mx: expr, $iters: expr) => {{
-        let (set, my_stack) = initialize!($set, $item, $size, $mx);
+        let (set, my_stack, my_heap) = initialize!($set, $item, $size, $mx);
         let mut total = 0;
         let mut rng = XorShiftRng::from_seed([$size as u32,$iters as u32,1,1000]);
         let my_time = time_me!({
             let to_check = $item::rand(&mut rng) % ($mx as $item);
             if set.contains(&to_check) { total += 1; }
         }, $iters);
-        (total, my_time, my_stack)
+        (total, my_time, my_stack, my_heap)
     }};
 }
 
 macro_rules! bench_c {
     ($set: expr, $item: ident, $size: expr, $mx: expr, $iters: expr,
      $hash_time: expr, $total_true: expr) => {{
-        let (total, my_time, my_stack)
+        let (total, my_time, _, my_heap)
             = bench_contains!($set, $item, $size, $mx, $iters);
          if total != $total_true {
              println!("serious problem!");
          }
-        print!(" {:6.3}", my_time/$hash_time);
+        print!(" {:6.3} [{:<3}]", my_time/$hash_time, my_heap);
     }};
 }
 
@@ -82,18 +87,24 @@ const USIZE_MAXES: &[usize] = &[254, 10000, 100_000, 10_000_000_000];
 macro_rules! bench_all_contains {
     (usize, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>12}", "contains", "max");
-        print!("{:^8}", "fnvhash");
-        print!("{:^8}", "hash");
-        print!("{:^8}", "set");
-        print!("{:^8}", "btree");
-        print!("{:^8}", "tinyset");
-        print!("{:^8}", "set64");
+        print!("{:^9}({:2})", "fnvhash",
+               std::mem::size_of_val(&FnvHashSet::<usize>::default()));
+        print!("{:^9}({:2})", "hash",
+               std::mem::size_of_val(&HashSet::<usize>::default()));
+        print!("{:^9}({:2})", "set",
+               std::mem::size_of_val(&Set::<usize>::new()));
+        print!("{:^9}({:2})", "btree",
+               std::mem::size_of_val(&BTreeSet::<usize>::new()));
+        print!("{:^9}({:2})", "tinyset",
+               std::mem::size_of_val(&TinySet::<usize>::new()));
+        print!("{:^9}({:2})", "set64",
+               std::mem::size_of_val(&Set64::<usize>::new()));
         println!();
         for size in (1..15).chain(USIZE_SIZES.iter().map(|&x|x).filter(|&x|x<$maxsz)) {
             println!("size: {:5}",size);
             for mx in USIZE_MAXES.iter().map(|&x|x).filter(|&x| x>=2*size) {
                 print!("{:12}",mx);
-                let (total_true, hash_time, _)
+                let (total_true, hash_time, _, _)
                     = bench_contains!(FnvHashSet::<usize>::default(), usize, size, mx, $iters);
 
                 bench_c!(FnvHashSet::<usize>::default(), usize, size, mx, $iters,
@@ -114,17 +125,25 @@ macro_rules! bench_all_contains {
     }};
     (i8, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>6}", "contains", "size");
-        print!("{:^8}", "fnvhash");
-        print!("{:^8}", "hash");
-        print!("{:^8}", "set");
-        print!("{:^8}", "btree");
-        print!("{:^8}", "tinyset");
-        print!("{:^8}", "set64");
+        print!("{:^9}({:2})", "fnvhash",
+               std::mem::size_of_val(&FnvHashSet::<i8>::default()));
+        print!("{:^9}({:2})", "hash",
+               std::mem::size_of_val(&HashSet::<i8>::default()));
+        print!("{:^9}({:2})", "set",
+               std::mem::size_of_val(&Set::<i8>::new()));
+        print!("{:^9}({:2})", "vecset",
+               std::mem::size_of_val(&VecSet::<i8>::new()));
+        print!("{:^9}({:2})", "btree",
+               std::mem::size_of_val(&BTreeSet::<i8>::new()));
+        print!("{:^9}({:2})", "smallset",
+               std::mem::size_of_val(&SmallSet::<i8>::new()));
+        print!("{:^9}({:2})", "set64",
+               std::mem::size_of_val(&Set64::<i8>::new()));
         println!();
         for size in (1..15).chain(USIZE_SIZES.iter().map(|&x|x).filter(|&x|x<$maxsz)) {
             let mx = 100;
             print!("{:6}",size);
-            let (total_true, hash_time, _)
+            let (total_true, hash_time, _, _)
                 = bench_contains!(FnvHashSet::<i8>::default(), i8, size, mx, $iters);
 
             bench_c!(FnvHashSet::<i8>::default(), i8, size, mx, $iters, hash_time, total_true);
@@ -139,20 +158,28 @@ macro_rules! bench_all_contains {
     }};
     ($item: ident, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>5}", "contains", "size");
-        print!("{:^8}", "fnvhash");
-        print!("{:^8}", "hash");
-        print!("{:^8}", "set");
-        print!("{:^8}", "vecset");
-        print!("{:^8}", "btree");
-        print!("{:^8}", "smallset");
-        print!("{:^8}", "tinyset");
-        print!("{:^8}", "set64");
+        print!("{:^9}({:2})", "fnvhash",
+               std::mem::size_of_val(&FnvHashSet::<$item>::default()));
+        print!("{:^9}({:2})", "hash",
+               std::mem::size_of_val(&HashSet::<$item>::default()));
+        print!("{:^9}({:2})", "set",
+               std::mem::size_of_val(&Set::<$item>::new()));
+        print!("{:^9}({:2})", "vecset",
+               std::mem::size_of_val(&VecSet::<$item>::new()));
+        print!("{:^9}({:2})", "btree",
+               std::mem::size_of_val(&BTreeSet::<$item>::new()));
+        print!("{:^9}({:2})", "smallset",
+               std::mem::size_of_val(&SmallSet::<$item>::new()));
+        print!("{:^9}({:2})", "tinyset",
+               std::mem::size_of_val(&TinySet::<$item>::new()));
+        print!("{:^9}({:2})", "set64",
+               std::mem::size_of_val(&Set64::<$item>::new()));
         println!();
         for size in (1..15).chain([20,30,50,100,1000].iter().map(|&x|x)
                                   .filter(|&x|x<$maxsz)) {
             print!("{:5}",size);
 
-            let (total_true, hash_time, _)
+            let (total_true, hash_time, _, _)
                 = bench_contains!(FnvHashSet::<$item>::default(), $item, size,
                                   2*size, $iters);
 
@@ -179,38 +206,44 @@ macro_rules! bench_all_contains {
 
 macro_rules! bench_remove_insert {
     ($set: expr, $item: ident, $size: expr, $iters: expr) => {{
-        let (mut set, my_stack) =
+        let (mut set, my_stack, my_heap) =
             initialize!($set, $item, $size, 2*$size);
         let mut rng = XorShiftRng::from_seed([$size as u32,$iters as u32,1,1000]);
         let my_time = time_me!({
             let i = $item::rand(&mut rng)%(2*$size as $item);
             if set.remove(&i) { set.insert(i); }
         }, $iters);
-        (my_time, my_stack)
+        (my_time, my_stack, my_heap)
     }};
 }
 
 macro_rules! bench_ri {
     ($set: expr, $item: ident, $size: expr, $iters: expr, $hash_time: expr) => {{
-        let (my_time, my_stack)
+        let (my_time, _, my_heap)
             = bench_remove_insert!($set, $item, $size, $iters);
-        print!(" {:6.3}", my_time/$hash_time);
+        print!(" {:6.3} [{:<3}]", my_time/$hash_time, my_heap);
     }};
 }
 
 macro_rules! bench_all_remove_insert {
     (usize, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>5}", "remove/ins", "size");
-        print!("{:^8}", "fnvhash");
-        print!("{:^8}", "hash");
-        print!("{:^8}", "set");
-        print!("{:^8}", "btree");
-        print!("{:^8}", "tinyset");
-        print!("{:^8}", "set64");
+        print!("{:^9}({:2})", "fnvhash",
+               std::mem::size_of_val(&FnvHashSet::<usize>::default()));
+        print!("{:^9}({:2})", "hash",
+               std::mem::size_of_val(&HashSet::<usize>::default()));
+        print!("{:^9}({:2})", "set",
+               std::mem::size_of_val(&Set::<usize>::new()));
+        print!("{:^9}({:2})", "btree",
+               std::mem::size_of_val(&BTreeSet::<usize>::new()));
+        print!("{:^9}({:2})", "tinyset",
+               std::mem::size_of_val(&TinySet::<usize>::new()));
+        print!("{:^9}({:2})", "set64",
+               std::mem::size_of_val(&Set64::<usize>::new()));
         println!();
         for size in (1..15).chain(USIZE_SIZES.iter().map(|&x|x).filter(|&x|x<$maxsz)) {
             print!("{:5}",size);
-            let (hash_time, _)
+            let (hash_time, _, _)
                 = bench_remove_insert!(FnvHashSet::<usize>::default(), usize, size, $iters);
 
             bench_ri!(FnvHashSet::<usize>::default(), usize, size, $iters, hash_time);
@@ -224,16 +257,24 @@ macro_rules! bench_all_remove_insert {
     }};
     (i8, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>5}", "remove/ins", "size");
-        print!("{:^8}", "fnvhash");
-        print!("{:^8}", "hash");
-        print!("{:^8}", "set");
-        print!("{:^8}", "btree");
-        print!("{:^8}", "tinyset");
-        print!("{:^8}", "set64");
+        print!("{:^9}({:2})", "fnvhash",
+               std::mem::size_of_val(&FnvHashSet::<i8>::default()));
+        print!("{:^9}({:2})", "hash",
+               std::mem::size_of_val(&HashSet::<i8>::default()));
+        print!("{:^9}({:2})", "set",
+               std::mem::size_of_val(&Set::<i8>::new()));
+        print!("{:^9}({:2})", "vecset",
+               std::mem::size_of_val(&VecSet::<i8>::new()));
+        print!("{:^9}({:2})", "btree",
+               std::mem::size_of_val(&BTreeSet::<i8>::new()));
+        print!("{:^9}({:2})", "smallset",
+               std::mem::size_of_val(&SmallSet::<i8>::new()));
+        print!("{:^9}({:2})", "set64",
+               std::mem::size_of_val(&Set64::<i8>::new()));
         println!();
         for size in (1..15).chain(USIZE_SIZES.iter().map(|&x|x).filter(|&x|x<$maxsz)) {
             print!("{:5}",size);
-            let (hash_time, _)
+            let (hash_time, _, _)
                 = bench_remove_insert!(FnvHashSet::<i8>::default(), i8, size, $iters);
 
             bench_ri!(FnvHashSet::<i8>::default(), i8, size, $iters, hash_time);
@@ -248,19 +289,27 @@ macro_rules! bench_all_remove_insert {
     }};
     ($item: ident, $iters: expr, $maxsz: expr) => {{
         print!("{:10}\n---------\n{:>5}", "remove/ins", "size");
-        print!("{:^8}", "fnvhash");
-        print!("{:^8}", "hash");
-        print!("{:^8}", "set");
-        print!("{:^8}", "vecset");
-        print!("{:^8}", "btree");
-        print!("{:^8}", "smallset");
-        print!("{:^8}", "tinyset");
-        print!("{:^8}", "set64");
+        print!("{:^9}({:2})", "fnvhash",
+               std::mem::size_of_val(&FnvHashSet::<$item>::default()));
+        print!("{:^9}({:2})", "hash",
+               std::mem::size_of_val(&HashSet::<$item>::default()));
+        print!("{:^9}({:2})", "set",
+               std::mem::size_of_val(&Set::<$item>::new()));
+        print!("{:^9}({:2})", "vecset",
+               std::mem::size_of_val(&VecSet::<$item>::new()));
+        print!("{:^9}({:2})", "btree",
+               std::mem::size_of_val(&BTreeSet::<$item>::new()));
+        print!("{:^9}({:2})", "smallset",
+               std::mem::size_of_val(&SmallSet::<$item>::new()));
+        print!("{:^9}({:2})", "tinyset",
+               std::mem::size_of_val(&TinySet::<$item>::new()));
+        print!("{:^9}({:2})", "set64",
+               std::mem::size_of_val(&Set64::<$item>::new()));
         println!();
         for size in (1..15).chain([20,30,50,100,1000,10000].iter().map(|&x|x)
                                   .filter(|&x|x<$maxsz)) {
             print!("{:5}",size);
-            let (hash_time, _)
+            let (hash_time, _, _)
                 = bench_remove_insert!(FnvHashSet::<$item>::default(), $item, size, $iters);
 
             bench_ri!(FnvHashSet::<$item>::default(), $item, size, $iters, hash_time);
