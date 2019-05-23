@@ -3056,12 +3056,13 @@ impl U64Map {
             *self = s;
         }
     }
-    // fn insert(&mut self, k: u64, v: u64) -> Option<u64> {
-    //     println!("reserving with maxes {} and {}", k, v);
-    //     self.reserve_with_maxes(k,v,1);
-    //     println!("   result is {:?}", self);
-    //     self.insert_unchecked(k,v)
-    // }
+    #[cfg(test)]
+    fn insert(&mut self, k: u64, v: u64) -> Option<u64> {
+        println!("reserving with maxes {} and {}", k, v);
+        self.reserve_with_maxes(k,v,1);
+        println!("   result is {:?}", self);
+        self.insert_unchecked(k,v)
+    }
     fn get(&self, k: u64) -> Option<u64> {
         match *self {
             U64Map::Su8 { sz, ref keys, ref vals } => {
