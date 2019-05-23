@@ -8,4 +8,5 @@ jobs:
      steps:
        - checkout
        - run: cargo build
-       - run: cargo build
+       - run: cargo build --release
+       - run: cargo test
