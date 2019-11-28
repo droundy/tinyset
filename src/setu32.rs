@@ -951,7 +951,7 @@ fn test_collect() {
 
 fn layout_for_capacity(sz: usize) -> std::alloc::Layout {
     unsafe {
-        std::alloc::Layout::from_size_align_unchecked(sz*8+std::mem::size_of::<S>()-8, 8)
+        std::alloc::Layout::from_size_align_unchecked(sz*4+std::mem::size_of::<S>()-4, 4)
     }
 }
 
