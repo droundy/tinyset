@@ -9,7 +9,7 @@
 
 use std;
 
-use tinyset::HasInvalid;
+use crate::tinyset::HasInvalid;
 use std::mem::ManuallyDrop;
 
 enum SearchResult {

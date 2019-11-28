@@ -93,16 +93,16 @@
 extern crate fnv;
 
 pub mod vecset;
-pub use vecset::VecSet;
+pub use crate::vecset::VecSet;
 
 pub mod set;
-pub use set::Set;
+pub use crate::set::Set;
 
 pub mod tinyset;
-pub use tinyset::*;
+pub use crate::tinyset::*;
 
 pub mod u64set;
-pub use u64set::{Set64, Map64, Map6464, Fits64};
+pub use crate::u64set::{Set64, Map64, Map6464, Fits64};
 
 #[cfg(test)]
 extern crate rand;
