@@ -331,7 +331,7 @@ impl U64Set {
                 for &x in oldv.iter() {
                     if x != invalid {
                         let vlen = v.len();
-                        let mut v = &mut v[..vlen-1];
+                        let v = &mut v[..vlen-1];
                         let mut value = x;
                         match search(v, value, invalid) {
                             SearchResult::Present(_) => (),
@@ -569,7 +569,7 @@ impl U64Set {
                             }
                         }
                     }
-                    let mut v = &mut v[..vlen-1];
+                    let v = &mut v[..vlen-1];
                     match search(v, value, invalid) {
                         SearchResult::Present(i) => Err(i),
                         SearchResult::Empty(i) => {
@@ -728,7 +728,7 @@ impl U64Set {
                 let invalid = keys[keys.len()-1];
                 let mut k = k as u64;
                 let vlen = keys.len();
-                let mut keys = &mut keys[..vlen-1];
+                let keys = &mut keys[..vlen-1];
                 match search(keys, k, invalid) {
                     SearchResult::Present(i) => {
                         return Some(std::mem::replace(&mut vals[i], v));
@@ -853,7 +853,7 @@ impl U64Set {
                 }
                 let value = value as u64;
                 let vlen = v.len();
-                let mut v = &v[..vlen-1];
+                let v = &v[..vlen-1];
                 match search(v, value, invalid) {
                     SearchResult::Present(i) => Some(i),
                     SearchResult::Empty(_) => None,
@@ -1057,7 +1057,7 @@ impl U64Set {
                 }
                 let value = value as u64;
                 let vlen = v.len();
-                let mut v = &mut v[..vlen-1];
+                let v = &mut v[..vlen-1];
                 match search(v, value, invalid) {
                     SearchResult::Present(mut i) => {
                         *sz -= 1;
@@ -1318,7 +1318,7 @@ impl U64Set {
                 }
                 let k = k as u64;
                 let vlen = keys.len();
-                let mut keys = &mut keys[..vlen-1];
+                let keys = &mut keys[..vlen-1];
                 match search(keys, k, invalid) {
                     SearchResult::Present(mut i) => {
                         *sz -= 1;
