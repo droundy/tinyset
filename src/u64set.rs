@@ -9,6 +9,9 @@
 
 use std;
 
+#[cfg(test)]
+use quickcheck::quickcheck;
+
 use crate::tinyset::HasInvalid;
 use std::mem::ManuallyDrop;
 

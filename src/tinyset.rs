@@ -9,6 +9,9 @@
 
 use std;
 
+#[cfg(test)]
+use quickcheck::quickcheck;
+
 use fnv::FnvHasher;
 use std::hash::{Hash, Hasher};
 

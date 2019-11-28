@@ -90,8 +90,6 @@
 
 #![deny(missing_docs)]
 
-extern crate fnv;
-
 pub mod vecset;
 pub use crate::vecset::VecSet;
 
@@ -101,12 +99,11 @@ pub use crate::set::Set;
 pub mod tinyset;
 pub use crate::tinyset::*;
 
+pub mod setu32;
+pub use setu32::SetU32;
+
+pub mod setu64;
+pub use setu64::SetU64;
+
 pub mod u64set;
 pub use crate::u64set::{Set64, Map64, Map6464, Fits64};
-
-#[cfg(test)]
-extern crate rand;
-
-#[cfg(test)]
-#[macro_use]
-extern crate quickcheck;
