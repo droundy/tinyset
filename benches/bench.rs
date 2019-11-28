@@ -186,7 +186,7 @@ fn bench_iter(density: f64) {
 
 fn bench_min(density: f64) {
     assert!(density <= 1.0);
-    println!("\nmin  {:5}:{:>9} {:>13} {:>13}", density, "this", "tiny", "std");
+    println!("\nmin  {:5}:{:>11} {:>13} {:>13} {:>13}", density, "setu64", "setu32", "tiny", "std");
     for sz in 0..10 {
         let gen = move || {
             let mut rng = rand::thread_rng();
@@ -197,8 +197,11 @@ fn bench_min(density: f64) {
             }
             vec
         };
-        println!("{:>11}: {:8.0}ns    {:8.0}ns    {:8.0}ns", sz,
+        println!("{:>11}: {:8.0}ns    {:8.0}ns    {:8.0}ns    {:8.0}ns", sz,
                  bench_gen_env(|| { gen().iter().cloned().collect::<tinyset::SetU64>() },
+                               |v| { v.iter().min() }).ns_per_iter,
+                 bench_gen_env(|| { gen().iter().cloned()
+                                    .map(|x| x as u32).collect::<tinyset::SetU32>() },
                                |v| { v.iter().min() }).ns_per_iter,
                  bench_gen_env(|| { gen().iter().cloned().collect::<tinyset::Set64<_>>() },
                                |v| { v.iter().min() }).ns_per_iter,

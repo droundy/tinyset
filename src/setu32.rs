@@ -77,11 +77,9 @@ fn mask(bits: usize) -> u32 {
 impl Iterator for Tiny {
     type Item = u32;
     fn next(&mut self) -> Option<u32> {
-        println!("self.sz is {}", self.sz);
         let bitsplits = BITSPLITS[self.sz as usize];
         if self.sz_spent < self.sz {
             let nbits = bitsplits[self.sz_spent as usize];
-            println!("nbits is {}", nbits);
             let difference = self.bits & mask(nbits as usize) as usize;
             if self.sz_spent == 0 {
                 self.last = difference;
@@ -132,15 +130,10 @@ impl Tiny {
     fn to_usize(self) -> usize {
         let fourbit = self.sz/4;
         let szbits = self.sz*(1-fourbit) + fourbit*(self.sz + 1);
-        println!("to_usize {} -> {} [{:x}]", self.sz, szbits,
-                 szbits as usize | self.bits << 3);
         szbits as usize | self.bits << 3
     }
     fn from_usize(x: usize) -> Self {
         let sz = (x as u8 & 3) + (x as u8 & 4)/4*3;
-        println!("from_usize {} -> {} [{:x}]",
-                 x & 7, sz, x);
-        println!("   self.sz is {}", sz);
         Tiny {
             sz,
             bits: x >> 3,
@@ -632,9 +625,9 @@ impl SetU32 {
                 // We'll have to expand the set.
                 let mx = a.iter().cloned().map(|x| (x >> s.bits) + s.bits).max().unwrap();
                 let mx = if e > mx { e } else { mx };
-                if s.cap > mx >> 6 {
+                if s.cap > mx >> 5 {
                     // A dense set will save memory
-                    let newcap = ((mx>>6) + 1 + (rand::random::<u32>() % (mx >> 5))) as usize;
+                    let newcap = ((mx>>5) + 1 + (rand::random::<u32>() % (mx >> 4))) as usize;
                     let mut new = Self::with_capacity_and_bits(newcap as usize, 32);
                     for x in self.iter() {
                         new.insert(x);
