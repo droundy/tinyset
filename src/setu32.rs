@@ -310,7 +310,7 @@ impl<'a> Iterator for Iter<'a> {
                             *whichbit = 1 + bit;
                             if word & (1 << bit) != 0 {
                                 *sz_left -= 1;
-                                return Some(((*whichword as u32) << 6) + bit as u32);
+                                return Some(((*whichword as u32) << 5) + bit as u32);
                             }
                         }
                         *whichword = *whichword + 1;
@@ -481,7 +481,7 @@ impl SetU32 {
         if cap as u32 > mx >> 4 {
             // This should be stored in a dense bitset.
             return unsafe {
-                let x = SetU32(std::alloc::alloc_zeroed(layout_for_capacity(cap)) as *mut S);
+                let x = SetU32(std::alloc::alloc_zeroed(layout_for_capacity(cap/32)) as *mut S);
                 (*x.0).cap = cap as u32/32;
                 (*x.0).bits = 32;
                 x
@@ -548,7 +548,7 @@ impl SetU32 {
             InternalMut::Empty => unreachable!(),
             InternalMut::Stack(_) => unreachable!(),
             InternalMut::Dense { sz, a } => {
-                let key = (e >> 6) as usize;
+                let key = (e >> 5) as usize;
                 if let Some(bits) = a.get_mut(key) {
                     let whichbit = 1 << (e & 31);
                     let present = *bits & whichbit != 0;
@@ -735,9 +735,9 @@ impl SetU32 {
                 }
             }
             InternalMut::Dense { sz, a } => {
-                let key = e >> 6;
+                let key = e >> 5;
                 if let Some(bits) = a.get_mut(key as usize) {
-                    let whichbit = 1 << (e & 63);
+                    let whichbit = 1 << (e & 31);
                     let present = *bits & whichbit != 0;
                     *bits = *bits & !whichbit;
                     if present {
@@ -793,9 +793,9 @@ impl SetU32 {
             Internal::Empty => false,
             Internal::Stack(t) => t.clone().any(|x| x == e),
             Internal::Dense { a, .. } => {
-                let key = e >> 6;
+                let key = e >> 5;
                 if let Some(bits) = a.get(key as usize) {
-                    bits & (1 << (e & 63)) != 0
+                    bits & (1 << (e & 31)) != 0
                 } else {
                     false
                 }
@@ -977,13 +977,13 @@ impl heapsize::HeapSizeOf for SetU32 {
             Internal::Empty => 0,
             Internal::Stack(_) => 0,
             Internal::Heap { a, .. } => {
-                std::mem::size_of::<S>() - 8 + a.len()*8
+                std::mem::size_of::<S>() - 4 + a.len()*4
             }
             Internal::Big { a, .. } => {
-                std::mem::size_of::<S>() - 8 + a.len()*8
+                std::mem::size_of::<S>() - 4 + a.len()*4
             }
             Internal::Dense { a, .. } => {
-                std::mem::size_of::<S>() - 8 + a.len()*8
+                std::mem::size_of::<S>() - 4 + a.len()*4
             }
         }
     }
@@ -1139,7 +1139,7 @@ mod tests {
         incremental_size_le(& (1..30).collect::<Vec<_>>(), 40);
         incremental_size_le(& (1..60).collect::<Vec<_>>(), 40);
 
-        incremental_size_le(& (1..160).collect::<Vec<_>>(), 88);
+        incremental_size_le(& (1..160).collect::<Vec<_>>(), 80);
 
         incremental_size_le(& (0..100).map(|x| x*10).collect::<Vec<_>>(), 400);
     }

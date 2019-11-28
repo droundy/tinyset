@@ -481,7 +481,7 @@ impl SetU64 {
         if cap as u64 > mx >> 4 {
             // This should be stored in a dense bitset.
             return unsafe {
-                let x = SetU64(std::alloc::alloc_zeroed(layout_for_capacity(cap)) as *mut S);
+                let x = SetU64(std::alloc::alloc_zeroed(layout_for_capacity(cap/64)) as *mut S);
                 (*x.0).cap = cap/64;
                 (*x.0).bits = 64;
                 x
