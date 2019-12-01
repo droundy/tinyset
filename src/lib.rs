@@ -99,6 +99,8 @@ pub use crate::set::Set;
 pub mod tinyset;
 pub use crate::tinyset::*;
 
+pub mod setu32b;
+
 pub mod setu32;
 pub use setu32::SetU32;
 
