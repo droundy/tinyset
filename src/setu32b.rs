@@ -473,6 +473,57 @@ impl Drop for SetU32 {
 }
 
 #[derive(Debug)]
+enum Iter<'a> {
+    Tiny(Tiny),
+    Dense(DenseIter<'a>),
+}
+impl<'a> Iterator for Iter<'a> {
+    type Item = u32;
+    #[inline]
+    fn next(&mut self) -> Option<u32> {
+        match self {
+            Iter::Tiny(t) => t.next(),
+            Iter::Dense(d) => d.next(),
+        }
+    }
+    #[inline]
+    fn count(self) -> usize {
+        match self {
+            Iter::Tiny(t) => t.count(),
+            Iter::Dense(d) => d.count(),
+        }
+    }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match self {
+            Iter::Tiny(t) => t.size_hint(),
+            Iter::Dense(d) => d.size_hint(),
+        }
+    }
+    #[inline]
+    fn min(mut self) -> Option<u32> {
+        match self {
+            Iter::Tiny(t) => t.min(),
+            Iter::Dense(d) => d.min(),
+        }
+    }
+    #[inline]
+    fn max(self) -> Option<u32> {
+        match self {
+            Iter::Tiny(t) => t.max(),
+            Iter::Dense(d) => d.max(),
+        }
+    }
+    #[inline]
+    fn last(self) -> Option<u32> {
+        match self {
+            Iter::Tiny(t) => t.last(),
+            Iter::Dense(d) => d.last(),
+        }
+    }
+}
+
+#[derive(Debug)]
 struct DenseIter<'a> {
     sz_left: usize,
     whichword: usize,
