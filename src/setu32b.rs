@@ -59,8 +59,12 @@ impl Tiny {
         v >= self.start && v <= self.start + 30 && self.bits >> (v-self.start) & 1 != 0
     }
     fn insert(&mut self, v: u32) -> Option<bool> {
-        if self.contains(v) {
-            return Some(true);
+        if v >= self.start && v <= self.start + 30 {
+            if self.bits >> (v-self.start) & 1 != 0 {
+                return Some(true);
+            }
+            self.bits = self.bits | 1 << (v-self.start);
+            return Some(false)
         }
         let mx = self.clone().max().unwrap();
         let mn = self.clone().min().unwrap();
@@ -86,6 +90,14 @@ fn check_tiny_insert() {
     let mut t = Tiny::from_singleton(0).unwrap();
     println!("starting with {:?}", t.clone().collect::<Vec<_>>());
     for v in [0,1,1,2,29,30].into_iter().cloned() {
+        assert_eq!(Some(t.contains(v)), t.insert(v));
+        println!(" after inserting {}: {:?}", v, t.clone().collect::<Vec<_>>());
+        assert!(t.contains(v));
+    }
+
+    let mut t = Tiny::from_singleton(50).unwrap();
+    println!("starting with {:?}", t.clone().collect::<Vec<_>>());
+    for v in [49,40,30,21].into_iter().cloned() {
         assert_eq!(Some(t.contains(v)), t.insert(v));
         println!(" after inserting {}: {:?}", v, t.clone().collect::<Vec<_>>());
         assert!(t.contains(v));
