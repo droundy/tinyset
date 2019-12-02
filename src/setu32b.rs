@@ -212,72 +212,142 @@ proptest!{
     }
 }
 
-//     fn new(mut v: Vec<u32>) -> Option<Self> {
-//         if v.len() == 0 {
-//             return None;
-//         } else if v.len() > BITSPLITS.len() - 1 {
-//             return None;
-//         }
-//         let sz = v.len() as u8;
-//         v.sort();
-//         v.dedup();
-//         let mut last = 0;
-//         let mut offset = 0;
-//         let mut bits: usize = 0;
-//         let bitsplits = BITSPLITS[sz as usize];
-//         for (x,nbits) in v.into_iter().zip(bitsplits.iter().cloned()) {
-//             let y = if offset == 0 {
-//                 x
-//             } else {
-//                 x - last - 1
-//             };
-//             if log_2(y) > nbits {
-//                 return None;
-//             }
-//             bits = bits | (y as usize) << offset;
-//             offset += nbits;
-//             last = x;
-//         }
-//         Some (Tiny { sz, bits, sz_spent: 0, last: 0 })
-//     }
-//     fn new_unchecked(v: impl Iterator<Item=u32>, sz: u8) -> Self {
-//         let mut last = 0;
-//         let mut offset = 0;
-//         let mut bits: usize = 0;
-//         let bitsplits = BITSPLITS[sz as usize];
-//         for (x,nbits) in v.zip(bitsplits.iter().cloned()) {
-//             let y = if offset == 0 {
-//                 x
-//             } else {
-//                 x - last - 1
-//             };
-//             bits = bits | (y as usize) << offset;
-//             offset += nbits;
-//             last = x;
-//         }
-//         Tiny { sz, bits, sz_spent: 0, last: 0 }
-//     }
-//     fn insert(self, e: u32) -> Option<Self> {
-//         let mut last = 0;
-//         let mut offset = 0;
-//         let mut bits: usize = 0;
-//         let sz = self.sz + 1;
-//         let bitsplits = BITSPLITS.get(sz as usize)?;
-//         for (x,nbits) in self.clone().merge(Some(e).into_iter()).zip(bitsplits.iter().cloned()) {
-//             let y = if offset == 0 {
-//                 x
-//             } else if x == last {
-//                 return Some(self);
-//             } else {
-//                 x - last - 1
-//             };
-//             if log_2(y) > nbits {
-//                 return None;
-//             }
-//             bits = bits | (y as usize) << offset;
-//             offset += nbits;
-//             last = x;
-//         }
-//         Some(Tiny { sz, bits, sz_spent: 0, last: 0 })
-//     }
-// }
+/// A set of u32
+pub struct SetU32(*mut S);
+
+#[repr(C)]
+#[derive(Debug)]
+struct S {
+    sz: u32,
+    cap: u32,
+    array: u32,
+}
+
+enum Internal<'a> {
+    Empty,
+    Tiny(Tiny),
+    Table {
+        sz: u32,
+        a: &'a [(u32,u32)],
+    },
+    Dense {
+        sz: u32,
+        a: &'a [u32],
+    },
+}
+enum InternalMut<'a> {
+    Empty,
+    Tiny(Tiny),
+    Table {
+        sz: &'a mut u32,
+        a: &'a mut [(u32,u32)],
+    },
+    Dense {
+        sz: &'a mut u32,
+        a: &'a mut [u32],
+    },
+}
+
+impl SetU32 {
+    fn internal<'a>(&'a self) -> Internal<'a> {
+        if self.0 as usize == 0 {
+            Internal::Empty
+        } else if self.0 as usize & 3 == 1 {
+            Internal::Tiny(Tiny::from_usize(self.0 as usize))
+        } else if self.0 as usize & 3 == 0 {
+            let s = unsafe { &*self.0 };
+            let a = unsafe { std::slice::from_raw_parts((&s.array as *const u32) as *const (u32,u32),
+                                                        s.cap as usize) };
+            Internal::Table { sz: s.sz, a }
+        } else {
+            let ptr = (self.0 as usize & !3) as *mut S;
+            let s = unsafe { &*ptr };
+            let a = unsafe { std::slice::from_raw_parts(&s.array as *const u32,
+                                                        s.cap as usize) };
+            Internal::Dense { sz: s.sz, a }
+        }
+    }
+
+    fn internal_mut<'a>(&'a mut self) -> InternalMut<'a> {
+        if self.0 as usize == 0 {
+            InternalMut::Empty
+        } else if self.0 as usize & 3 == 1 {
+            InternalMut::Tiny(Tiny::from_usize(self.0 as usize))
+        } else if self.0 as usize & 3 == 0 {
+            let s = unsafe { &mut *self.0 };
+            let a = unsafe {
+                std::slice::from_raw_parts_mut((&mut s.array as *mut u32) as *mut (u32,u32),
+                                               s.cap as usize)
+            };
+            InternalMut::Table { sz: &mut s.sz, a }
+        } else {
+            let ptr = (self.0 as usize & !3) as *mut S;
+            let s = unsafe { &mut *ptr };
+            let a = unsafe { std::slice::from_raw_parts_mut(&mut s.array as *mut u32,
+                                                            s.cap as usize) };
+            InternalMut::Dense { sz: &mut s.sz, a }
+        }
+    }
+
+    fn num_u32(&self) -> u32 {
+        match self.internal() {
+            Internal::Table { a, .. } => a.len() as u32*2,
+            Internal::Dense { a, .. } => a.len() as u32,
+            _ => 0,
+        }
+    }
+    pub fn len(&self) -> usize {
+        match self.internal() {
+            Internal::Table { sz, .. } => sz as usize,
+            Internal::Dense { sz, .. } => sz as usize,
+            Internal::Empty => 0,
+            Internal::Tiny(t) => t.len(),
+        }
+    }
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn dense_for_mx(mx: u32) -> Self {
+        unsafe {
+            let n = (mx+31)/32;
+            let x = SetU32(std::alloc::alloc_zeroed(layout_for_num_u32(n)) as *mut S);
+            (*x.0).cap = n;
+            x
+        }
+    }
+
+    fn table_with_cap(cap: u32) -> Self {
+        unsafe {
+            let x = SetU32(std::alloc::alloc_zeroed(layout_for_num_u32(cap)) as *mut S);
+            (*x.0).cap = cap;
+            x
+        }
+    }
+}
+
+impl Default for SetU32 {
+    fn default() -> Self {
+        SetU32(0 as *mut S)
+    }
+}
+
+fn layout_for_num_u32(sz: u32) -> std::alloc::Layout {
+    unsafe {
+        std::alloc::Layout::from_size_align_unchecked(sz as usize*4+std::mem::size_of::<S>()-4, 4)
+    }
+}
+
+impl Drop for SetU32 {
+    fn drop(&mut self) {
+        if self.0 as usize != 0 && self.0 as usize & 3 != 1 {
+            // make it drop by moving it out
+            let n = self.num_u32();
+            if n != 0 {
+                unsafe {
+                    std::alloc::dealloc(self.0 as *mut u8, layout_for_num_u32(n));
+                }
+            }
+        }
+    }
+}
