@@ -376,9 +376,9 @@ impl SetU32 {
                         // It is getting sparse, so let us switch back
                         // to a non-hash table.
                         let mut new = SetU32::table_with_cap(2*(*sz + 1));
-                        // for x in self.iter() {
-                        //     new.insert(x);
-                        // }
+                        for x in DenseIter::new( *sz as usize, a ) {
+                            new.insert(x);
+                        }
                         new.insert(e);
                         *self = new;
                     } else {
@@ -470,4 +470,68 @@ impl Drop for SetU32 {
             }
         }
     }
+}
+
+#[derive(Debug)]
+struct DenseIter<'a> {
+    sz_left: usize,
+    whichword: usize,
+    whichbit: u32,
+    a: &'a [u32],
+}
+impl<'a> DenseIter<'a> {
+    fn new(sz_left: usize, a: &'a [u32]) -> Self {
+        DenseIter {
+            sz_left,
+            whichword: 0,
+            whichbit: 0,
+            a,
+        }
+    }
+}
+impl<'a> Iterator for DenseIter<'a> {
+    type Item = u32;
+    #[inline]
+    fn next(&mut self) -> Option<u32> {
+        loop {
+            if let Some(word) = self.a.get(self.whichword) {
+                if *word != 0 {
+                    while self.whichbit < 32 {
+                        let bit = self.whichbit;
+                        self.whichbit += 1;
+                        if word & (1 << bit) != 0 {
+                            self.sz_left -= 1;
+                            return Some(((self.whichword as u32) << 5) + bit as u32);
+                        }
+                    }
+                }
+                self.whichword += 1;
+                self.whichbit = 0;
+            } else {
+                return None;
+            }
+        }
+    }
+    #[inline]
+    fn count(self) -> usize {
+        self.sz_left
+    }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.sz_left, Some(self.sz_left))
+    }
+    #[inline]
+    fn min(mut self) -> Option<u32> {
+        self.next()
+    }
+}
+
+#[test]
+fn test_denseiter() {
+    let v: Vec<u32> = DenseIter::new(5, &[1,1,1,0,1,0,2]).collect();
+    assert_eq!(&v, &[0, 32, 64, 128, 193]);
+
+    assert_eq!(Some(0), DenseIter::new(5, &[1,1,1,0,1,0,2]).min());
+
+    assert_eq!(Some(34), DenseIter::new(5, &[0,4,1,0,1,0,2]).min());
 }
