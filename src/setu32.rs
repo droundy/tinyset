@@ -1159,7 +1159,7 @@ mod tests {
     #[cfg(target_pointer_width = "32")]
     #[test]
     fn test_size() {
-        assert_eq!(std::mem::size_of::<S>(), 24);
+        assert_eq!(std::mem::size_of::<S>(), 16);
         collect_size_is(&[0], 4);
         incremental_size_le(&[0], 4);
         collect_size_is(&[], 4);
@@ -1170,7 +1170,8 @@ mod tests {
         collect_size_is(&[1000,1002,1004,1006,1008], 4);
         incremental_size_le(&[1000,1002,1004,1006,1008], 4);
 
-        collect_size_is(&[255,260,265,270,275,280,285], 4);
+        collect_size_is(&[255,260,265,270,275,280], 4);
+        collect_size_is(&[255,260,265,270,275,280,285], 28);
 
         incremental_size_le(& (1..30).collect::<Vec<_>>(), 32);
         incremental_size_le(& (1..60).collect::<Vec<_>>(), 32);

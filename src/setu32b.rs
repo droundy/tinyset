@@ -37,6 +37,11 @@ impl Iterator for Tiny {
     }
 }
 
+#[cfg(target_pointer_width = "64")]
+const MAX_TINY: u32 = std::u32::MAX;
+#[cfg(target_pointer_width = "32")]
+const MAX_TINY: u32 = std::u16::MAX as u32;
+
 impl Tiny {
     #[cfg(target_pointer_width = "64")]
     fn to_usize(self) -> usize {
@@ -49,8 +54,28 @@ impl Tiny {
             bits: (x >> 2) & ((1 << 30) - 1),
         }
     }
+    #[cfg(target_pointer_width = "32")]
+    fn to_usize(self) -> usize {
+        (self.start as usize) << 16 | self.bits << 2 | 1
+    }
+    #[cfg(target_pointer_width = "32")]
+    fn from_usize(x: usize) -> Self {
+        Tiny {
+            start: (x >> 16) as u32,
+            bits: (x >> 2) & ((1 << 14) - 1),
+        }
+    }
+    #[cfg(target_pointer_width = "64")]
     fn from_singleton(x: u32) -> Option<Self> {
         Some(Tiny { start: x, bits: 1 })
+    }
+    #[cfg(target_pointer_width = "32")]
+    fn from_singleton(x: u32) -> Option<Self> {
+        if x > MAX_TINY {
+            None
+        } else {
+            Some(Tiny { start: x, bits: 1 })
+        }
     }
     fn from_slice(v: &[u32]) -> Option<Self> {
         if v.len() > 30 || v.len() == 0 {
@@ -58,7 +83,7 @@ impl Tiny {
         }
         let mn = v.iter().cloned().min().unwrap();
         let mx = v.iter().cloned().max().unwrap();
-        if mx > mn + 30 {
+        if mx > mn + 30 || mn > MAX_TINY {
             None
         } else {
             let mut t = Tiny {
@@ -112,6 +137,7 @@ impl Tiny {
     }
 }
 
+#[cfg(target_pointer_width = "64")]
 #[test]
 fn check_tiny_insert() {
     let mut t = Tiny::from_singleton(0).unwrap();
@@ -180,7 +206,7 @@ proptest!{
         }
     }
     #[test]
-    fn check_tiny_from_singleton(x: u32) {
+    fn check_tiny_from_singleton(x in 0..=MAX_TINY) {
         let t = Tiny::from_singleton(x).unwrap();
         assert_eq!(t.clone().next(), Some(x));
         assert_eq!(t.clone().count(), 1);
@@ -189,7 +215,7 @@ proptest!{
         assert_eq!(t.len(), 1);
     }
     #[test]
-    fn check_tiny_from_inserts(x0: u32,
+    fn check_tiny_from_inserts(x0 in 0..=MAX_TINY,
                                vals in prop::collection::vec(0..28u32, 1usize..10)) {
         let mut t = Tiny::from_singleton(x0).unwrap();
         for v in vals.iter().cloned().map(|v| v+x0) {
@@ -501,7 +527,7 @@ impl<'a> Iterator for Iter<'a> {
         }
     }
     #[inline]
-    fn min(mut self) -> Option<u32> {
+    fn min(self) -> Option<u32> {
         match self {
             Iter::Tiny(t) => t.min(),
             Iter::Dense(d) => d.min(),
