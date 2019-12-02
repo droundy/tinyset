@@ -83,6 +83,14 @@ impl Tiny {
             Some(false)
         }
     }
+    fn remove(&mut self, v: u32) -> bool {
+        if self.contains(v) {
+            self.bits = self.bits & !(1 << v-self.start);
+            true
+        } else {
+            false
+        }
+    }
 }
 
 #[test]
@@ -95,6 +103,14 @@ fn check_tiny_insert() {
         assert!(t.contains(v));
     }
 
+    for v in [0,30,2,29,1].into_iter().cloned() {
+        assert!(t.contains(v));
+        assert!(t.remove(v));
+        assert!(!t.remove(v));
+        assert!(!t.contains(v));
+    }
+    assert_eq!(t.len(), 0);
+
     let mut t = Tiny::from_singleton(50).unwrap();
     println!("starting with {:?}", t.clone().collect::<Vec<_>>());
     for v in [49,40,30,21].into_iter().cloned() {
@@ -102,9 +118,37 @@ fn check_tiny_insert() {
         println!(" after inserting {}: {:?}", v, t.clone().collect::<Vec<_>>());
         assert!(t.contains(v));
     }
+    for v in [49,40,30,21].into_iter().cloned() {
+        println!("removing {} from {:?}", v, t.clone().collect::<Vec<_>>());
+        assert!(t.contains(v));
+        assert!(t.remove(v));
+        assert!(!t.remove(v));
+        assert!(!t.contains(v));
+    }
 }
 #[cfg(test)]
 proptest!{
+    #[test]
+    fn check_tiny_insert_remove(x: Vec<Result<u32,u32>>) {
+        let mut t = Tiny::from_singleton(0).unwrap();
+        for job in x.iter().cloned() {
+            match job {
+                Ok(v) => {
+                    if t.contains(v) {
+                        assert_eq!(t.insert(v), Some(true));
+                    } else {
+                        if t.insert(v).is_some() {
+                            assert!(t.contains(v));
+                        }
+                    }
+                }
+                Err(v) => {
+                    assert_eq!(t.contains(v), t.remove(v));
+                    assert!(!t.contains(v));
+                }
+            }
+        }
+    }
     #[test]
     fn check_tiny_from_singleton(x: u32) {
         let t = Tiny::from_singleton(x).unwrap();
