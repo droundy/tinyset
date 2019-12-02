@@ -148,7 +148,7 @@ fn check_tiny_insert() {
 #[cfg(test)]
 proptest!{
     #[test]
-    fn check_tiny_from_slice(v in prop::collection::vec(0..40u32, 0usize..34)) {
+    fn check_tiny_from_slice(v in prop::collection::vec(0..36u32, 0usize..34)) {
         if let Some(t) = Tiny::from_slice(&v) {
             for x in v.iter().cloned() {
                 assert!(t.contains(x));
@@ -296,6 +296,8 @@ impl SetU32 {
             _ => 0,
         }
     }
+
+    /// The number of elements in the set.
     pub fn len(&self) -> usize {
         match self.internal() {
             Internal::Table { sz, .. } => sz as usize,
@@ -304,16 +306,130 @@ impl SetU32 {
             Internal::Tiny(t) => t.len(),
         }
     }
-    pub fn new() -> Self {
-        Self::default()
+
+    /// Create a new empty set.
+    ///
+    /// This does no heap allocation.
+    pub const fn new() -> Self {
+        SetU32(0 as *mut S)
+    }
+
+    /// Check if the set contains `e`.
+    pub fn contains(&self, e: u32) -> bool {
+        match self.internal() {
+            Internal::Empty => false,
+            Internal::Tiny(t) => t.contains(e),
+            Internal::Dense { a, .. } => {
+                let key = e as usize >> 5;
+                let bit = 1 << (e & 31);
+                if a.len() > key {
+                    a[key] & bit != 0
+                } else {
+                    false
+                }
+            }
+            Internal::Table { .. } => {
+                unimplemented!()
+            }
+        }
+    }
+
+    /// Insert a number into the set.
+    ///
+    /// Return a bool indicating if it was already present.
+    pub fn insert(&mut self, e: u32) -> bool {
+        match self.internal_mut() {
+            InternalMut::Empty => {
+                if let Some(t) = Tiny::from_singleton(e) {
+                    *self = SetU32::tiny(t);
+                } else if e < 64 {
+                    *self = SetU32::dense_for_mx(e+1);
+                    self.insert(e);
+                } else {
+                    *self = SetU32::table_with_cap(1);
+                    self.insert(e);
+                }
+                false
+            }
+            InternalMut::Tiny(mut t) => {
+                if let Some(b) = t.insert(e) {
+                    *self = SetU32::tiny(t);
+                    b
+                } else {
+                    *self = SetU32::table_with_cap(3);
+                    for x in t {
+                        self.insert(x);
+                    }
+                    self.insert(e);
+                    false
+                }
+            }
+            InternalMut::Dense { sz, a } => {
+                let key = e as usize >> 5;
+                let bit = 1 << (e & 31);
+                if a.len() > key {
+                    let was_here = a[key] & bit != 0;
+                    a[key] = a[key] | bit;
+                    was_here
+                } else {
+                    if key > 3*(*sz as usize) {
+                        // It is getting sparse, so let us switch back
+                        // to a non-hash table.
+                        let mut new = SetU32::table_with_cap(2*(*sz + 1));
+                        // for x in self.iter() {
+                        //     new.insert(x);
+                        // }
+                        new.insert(e);
+                        *self = new;
+                    } else {
+                        unsafe { self.dense_increase_mx(key as u32)[key] = bit };
+                    }
+                    false
+                }
+            }
+            InternalMut::Table { .. } => {
+                unimplemented!()
+            }
+        }
+    }
+
+    fn tiny(t: Tiny) -> Self {
+        SetU32(t.to_usize() as *mut S)
     }
 
     fn dense_for_mx(mx: u32) -> Self {
+        let n = 1 + mx/32 + mx/128;
         unsafe {
-            let n = (mx+31)/32;
             let x = SetU32(std::alloc::alloc_zeroed(layout_for_num_u32(n)) as *mut S);
             (*x.0).cap = n;
             x
+        }
+    }
+
+    /// This requires that we currently be a dense!
+    unsafe fn dense_increase_mx(&mut self, mx: u32) -> &mut [u32] {
+        let ptr = (self.0 as usize & !3) as *mut S;
+        let n = 1 + mx/32 + mx/128;
+
+        let oldcap = (*ptr).cap;
+        let newptr = std::alloc::realloc(ptr as *mut u8,
+                                         layout_for_num_u32(oldcap),
+                                         bytes_for_num_u32(n));
+        if newptr as usize == 0 {
+            println!("unable to realloc from {} to {}", oldcap, n);
+            std::alloc::handle_alloc_error(layout_for_num_u32(n));
+        }
+        let x = SetU32((newptr as usize | 2) as *mut S);
+        (*x.0).cap = n;
+        *self = x;
+        match self.internal_mut() {
+            InternalMut::Dense { a, .. } => {
+                for i in oldcap as usize .. a.len() {
+                    a[i] = 0;
+                }
+                a
+            }
+            _ => unreachable!(),
         }
     }
 
@@ -332,9 +448,13 @@ impl Default for SetU32 {
     }
 }
 
+const fn bytes_for_num_u32(sz: u32) -> usize {
+    sz as usize*4+std::mem::size_of::<S>()-4
+}
+
 fn layout_for_num_u32(sz: u32) -> std::alloc::Layout {
     unsafe {
-        std::alloc::Layout::from_size_align_unchecked(sz as usize*4+std::mem::size_of::<S>()-4, 4)
+        std::alloc::Layout::from_size_align_unchecked(bytes_for_num_u32(sz), 4)
     }
 }
 
