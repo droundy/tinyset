@@ -52,6 +52,25 @@ impl Tiny {
     fn from_singleton(x: u32) -> Option<Self> {
         Some(Tiny { start: x, bits: 1 })
     }
+    fn from_slice(v: &[u32]) -> Option<Self> {
+        if v.len() > 30 || v.len() == 0 {
+            return None;
+        }
+        let mn = v.iter().cloned().min().unwrap();
+        let mx = v.iter().cloned().max().unwrap();
+        if mx > mn + 30 {
+            None
+        } else {
+            let mut t = Tiny {
+                start: mn,
+                bits: 0,
+            };
+            for x in v.iter().cloned() {
+                t.bits = t.bits | (1 << x - mn);
+            }
+            Some(t)
+        }
+    }
     fn len(&self) -> usize {
         self.bits.count_ones() as usize
     }
@@ -128,6 +147,17 @@ fn check_tiny_insert() {
 }
 #[cfg(test)]
 proptest!{
+    #[test]
+    fn check_tiny_from_slice(v in prop::collection::vec(0..40u32, 0usize..34)) {
+        if let Some(t) = Tiny::from_slice(&v) {
+            for x in v.iter().cloned() {
+                assert!(t.contains(x));
+                assert_eq!(t.contains(x+1), v.contains(&(x+1)));
+            }
+        } else {
+            prop_assume!(false); // do not count cases that cannot be generated
+        }
+    }
     #[test]
     fn check_tiny_insert_remove(x: Vec<Result<u32,u32>>) {
         let mut t = Tiny::from_singleton(0).unwrap();
