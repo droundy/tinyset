@@ -481,8 +481,9 @@ impl SetU32 {
         if cap as u32 > mx >> 4 {
             // This should be stored in a dense bitset.
             return unsafe {
-                let x = SetU32(std::alloc::alloc_zeroed(layout_for_capacity(cap/32)) as *mut S);
-                (*x.0).cap = cap as u32/32;
+                let cap = 1 + cap/32;
+                let x = SetU32(std::alloc::alloc_zeroed(layout_for_capacity(cap)) as *mut S);
+                (*x.0).cap = cap as u32;
                 (*x.0).bits = 32;
                 x
             };
@@ -559,22 +560,33 @@ impl SetU32 {
                     present
                 } else {
                     // println!("key is {}", key);
-                    let newsz = key+1+2*(rand::random::<usize>() % (key+1));
-                    let mut new = SetU32::with_capacity_and_bits(newsz, 32);
-                    match new.internal_mut() {
-                        InternalMut::Empty => unreachable!(),
-                        InternalMut::Stack(_) => unreachable!(),
-                        InternalMut::Big { .. } => unreachable!(),
-                        InternalMut::Heap { .. } => unreachable!(),
-                        InternalMut::Dense { sz: newsz, a: na } => {
-                            for (i,v) in a.iter().cloned().enumerate() {
-                                na[i] = v;
-                            }
-                            na[key] = 1 << (e & 31);
-                            *newsz = *sz + 1;
+                    if key > 4*(*sz as usize) {
+                        // It is getting sparse, so let us switch back
+                        // to a non-hash table.
+                        let cap = 2*(*sz + 1);
+                        let mut new = SetU32::with_capacity_and_bits(cap as usize, 0);
+                        for x in self.iter() {
+                            new.insert(x);
                         }
+                        new.insert(e);
+                        *self = new;
+                    } else {
+                        let mut new = SetU32::with_capacity_and_bits(1 + key + key/4, 32);
+                        match new.internal_mut() {
+                            InternalMut::Empty => unreachable!(),
+                            InternalMut::Stack(_) => unreachable!(),
+                            InternalMut::Big { .. } => unreachable!(),
+                            InternalMut::Heap { .. } => unreachable!(),
+                            InternalMut::Dense { sz: newsz, a: na } => {
+                                for (i,v) in a.iter().cloned().enumerate() {
+                                    na[i] = v;
+                                }
+                                na[key] = 1 << (e & 31);
+                                *newsz = *sz + 1;
+                            }
+                        }
+                        *self = new;
                     }
-                    *self = new;
                     false
                 }
             }
@@ -627,7 +639,7 @@ impl SetU32 {
                 let mx = if e > mx { e } else { mx };
                 if s.cap > mx >> 5 {
                     // A dense set will save memory
-                    let newcap = ((mx>>5) + 1 + (rand::random::<u32>() % (mx >> 4))) as usize;
+                    let newcap = (1 + key/32 + key/64) as usize;
                     let mut new = Self::with_capacity_and_bits(newcap as usize, 32);
                     for x in self.iter() {
                         new.insert(x);

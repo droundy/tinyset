@@ -481,8 +481,9 @@ impl SetU64 {
         if cap as u64 > mx >> 4 {
             // This should be stored in a dense bitset.
             return unsafe {
-                let x = SetU64(std::alloc::alloc_zeroed(layout_for_capacity(cap/64)) as *mut S);
-                (*x.0).cap = cap/64;
+                let cap = 1 + cap/64;
+                let x = SetU64(std::alloc::alloc_zeroed(layout_for_capacity(cap)) as *mut S);
+                (*x.0).cap = cap;
                 (*x.0).bits = 64;
                 x
             };
@@ -559,22 +560,33 @@ impl SetU64 {
                     present
                 } else {
                     // println!("key is {}", key);
-                    let newsz = key+1+2*(rand::random::<usize>() % (key+1));
-                    let mut new = SetU64::with_capacity_and_bits(newsz, 64);
-                    match new.internal_mut() {
-                        InternalMut::Empty => unreachable!(),
-                        InternalMut::Stack(_) => unreachable!(),
-                        InternalMut::Big { .. } => unreachable!(),
-                        InternalMut::Heap { .. } => unreachable!(),
-                        InternalMut::Dense { sz: newsz, a: na } => {
-                            for (i,v) in a.iter().cloned().enumerate() {
-                                na[i] = v;
-                            }
-                            na[key] = 1 << (e & 63);
-                            *newsz = *sz + 1;
+                    if key > 4*(*sz as usize) {
+                        // It is getting sparse, so let us switch back
+                        // to a non-hash table.
+                        let cap = 2*(*sz + 1);
+                        let mut new = SetU64::with_capacity_and_bits(cap as usize, 0);
+                        for x in self.iter() {
+                            new.insert(x);
                         }
+                        new.insert(e);
+                        *self = new;
+                    } else {
+                        let mut new = SetU64::with_capacity_and_bits(1 + key + key/4, 64);
+                        match new.internal_mut() {
+                            InternalMut::Empty => unreachable!(),
+                            InternalMut::Stack(_) => unreachable!(),
+                            InternalMut::Big { .. } => unreachable!(),
+                            InternalMut::Heap { .. } => unreachable!(),
+                            InternalMut::Dense { sz: newsz, a: na } => {
+                                for (i,v) in a.iter().cloned().enumerate() {
+                                    na[i] = v;
+                                }
+                                na[key] = 1 << (e & 63);
+                                *newsz = *sz + 1;
+                            }
+                        }
+                        *self = new;
                     }
-                    *self = new;
                     false
                 }
             }
@@ -626,7 +638,7 @@ impl SetU64 {
                 let mx = if e > mx { e } else { mx };
                 if s.cap as u64 > mx >> 6 {
                     // A dense set will save memory
-                    let newcap = ((mx>>6) + 1 + (rand::random::<u64>() % (mx >> 5))) as usize;
+                    let newcap = (1 + mx/64 + mx/128) as usize;
                     let mut new = Self::with_capacity_and_bits(newcap, 64);
                     for x in self.iter() {
                         new.insert(x);
