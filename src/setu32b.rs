@@ -31,8 +31,13 @@ impl Iterator for Tiny {
     fn min(self) -> Option<u32> {
         Some(self.start + self.bits.trailing_zeros())
     }
+    #[cfg(target_pointer_width = "64")]
     fn max(self) -> Option<u32> {
         Some(self.start + 63 - self.bits.leading_zeros())
+    }
+    #[cfg(target_pointer_width = "32")]
+    fn max(self) -> Option<u32> {
+        Some(self.start + 31 - self.bits.leading_zeros())
     }
 }
 
@@ -41,34 +46,23 @@ const MAX_TINY: u32 = std::u32::MAX;
 #[cfg(target_pointer_width = "32")]
 const MAX_TINY: u32 = std::u16::MAX as u32;
 
+#[cfg(target_pointer_width = "64")]
+const START_OFFSET: u32 = 32;
+#[cfg(target_pointer_width = "32")]
+const START_OFFSET: u32 = 16;
+
+const NUM_BITS: u32 = START_OFFSET-2;
+
 impl Tiny {
-    #[cfg(target_pointer_width = "64")]
     fn to_usize(self) -> usize {
-        (self.start as usize) << 32 | self.bits << 2 | 1
+        (self.start as usize) << START_OFFSET | self.bits << 2 | 1
     }
-    #[cfg(target_pointer_width = "64")]
     fn from_usize(x: usize) -> Self {
         Tiny {
-            start: (x >> 32) as u32,
-            bits: (x >> 2) & ((1 << 30) - 1),
+            start: (x >> START_OFFSET) as u32,
+            bits: (x >> 2) & ((1 << NUM_BITS) - 1),
         }
     }
-    #[cfg(target_pointer_width = "32")]
-    fn to_usize(self) -> usize {
-        (self.start as usize) << 16 | self.bits << 2 | 1
-    }
-    #[cfg(target_pointer_width = "32")]
-    fn from_usize(x: usize) -> Self {
-        Tiny {
-            start: (x >> 16) as u32,
-            bits: (x >> 2) & ((1 << 14) - 1),
-        }
-    }
-    #[cfg(target_pointer_width = "64")]
-    fn from_singleton(x: u32) -> Option<Self> {
-        Some(Tiny { start: x, bits: 1 })
-    }
-    #[cfg(target_pointer_width = "32")]
     fn from_singleton(x: u32) -> Option<Self> {
         if x > MAX_TINY {
             None
@@ -77,12 +71,12 @@ impl Tiny {
         }
     }
     fn from_slice(v: &[u32]) -> Option<Self> {
-        if v.len() > 30 || v.len() == 0 {
+        if v.len() > NUM_BITS as usize || v.len() == 0 {
             return None;
         }
         let mn = v.iter().cloned().min().unwrap();
         let mx = v.iter().cloned().max().unwrap();
-        if mx > mn + 30 || mn > MAX_TINY {
+        if mx > mn + NUM_BITS || mn > MAX_TINY {
             None
         } else {
             let mut t = Tiny {
@@ -99,10 +93,10 @@ impl Tiny {
         self.bits.count_ones() as usize
     }
     fn contains(&self, v: u32) -> bool {
-        v >= self.start && v <= self.start + 30 && self.bits >> (v-self.start) & 1 != 0
+        v >= self.start && v <= self.start + NUM_BITS && self.bits >> (v-self.start) & 1 != 0
     }
     fn insert(&mut self, v: u32) -> Option<bool> {
-        if v >= self.start && v <= self.start + 30 {
+        if v >= self.start && v <= self.start + NUM_BITS {
             if self.bits >> (v-self.start) & 1 != 0 {
                 return Some(true);
             }
@@ -111,7 +105,7 @@ impl Tiny {
         }
         let mx = self.clone().max().unwrap();
         let mn = self.clone().min().unwrap();
-        if v + 30 < mx || v > mn + 30 {
+        if v + NUM_BITS < mx || v > mn + NUM_BITS {
             None
         } else if v < mn {
             self.bits = self.bits << (self.start-v) | 1;
@@ -173,7 +167,7 @@ fn check_tiny_insert() {
 #[cfg(test)]
 proptest!{
     #[test]
-    fn check_tiny_from_slice(v in prop::collection::vec(0..36u32, 0usize..34)) {
+    fn check_tiny_from_slice(v in prop::collection::vec(0..NUM_BITS+4, 0usize..34)) {
         if let Some(t) = Tiny::from_slice(&v) {
             for x in v.iter().cloned() {
                 assert!(t.contains(x));
@@ -215,7 +209,7 @@ proptest!{
     }
     #[test]
     fn check_tiny_from_inserts(x0 in 0..=MAX_TINY,
-                               vals in prop::collection::vec(0..28u32, 1usize..10)) {
+                               vals in prop::collection::vec(0..NUM_BITS, 1usize..10)) {
         let mut t = Tiny::from_singleton(x0).unwrap();
         for v in vals.iter().cloned().map(|v| v+x0) {
             assert_eq!(Some(t.contains(v)), t.insert(v));
@@ -474,7 +468,7 @@ impl SetU32 {
                         *self = new;
                     } else {
                         *sz += 1;
-                        unsafe { self.dense_increase_mx(key as u32)[key] = bit };
+                        unsafe { self.dense_increase_mx(e)[key] = bit };
                     }
                     false
                 }
@@ -512,7 +506,7 @@ impl SetU32 {
             std::alloc::handle_alloc_error(layout_for_num_u32(n));
         }
         (*newptr).cap = n;
-        *self = SetU32((newptr as usize | 2) as *mut S);
+        self.0 = (newptr as usize | 2) as *mut S;
         match self.internal_mut() {
             InternalMut::Dense { a, .. } => {
                 for i in oldcap as usize .. a.len() {
@@ -552,7 +546,6 @@ fn layout_for_num_u32(sz: u32) -> std::alloc::Layout {
 impl Drop for SetU32 {
     fn drop(&mut self) {
         if self.0 as usize != 0 && self.0 as usize & 3 != 1 {
-            // make it drop by moving it out
             let n = self.num_u32();
             if n != 0 {
                 let ptr = (self.0 as usize & !3) as *mut u8;
