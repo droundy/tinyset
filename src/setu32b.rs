@@ -32,8 +32,7 @@ impl Iterator for Tiny {
         Some(self.start + self.bits.trailing_zeros())
     }
     fn max(self) -> Option<u32> {
-        println!("leading zeros {}", self.bits.leading_zeros());
-        Some(self.start + 64 - self.bits.leading_zeros())
+        Some(self.start + 63 - self.bits.leading_zeros())
     }
 }
 
@@ -283,7 +282,7 @@ impl SetU32 {
         } else if self.0 as usize & 3 == 0 {
             let s = unsafe { &*self.0 };
             let a = unsafe { std::slice::from_raw_parts((&s.array as *const u32) as *const (u32,u32),
-                                                        s.cap as usize) };
+                                                        s.cap as usize/2) };
             Internal::Table { sz: s.sz, a }
         } else {
             let ptr = (self.0 as usize & !3) as *mut S;
@@ -303,7 +302,7 @@ impl SetU32 {
             let s = unsafe { &mut *self.0 };
             let a = unsafe {
                 std::slice::from_raw_parts_mut((&mut s.array as *mut u32) as *mut (u32,u32),
-                                               s.cap as usize)
+                                               s.cap as usize/2)
             };
             InternalMut::Table { sz: &mut s.sz, a }
         } else {
@@ -340,6 +339,27 @@ impl SetU32 {
         SetU32(0 as *mut S)
     }
 
+    /// Iterate over the set
+    #[inline]
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item=u32> + 'a {
+        match self.internal() {
+            Internal::Empty => Iter::Empty,
+            Internal::Tiny(t) => Iter::Tiny( t ),
+            Internal::Table { .. } => {
+                unimplemented!()
+                // Iter::Table {
+                //     sz_left: sz as usize,
+                //     bits: s.bits,
+                //     whichbit: 0,
+                //     array: a,
+                // }
+            }
+            Internal::Dense { a, sz } => {
+                Iter::Dense( DenseIter::new(sz as usize, a) )
+            }
+        }
+    }
+
     /// Check if the set contains `e`.
     pub fn contains(&self, e: u32) -> bool {
         match self.internal() {
@@ -355,6 +375,38 @@ impl SetU32 {
                 }
             }
             Internal::Table { .. } => {
+                unimplemented!()
+            }
+        }
+    }
+
+    /// Remove a number from the set.
+    ///
+    /// Return a bool indicating if it was present.
+    pub fn remove(&mut self, e: u32) -> bool {
+        match self.internal_mut() {
+            InternalMut::Empty => false,
+            InternalMut::Tiny(mut t) => {
+                let b = t.remove(e);
+                *self = SetU32(t.to_usize() as *mut S);
+                b
+            }
+            InternalMut::Dense { a, sz } => {
+                let key = e as usize >> 5;
+                let bit = 1 << (e & 31);
+                if a.len() > key {
+                    if a[key] & bit != 0 {
+                        a[key] = a[key] & !bit;
+                        *sz -= 1;
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+            InternalMut::Table { .. } => {
                 unimplemented!()
             }
         }
@@ -381,7 +433,17 @@ impl SetU32 {
                 if let Some(b) = t.insert(e) {
                     *self = SetU32::tiny(t);
                     b
+                } else if (e as usize) < (t.len() + 1)*64 {
+                    println!("creating a dense thing");
+                    *self = SetU32::dense_for_mx(e+1);
+                    println!("foo is {:?}", self.0);
+                    for x in t {
+                        self.insert(x);
+                    }
+                    self.insert(e);
+                    false
                 } else {
+                    println!("looks like {} > {}", e, (t.len()+1)*64);
                     *self = SetU32::table_with_cap(3);
                     for x in t {
                         self.insert(x);
@@ -396,6 +458,9 @@ impl SetU32 {
                 if a.len() > key {
                     let was_here = a[key] & bit != 0;
                     a[key] = a[key] | bit;
+                    if !was_here {
+                        *sz += 1;
+                    }
                     was_here
                 } else {
                     if key > 3*(*sz as usize) {
@@ -408,6 +473,7 @@ impl SetU32 {
                         new.insert(e);
                         *self = new;
                     } else {
+                        *sz += 1;
                         unsafe { self.dense_increase_mx(key as u32)[key] = bit };
                     }
                     false
@@ -426,9 +492,9 @@ impl SetU32 {
     fn dense_for_mx(mx: u32) -> Self {
         let n = 1 + mx/32 + mx/128;
         unsafe {
-            let x = SetU32(std::alloc::alloc_zeroed(layout_for_num_u32(n)) as *mut S);
-            (*x.0).cap = n;
-            x
+            let newptr = std::alloc::alloc_zeroed(layout_for_num_u32(n)) as *mut S;
+            (*newptr).cap = n;
+            SetU32((newptr as usize | 2) as *mut S)
         }
     }
 
@@ -440,14 +506,13 @@ impl SetU32 {
         let oldcap = (*ptr).cap;
         let newptr = std::alloc::realloc(ptr as *mut u8,
                                          layout_for_num_u32(oldcap),
-                                         bytes_for_num_u32(n));
+                                         bytes_for_num_u32(n)) as *mut S;
         if newptr as usize == 0 {
             println!("unable to realloc from {} to {}", oldcap, n);
             std::alloc::handle_alloc_error(layout_for_num_u32(n));
         }
-        let x = SetU32((newptr as usize | 2) as *mut S);
-        (*x.0).cap = n;
-        *self = x;
+        (*newptr).cap = n;
+        *self = SetU32((newptr as usize | 2) as *mut S);
         match self.internal_mut() {
             InternalMut::Dense { a, .. } => {
                 for i in oldcap as usize .. a.len() {
@@ -490,16 +555,74 @@ impl Drop for SetU32 {
             // make it drop by moving it out
             let n = self.num_u32();
             if n != 0 {
+                let ptr = (self.0 as usize & !3) as *mut u8;
                 unsafe {
-                    std::alloc::dealloc(self.0 as *mut u8, layout_for_num_u32(n));
+                    std::alloc::dealloc(ptr, layout_for_num_u32(n));
                 }
             }
         }
     }
 }
 
+#[test]
+fn test_insert_remove() {
+    let mut v: Vec<u32> = Vec::new();
+    let mut s = SetU32::new();
+    assert_eq!(&v, &s.iter().collect::<Vec<u32>>());
+    assert!(!s.insert(5));
+    v.push(5);
+    assert_eq!(&v, &s.iter().collect::<Vec<u32>>());
+
+    assert_eq!(v.len(), s.iter().count());
+    assert_eq!(v.len(), s.len());
+    assert_eq!(v.iter().cloned().max(), s.iter().max());
+    assert_eq!(v.iter().cloned().min(), s.iter().min());
+
+    assert!(!s.insert(10));
+    assert!(s.insert(10));
+    v.push(10);
+    assert_eq!(&v, &s.iter().collect::<Vec<u32>>());
+
+    assert!(!s.insert(30));
+    v.push(30);
+    assert_eq!(&v, &s.iter().collect::<Vec<u32>>());
+    assert_eq!(v.len(), s.iter().count());
+    assert_eq!(v.len(), s.len());
+    assert_eq!(v.iter().cloned().max(), s.iter().max());
+    assert_eq!(v.iter().cloned().min(), s.iter().min());
+
+    println!("inserting 40");
+    assert!(!s.insert(40));
+    v.push(40);
+    assert_eq!(&v, &s.iter().collect::<Vec<u32>>());
+    assert_eq!(v.len(), s.iter().count());
+    assert_eq!(v.len(), s.len());
+    assert_eq!(v.iter().cloned().max(), s.iter().max());
+    assert_eq!(v.iter().cloned().min(), s.iter().min());
+
+    println!("inserting 50");
+    assert!(!s.insert(50));
+    v.push(50);
+    assert_eq!(&v, &s.iter().collect::<Vec<u32>>());
+    assert_eq!(v.len(), s.iter().count());
+    assert_eq!(v.len(), s.len());
+    assert_eq!(v.iter().cloned().max(), s.iter().max());
+    assert_eq!(v.iter().cloned().min(), s.iter().min());
+
+    println!("removing 40");
+    assert!(s.remove(40));
+    v.retain(|x| *x != 40);
+    assert_eq!(&v, &s.iter().collect::<Vec<u32>>());
+    assert_eq!(v.len(), s.iter().count());
+    assert_eq!(v.len(), s.len());
+    assert_eq!(v.iter().cloned().max(), s.iter().max());
+    assert_eq!(v.iter().cloned().min(), s.iter().min());
+
+}
+
 #[derive(Debug)]
 enum Iter<'a> {
+    Empty,
     Tiny(Tiny),
     Dense(DenseIter<'a>),
 }
@@ -508,6 +631,7 @@ impl<'a> Iterator for Iter<'a> {
     #[inline]
     fn next(&mut self) -> Option<u32> {
         match self {
+            Iter::Empty => None,
             Iter::Tiny(t) => t.next(),
             Iter::Dense(d) => d.next(),
         }
@@ -515,6 +639,7 @@ impl<'a> Iterator for Iter<'a> {
     #[inline]
     fn count(self) -> usize {
         match self {
+            Iter::Empty => 0,
             Iter::Tiny(t) => t.count(),
             Iter::Dense(d) => d.count(),
         }
@@ -522,6 +647,7 @@ impl<'a> Iterator for Iter<'a> {
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         match self {
+            Iter::Empty => (0, Some(0)),
             Iter::Tiny(t) => t.size_hint(),
             Iter::Dense(d) => d.size_hint(),
         }
@@ -529,6 +655,7 @@ impl<'a> Iterator for Iter<'a> {
     #[inline]
     fn min(self) -> Option<u32> {
         match self {
+            Iter::Empty => None,
             Iter::Tiny(t) => t.min(),
             Iter::Dense(d) => d.min(),
         }
@@ -536,6 +663,7 @@ impl<'a> Iterator for Iter<'a> {
     #[inline]
     fn max(self) -> Option<u32> {
         match self {
+            Iter::Empty => None,
             Iter::Tiny(t) => t.max(),
             Iter::Dense(d) => d.max(),
         }
@@ -543,6 +671,7 @@ impl<'a> Iterator for Iter<'a> {
     #[inline]
     fn last(self) -> Option<u32> {
         match self {
+            Iter::Empty => None,
             Iter::Tiny(t) => t.last(),
             Iter::Dense(d) => d.last(),
         }
@@ -577,6 +706,8 @@ impl<'a> Iterator for DenseIter<'a> {
                         let bit = self.whichbit;
                         self.whichbit += 1;
                         if word & (1 << bit) != 0 {
+                            println!("found {}", ((self.whichword as u32) << 5) + bit as u32);
+                            println!("sz_left is {}", self.sz_left);
                             self.sz_left -= 1;
                             return Some(((self.whichword as u32) << 5) + bit as u32);
                         }
