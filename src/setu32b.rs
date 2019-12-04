@@ -267,6 +267,15 @@ enum InternalMut<'a> {
     },
 }
 
+#[derive(Debug,PartialEq,Eq)]
+enum SetType {
+    Table,
+    Dense
+}
+fn decide_set_type(mx: u32, sz: u32) -> SetType {
+    if mx < (1 + sz)*64 { SetType::Dense } else { SetType::Table }
+}
+
 impl SetU32 {
     fn internal<'a>(&'a self) -> Internal<'a> {
         if self.0 as usize == 0 {
@@ -339,14 +348,8 @@ impl SetU32 {
         match self.internal() {
             Internal::Empty => Iter::Empty,
             Internal::Tiny(t) => Iter::Tiny( t ),
-            Internal::Table { .. } => {
-                unimplemented!()
-                // Iter::Table {
-                //     sz_left: sz as usize,
-                //     bits: s.bits,
-                //     whichbit: 0,
-                //     array: a,
-                // }
+            Internal::Table { a, sz } => {
+                Iter::Table ( TableIter::new(sz as usize, a) )
             }
             Internal::Dense { a, sz } => {
                 Iter::Dense( DenseIter::new(sz as usize, a) )
@@ -368,8 +371,15 @@ impl SetU32 {
                     false
                 }
             }
-            Internal::Table { .. } => {
-                unimplemented!()
+            Internal::Table { a, .. } => {
+                let key = e >> 5;
+                let bits = 1 << (e & 31);
+                if let LookedUp::KeyFound(idx) = p_lookfor(key, a) {
+                    a[idx].1 & bits != 0
+                } else {
+                    // self.debug_me(&format!("did not find key {} from {}", key, e));
+                    false
+                }
             }
         }
     }
@@ -400,8 +410,27 @@ impl SetU32 {
                     false
                 }
             }
-            InternalMut::Table { .. } => {
-                unimplemented!()
+            InternalMut::Table { a, sz } => {
+                let key = e >> 5;
+                let bits = 1 << (e & 31);
+                if let LookedUp::KeyFound(idx) = p_lookfor(key, a) {
+                    if a[idx].1 & bits != 0 {
+                        let new = a[idx].1 & !bits;
+                        *sz -= 1;
+                        if new == 0 {
+                            // We've removed everything with this key,
+                            // so remove the whole key!
+                            p_remove(key, a);
+                        } else {
+                            a[idx].1 = new;
+                        }
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
             }
         }
     }
@@ -473,8 +502,60 @@ impl SetU32 {
                     false
                 }
             }
-            InternalMut::Table { .. } => {
-                unimplemented!()
+            InternalMut::Table { sz, a } => {
+                let key = e >> 5;
+                let bits = 1 << (e & 31);
+                match p_lookfor(key, a) {
+                    LookedUp::EmptySpot(i) => {
+                        a[i] = (key, bits);
+                        *sz += 1;
+                        return false;
+                    }
+                    LookedUp::KeyFound(i) => {
+                        if a[i].1 & bits == 0 {
+                            a[i].1 = a[i].1 | bits;
+                            *sz += 1;
+                            return false;
+                        } else {
+                            return true;
+                        }
+                    }
+                    LookedUp::NeedInsert => (),
+                }
+                // Check if at least 1/16 of our table is available...
+                if a.iter().filter(|&x| x == &(0,0)).count() > a.len()>>4 {
+                    let idx = p_insert(key, a);
+                    // println!("about to insert key {} with elem {} at {}",
+                    //          key, e, idx);
+                    a[idx] = (key, bits);
+                    *sz += 1;
+                    return false;
+                }
+                // Need a bigger table!
+                let mx = TableIter::new(*sz as usize, a).max().unwrap();
+                let mut new = match decide_set_type(mx, *sz) {
+                    SetType::Dense => {
+                        let mut new = SetU32::dense_for_mx(mx);
+                        for x in self.iter() {
+                            new.insert(x);
+                        }
+                        new
+                    }
+                    SetType::Table => {
+                        let cap = a.len() as u32;
+                        let newcap = cap + 1+ (rand::random::<u32>()) % cap;
+                        let mut new = SetU32::table_with_cap(newcap);
+                        if let InternalMut::Table { a: newa, .. } = new.internal_mut() {
+                            for x in a.iter() {
+                                let idx = p_insert(x.0, newa);
+                                newa[idx] = *x;
+                            }
+                        }
+                        new
+                    }
+                };
+                new.insert(e);
+                false
             }
         }
     }
@@ -625,6 +706,44 @@ fn test_insert_remove() {
         assert_eq!(v.iter().cloned().min(), s.iter().min());
     }
 
+    assert!(!s.insert(1<<20));
+    v.push(1<<20);
+    // at this point it should be a table...
+    assert!(s.contains(1<<20));
+    assert_eq!(&v, &s.iter().collect::<Vec<u32>>());
+    assert_eq!(v.len(), s.iter().count());
+    assert_eq!(v.len(), s.len());
+    assert_eq!(v.iter().cloned().max(), s.iter().max());
+    assert_eq!(v.iter().cloned().min(), s.iter().min());
+
+    println!("removing 2");
+    assert!(s.remove(2));
+    v.retain(|x| *x != 2);
+    assert!(!s.contains(2));
+    assert_eq!(&v, &s.iter().collect::<Vec<u32>>());
+    assert_eq!(v.len(), s.iter().count());
+    assert_eq!(v.len(), s.len());
+    assert_eq!(v.iter().cloned().max(), s.iter().max());
+    assert_eq!(v.iter().cloned().min(), s.iter().min());
+
+    println!("removing 1<<20");
+    assert!(s.remove(1<<20));
+    v.retain(|x| *x != 1<<20);
+    assert!(!s.contains(1<<20));
+    assert_eq!(&v, &s.iter().collect::<Vec<u32>>());
+    assert_eq!(v.len(), s.iter().count());
+    assert_eq!(v.len(), s.len());
+    assert_eq!(v.iter().cloned().max(), s.iter().max());
+    assert_eq!(v.iter().cloned().min(), s.iter().min());
+
+    println!("removing 2 again");
+    assert!(!s.remove(2));
+    assert!(!s.contains(1<<20));
+    assert_eq!(&v, &s.iter().collect::<Vec<u32>>());
+    assert_eq!(v.len(), s.iter().count());
+    assert_eq!(v.len(), s.len());
+    assert_eq!(v.iter().cloned().max(), s.iter().max());
+    assert_eq!(v.iter().cloned().min(), s.iter().min());
 }
 
 #[derive(Debug)]
@@ -632,6 +751,7 @@ enum Iter<'a> {
     Empty,
     Tiny(Tiny),
     Dense(DenseIter<'a>),
+    Table(TableIter<'a>),
 }
 impl<'a> Iterator for Iter<'a> {
     type Item = u32;
@@ -641,6 +761,7 @@ impl<'a> Iterator for Iter<'a> {
             Iter::Empty => None,
             Iter::Tiny(t) => t.next(),
             Iter::Dense(d) => d.next(),
+            Iter::Table(t) => t.next(),
         }
     }
     #[inline]
@@ -649,6 +770,7 @@ impl<'a> Iterator for Iter<'a> {
             Iter::Empty => 0,
             Iter::Tiny(t) => t.count(),
             Iter::Dense(d) => d.count(),
+            Iter::Table(t) => t.count(),
         }
     }
     #[inline]
@@ -657,6 +779,7 @@ impl<'a> Iterator for Iter<'a> {
             Iter::Empty => (0, Some(0)),
             Iter::Tiny(t) => t.size_hint(),
             Iter::Dense(d) => d.size_hint(),
+            Iter::Table(t) => t.size_hint(),
         }
     }
     #[inline]
@@ -665,6 +788,7 @@ impl<'a> Iterator for Iter<'a> {
             Iter::Empty => None,
             Iter::Tiny(t) => t.min(),
             Iter::Dense(d) => d.min(),
+            Iter::Table(t) => t.min(),
         }
     }
     #[inline]
@@ -673,6 +797,7 @@ impl<'a> Iterator for Iter<'a> {
             Iter::Empty => None,
             Iter::Tiny(t) => t.max(),
             Iter::Dense(d) => d.max(),
+            Iter::Table(t) => t.max(),
         }
     }
     #[inline]
@@ -681,6 +806,7 @@ impl<'a> Iterator for Iter<'a> {
             Iter::Empty => None,
             Iter::Tiny(t) => t.last(),
             Iter::Dense(d) => d.last(),
+            Iter::Table(t) => t.last(),
         }
     }
 }
@@ -749,6 +875,81 @@ fn test_denseiter() {
     assert_eq!(Some(0), DenseIter::new(5, &[1,1,1,0,1,0,2]).min());
 
     assert_eq!(Some(34), DenseIter::new(5, &[0,4,1,0,1,0,2]).min());
+}
+
+
+#[derive(Debug)]
+struct TableIter<'a> {
+    sz_left: usize,
+    whichword: usize,
+    whichbit: u32,
+    a: &'a [(u32,u32)],
+}
+impl<'a> TableIter<'a> {
+    fn new(sz_left: usize, a: &'a [(u32,u32)]) -> Self {
+        TableIter {
+            sz_left,
+            whichword: 0,
+            whichbit: 0,
+            a,
+        }
+    }
+}
+impl<'a> Iterator for TableIter<'a> {
+    type Item = u32;
+    #[inline]
+    fn next(&mut self) -> Option<u32> {
+        loop {
+            if let Some(word) = self.a.get(self.whichword) {
+                if word.1 != 0 {
+                    while self.whichbit < 32 {
+                        let bit = self.whichbit;
+                        self.whichbit += 1;
+                        if word.1 & (1 << bit) != 0 {
+                            println!("found {}", (word.0 << 5) + bit as u32);
+                            println!("sz_left is {}", self.sz_left);
+                            self.sz_left -= 1;
+                            return Some((word.0 << 5) + bit as u32);
+                        }
+                    }
+                }
+                self.whichword += 1;
+                self.whichbit = 0;
+            } else {
+                return None;
+            }
+        }
+    }
+    #[inline]
+    fn count(self) -> usize {
+        self.sz_left
+    }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.sz_left, Some(self.sz_left))
+    }
+    #[inline]
+    fn min(self) -> Option<u32> {
+        self.a.iter().filter(|&x| x != &(0,0)).min().map(|word| word.0 << 5 + word.1.trailing_zeros())
+    }
+    #[inline]
+    fn max(self) -> Option<u32> {
+        if self.sz_left == 0 {
+            None
+        } else {
+            self.a.iter().max().map(|word| (word.0 << 5) + 31-word.1.leading_zeros())
+        }
+    }
+}
+
+#[test]
+fn test_tableiter() {
+    let v: Vec<u32> = TableIter::new(5, &[(0,1),(1,1)]).collect();
+    assert_eq!(&v, &[0, 32]);
+
+    // assert_eq!(Some(0), TableIter::new(5, &[1,1,1,0,1,0,2]).min());
+
+    // assert_eq!(Some(34), TableIter::new(5, &[0,4,1,0,1,0,2]).min());
 }
 
 
