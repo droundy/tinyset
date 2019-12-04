@@ -611,6 +611,20 @@ fn test_insert_remove() {
     assert_eq!(v.iter().cloned().max(), s.iter().max());
     assert_eq!(v.iter().cloned().min(), s.iter().min());
 
+    for i in 0..500 {
+        let n = i*2;
+        println!("inserting {}", n);
+        s.insert(n);
+        v.push(n);
+        v.sort();
+        v.dedup();
+        assert_eq!(&v, &s.iter().collect::<Vec<u32>>());
+        assert_eq!(v.len(), s.iter().count());
+        assert_eq!(v.len(), s.len());
+        assert_eq!(v.iter().cloned().max(), s.iter().max());
+        assert_eq!(v.iter().cloned().min(), s.iter().min());
+    }
+
 }
 
 #[derive(Debug)]
