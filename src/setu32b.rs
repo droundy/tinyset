@@ -743,3 +743,215 @@ fn test_denseiter() {
 
     assert_eq!(Some(34), DenseIter::new(5, &[0,4,1,0,1,0,2]).min());
 }
+
+
+
+fn p_poverty(k: u32, idx: usize, n: usize) -> usize {
+    ((idx % n) + n - (k % n as u32) as usize) % n
+}
+
+/// This inserts k into the array, and requires that there be room for
+/// one more element.  Otherwise, things will be sad.
+fn p_insert(k: u32, a: &mut [(u32,u32)]) -> usize {
+    let n = a.len();
+    for pov in 0..n {
+        let ii = ((k + pov as u32) % n as u32) as usize;
+        let ki = a[ii].0;
+        let pov_ki = p_poverty(ki, ii, n);
+        if a[ii] == (0,0) || ki == k {
+            // println!("already got a spot");
+            return ii;
+        } else if pov_ki < pov {
+            // println!("need to steal from {} < {} at spot {}", pov_ki, pov, ii);
+            // need to steal
+            let stolen = ii;
+            let mut displaced = a[ii];
+            // println!("displaced value is {}", displaced);
+            let mut pov_displaced = pov_ki;
+            a[stolen] = (0,0);
+
+            for j in 1..n {
+                pov_displaced += 1;
+                let jj = (stolen + j) % n;
+                let kj = a[jj].0;
+                let pov_kj = p_poverty(kj, jj, n);
+                if kj == 0 {
+                    // We finally found an unoccupied spot!
+                    // println!("put the displaced at {}", jj);
+                    a[jj] = displaced;
+                    return stolen;
+                }
+                if pov_kj < pov_displaced {
+                    // need to steal again!
+                    std::mem::swap(&mut a[jj], &mut displaced);
+                    pov_displaced = pov_kj;
+                }
+            }
+            panic!("p_insert was called when there was no room!")
+        }
+    }
+    unreachable!()
+}
+
+#[test]
+fn test_insert() {
+    let mut a = [(0,0),(0,0),(0,0),(0,0)];
+    assert_eq!(2, p_insert(2, &mut a));
+    assert_eq!(&a, &[(0,0),(0,0),(0,0),(0,0)]);
+    for i in 0..10 {
+        assert_eq!((0,0), a[p_insert(i, &mut a)]);
+    }
+
+    let mut a = [(0,0),(0,0),(6,6),(0,0)];
+    assert_eq!(3, p_insert(2, &mut a));
+    assert_eq!(&a, &[(0,0),(0,0),(6,6),(0,0)]);
+    for i in 0..10 {
+        assert!([0,i].contains(&a[p_insert(i, &mut a)].0));
+    }
+
+    let mut a = [(0,0),(0,0),(6,6),(3,3)];
+    assert_eq!(3, p_insert(2, &mut a));
+    assert_eq!(&a, &[(3,3),(0,0),(6,6),(0,0)]);
+    for i in 0..10 {
+        assert!([0,i].contains(&a[p_insert(i, &mut a)].0));
+    }
+}
+
+#[derive(Debug,Eq,PartialEq,Clone,Copy)]
+enum LookedUp {
+    EmptySpot(usize),
+    KeyFound(usize),
+    NeedInsert,
+}
+impl LookedUp {
+    fn key_found(self) -> bool {
+        if let LookedUp::KeyFound(_) = self {
+            true
+        } else {
+            false
+        }
+    }
+    #[cfg(test)]
+    fn empty_spot(self) -> bool {
+        if let LookedUp::EmptySpot(_) = self {
+            true
+        } else {
+            false
+        }
+    }
+    #[cfg(test)]
+    fn unwrap(self) -> usize {
+        if let LookedUp::KeyFound(idx) = self {
+            idx
+        } else {
+            panic!("unwrap called on {:?}", self)
+        }
+    }
+}
+
+fn p_lookfor(k: u32, a: &[(u32,u32)]) -> LookedUp {
+    let n = a.len();
+    for pov in 0..n {
+        let ii = ((k + pov as u32) % n as u32) as usize;
+        if a[ii] == (0,0) {
+            // println!("got empty spot at {} for key {}", ii, k);
+            return LookedUp::EmptySpot(ii);
+        }
+        let ki = a[ii].0;
+        let pov_ki = p_poverty(ki, ii, n);
+        if ki == k {
+            // println!("lookfor already got a spot");
+            return LookedUp::KeyFound(ii);
+        } else if pov_ki < pov {
+            // println!("at index {} we have {} > {}", ii, pov, pov_ki);
+            return LookedUp::NeedInsert;
+        }
+    }
+    LookedUp::NeedInsert
+}
+
+#[test]
+fn test_lookfor() {
+    assert_eq!(LookedUp::NeedInsert, p_lookfor(5, &[(3,10),(1,5),(2,2)]));
+    assert_eq!(LookedUp::NeedInsert, p_lookfor(5, &[(3,10),(0,0),(2,3)]));
+    assert_eq!(LookedUp::KeyFound(3), p_lookfor(7, &[(0,0),(0,0),(0,0),(7,7)]));
+}
+
+fn p_remove(k: u32, a: &mut [(u32,u32)]) -> bool {
+    let n = a.len();
+    for i in 0..n {
+        let ii = ((k + i as u32) % n as u32) as usize;
+        // println!("    looking to remove at distance {} slot {}", i, ii);
+        if a[ii] == (0,0) {
+            return false;
+        }
+        let ki = a[ii].0;
+        let iki = (((ii + n) as u32 - (ki % n as u32)) % n as u32) as usize;
+        if i > iki {
+            return false;
+        } else if ki == k {
+            // println!("found {} at location {}", k, ii);
+            a[ii] = (0,0);
+            // Now we need to return anything that might have been
+            // stolen from... to massacre my grammar.
+            let mut previous = ii;
+            for j in 1..n {
+                let jj = (ii + j) % n;
+                // println!("looking at removing offset {} at location {}", j, jj);
+                let kj = a[jj].0;
+                let jkj = (((jj + n) as u32 - (kj % n as u32)) % n as u32) as usize;
+                if kj == 0 || jkj == 0 {
+                    // We found an unoccupied spot or a perfectly
+                    // happy customer, so nothing else could have been
+                    // bumped.
+                    return true;
+                }
+                // need to undo some stealing!
+                a[previous] = a[jj];
+                a[jj] = (0,0);
+                previous = jj;
+            }
+            return true;
+        }
+    }
+    panic!("bug: we should have had space in {:?} for {}", a, k)
+}
+
+#[cfg(test)]
+fn test_p_insert_remove(x: u32, a: &mut [(u32,u32)]) {
+    println!("test_insert_remove({}, {:?})", x, a);
+    let v: Vec<(u32,u32)> = a.iter().cloned().collect();
+    assert!(!p_remove(x, a));
+    assert!(!a.contains(&(x,137))); // otherwise the test won't work right.
+    assert!(!a.iter().any(|z| z.0 == x)); // otherwise the test won't work right.
+    assert!(!p_lookfor(x, a).key_found());
+    a[p_insert(x, a)] = (x,137);
+    assert!(a.contains(&(x,137)));
+    println!("  after insertion of {} a is {:?}", x, a);
+    assert!(p_lookfor(x, a).key_found());
+    assert_eq!((x,137), a[p_lookfor(x, a).unwrap()]);
+    assert!(p_remove(x, a));
+    println!("  after remove of {} a is {:?}", x, a);
+    assert_eq!(a, &v[..]);
+}
+
+#[test]
+fn test_p_remove() {
+    let mut a = [(0,0),(0,0),(2,1)];
+    a[p_insert(5,&mut a)] = (5,3);
+    assert_eq!(&[(5,3),
+                 (0,0),
+                 (2,1)], &a);
+    p_remove(2,&mut a);
+    println!("after removal {:?}", a);
+    assert!(p_lookfor(5, &a).key_found());
+    assert_eq!(&[(0,0),
+                 (0,0),
+                 (5,3)], &a);
+
+    test_p_insert_remove(7,&mut [(0,0),(0,0),(0,0),(0,0)]);
+
+    test_p_insert_remove(2,&mut [(0,0),(1,1),(5,5),(0,0)]);
+
+    test_p_insert_remove(5,&mut [(0,0),(0,0),(2,8)]);
+}
