@@ -457,16 +457,13 @@ impl SetU32 {
                     *self = SetU32::tiny(t);
                     b
                 } else if (e as usize) < (t.len() + 1)*64 {
-                    println!("creating a dense thing");
                     *self = SetU32::dense_for_mx(e+1);
-                    println!("foo is {:?}", self.0);
                     for x in t {
                         self.insert(x);
                     }
                     self.insert(e);
                     false
                 } else {
-                    println!("looks like {} > {}", e, (t.len()+1)*64);
                     *self = SetU32::table_with_cap(3);
                     for x in t {
                         self.insert(x);
@@ -583,7 +580,6 @@ impl SetU32 {
                                          layout_for_num_u32(oldcap),
                                          bytes_for_num_u32(n)) as *mut S;
         if newptr as usize == 0 {
-            println!("unable to realloc from {} to {}", oldcap, n);
             std::alloc::handle_alloc_error(layout_for_num_u32(n));
         }
         (*newptr).cap = n;
@@ -839,8 +835,8 @@ impl<'a> Iterator for DenseIter<'a> {
                         let bit = self.whichbit;
                         self.whichbit += 1;
                         if word & (1 << bit) != 0 {
-                            println!("found {}", ((self.whichword as u32) << 5) + bit as u32);
-                            println!("sz_left is {}", self.sz_left);
+                            // println!("found {}", ((self.whichword as u32) << 5) + bit as u32);
+                            // println!("sz_left is {}", self.sz_left);
                             self.sz_left -= 1;
                             return Some(((self.whichword as u32) << 5) + bit as u32);
                         }
@@ -906,8 +902,8 @@ impl<'a> Iterator for TableIter<'a> {
                         let bit = self.whichbit;
                         self.whichbit += 1;
                         if word.1 & (1 << bit) != 0 {
-                            println!("found {}", (word.0 << 5) + bit as u32);
-                            println!("sz_left is {}", self.sz_left);
+                            // println!("found {}", (word.0 << 5) + bit as u32);
+                            // println!("sz_left is {}", self.sz_left);
                             self.sz_left -= 1;
                             return Some((word.0 << 5) + bit as u32);
                         }
