@@ -232,7 +232,12 @@ proptest!{
 }
 
 /// A set of u32
-pub struct SetU32(*mut S);
+pub struct SetU32(I);
+
+union I {
+    tiny: usize,
+    ptr: *mut S,
+}
 
 #[repr(C)]
 #[derive(Debug)]
@@ -278,42 +283,44 @@ fn decide_set_type(mx: u32, sz: u32) -> SetType {
 
 impl SetU32 {
     fn internal<'a>(&'a self) -> Internal<'a> {
-        if self.0 as usize == 0 {
-            Internal::Empty
-        } else if self.0 as usize & 3 == 1 {
-            Internal::Tiny(Tiny::from_usize(self.0 as usize))
-        } else if self.0 as usize & 3 == 0 {
-            let s = unsafe { &*self.0 };
-            let a = unsafe { std::slice::from_raw_parts((&s.array as *const u32) as *const (u32,u32),
-                                                        s.cap as usize/2) };
-            Internal::Table { sz: s.sz, a }
-        } else {
-            let ptr = (self.0 as usize & !3) as *mut S;
-            let s = unsafe { &*ptr };
-            let a = unsafe { std::slice::from_raw_parts(&s.array as *const u32,
-                                                        s.cap as usize) };
-            Internal::Dense { sz: s.sz, a }
+        unsafe {
+            if self.0.tiny == 0 {
+                Internal::Empty
+            } else if self.0.tiny & 3 == 1 {
+                Internal::Tiny(Tiny::from_usize(self.0.tiny))
+            } else if self.0.tiny & 3 == 0 {
+                let s = &*self.0.ptr;
+                let a = std::slice::from_raw_parts((&s.array as *const u32) as *const (u32,u32),
+                                                   s.cap as usize/2);
+                Internal::Table { sz: s.sz, a }
+            } else {
+                let ptr = (self.0.tiny & !3) as *mut S;
+                let s = &*ptr;
+                let a = std::slice::from_raw_parts(&s.array as *const u32,
+                                                   s.cap as usize);
+                Internal::Dense { sz: s.sz, a }
+            }
         }
     }
 
     fn internal_mut<'a>(&'a mut self) -> InternalMut<'a> {
-        if self.0 as usize == 0 {
-            InternalMut::Empty
-        } else if self.0 as usize & 3 == 1 {
-            InternalMut::Tiny(Tiny::from_usize(self.0 as usize))
-        } else if self.0 as usize & 3 == 0 {
-            let s = unsafe { &mut *self.0 };
-            let a = unsafe {
-                std::slice::from_raw_parts_mut((&mut s.array as *mut u32) as *mut (u32,u32),
-                                               s.cap as usize/2)
-            };
-            InternalMut::Table { sz: &mut s.sz, a }
-        } else {
-            let ptr = (self.0 as usize & !3) as *mut S;
-            let s = unsafe { &mut *ptr };
-            let a = unsafe { std::slice::from_raw_parts_mut(&mut s.array as *mut u32,
-                                                            s.cap as usize) };
-            InternalMut::Dense { sz: &mut s.sz, a }
+        unsafe {
+            if self.0.tiny == 0 {
+                InternalMut::Empty
+            } else if self.0.tiny & 3 == 1 {
+                InternalMut::Tiny(Tiny::from_usize(self.0.tiny))
+            } else if self.0.tiny & 3 == 0 {
+                let s = &mut *self.0.ptr;
+                let a = std::slice::from_raw_parts_mut((&mut s.array as *mut u32) as *mut (u32,u32),
+                                                       s.cap as usize/2);
+                InternalMut::Table { sz: &mut s.sz, a }
+            } else {
+                let ptr = (self.0.tiny & !3) as *mut S;
+                let s = &mut *ptr;
+                let a = std::slice::from_raw_parts_mut(&mut s.array as *mut u32,
+                                                       s.cap as usize);
+                InternalMut::Dense { sz: &mut s.sz, a }
+            }
         }
     }
 
@@ -339,7 +346,7 @@ impl SetU32 {
     ///
     /// This does no heap allocation.
     pub const fn new() -> Self {
-        SetU32(0 as *mut S)
+        SetU32(I { tiny: 0 })
     }
 
     /// Iterate over the set
@@ -392,7 +399,7 @@ impl SetU32 {
             InternalMut::Empty => false,
             InternalMut::Tiny(mut t) => {
                 let b = t.remove(e);
-                *self = SetU32(t.to_usize() as *mut S);
+                *self = SetU32(I { tiny: t.to_usize() });
                 b
             }
             InternalMut::Dense { a, sz } => {
@@ -558,7 +565,7 @@ impl SetU32 {
     }
 
     fn tiny(t: Tiny) -> Self {
-        SetU32(t.to_usize() as *mut S)
+        SetU32(I { tiny: t.to_usize()})
     }
 
     fn dense_for_mx(mx: u32) -> Self {
@@ -566,13 +573,13 @@ impl SetU32 {
         unsafe {
             let newptr = std::alloc::alloc_zeroed(layout_for_num_u32(n)) as *mut S;
             (*newptr).cap = n;
-            SetU32((newptr as usize | 2) as *mut S)
+            SetU32(I { tiny: newptr as usize | 2 })
         }
     }
 
     /// This requires that we currently be a dense!
     unsafe fn dense_increase_mx(&mut self, mx: u32) -> &mut [u32] {
-        let ptr = (self.0 as usize & !3) as *mut S;
+        let ptr = (self.0.tiny & !3) as *mut S;
         let n = 1 + mx/32 + mx/128;
 
         let oldcap = (*ptr).cap;
@@ -583,7 +590,7 @@ impl SetU32 {
             std::alloc::handle_alloc_error(layout_for_num_u32(n));
         }
         (*newptr).cap = n;
-        self.0 = (newptr as usize | 2) as *mut S;
+        self.0.tiny = newptr as usize | 2;
         match self.internal_mut() {
             InternalMut::Dense { a, .. } => {
                 for i in oldcap as usize .. a.len() {
@@ -597,8 +604,8 @@ impl SetU32 {
 
     fn table_with_cap(cap: u32) -> Self {
         unsafe {
-            let x = SetU32(std::alloc::alloc_zeroed(layout_for_num_u32(cap)) as *mut S);
-            (*x.0).cap = cap;
+            let x = SetU32(I { ptr: std::alloc::alloc_zeroed(layout_for_num_u32(cap)) as *mut S});
+            (*x.0.ptr).cap = cap;
             x
         }
     }
@@ -606,7 +613,7 @@ impl SetU32 {
 
 impl Default for SetU32 {
     fn default() -> Self {
-        SetU32(0 as *mut S)
+        SetU32(I { tiny: 0})
     }
 }
 
@@ -614,19 +621,17 @@ const fn bytes_for_num_u32(sz: u32) -> usize {
     sz as usize*4+std::mem::size_of::<S>()-4
 }
 
-fn layout_for_num_u32(sz: u32) -> std::alloc::Layout {
-    unsafe {
-        std::alloc::Layout::from_size_align_unchecked(bytes_for_num_u32(sz), 4)
-    }
+unsafe fn layout_for_num_u32(sz: u32) -> std::alloc::Layout {
+    std::alloc::Layout::from_size_align_unchecked(bytes_for_num_u32(sz), 4)
 }
 
 impl Drop for SetU32 {
     fn drop(&mut self) {
-        if self.0 as usize != 0 && self.0 as usize & 3 != 1 {
+        if unsafe { self.0.tiny != 0 && self.0.tiny & 3 != 1 } {
             let n = self.num_u32();
             if n != 0 {
-                let ptr = (self.0 as usize & !3) as *mut u8;
                 unsafe {
+                    let ptr = (self.0.tiny & !3) as *mut u8;
                     std::alloc::dealloc(ptr, layout_for_num_u32(n));
                 }
             }
@@ -1028,6 +1033,7 @@ enum LookedUp {
     NeedInsert,
 }
 impl LookedUp {
+    #[cfg(test)]
     fn key_found(self) -> bool {
         if let LookedUp::KeyFound(_) = self {
             true
