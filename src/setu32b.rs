@@ -559,6 +559,7 @@ impl SetU32 {
                     }
                 };
                 new.insert(e);
+                *self = new;
                 false
             }
         }
@@ -648,7 +649,9 @@ impl std::iter::FromIterator<u32> for SetU32 {
 
 #[cfg(test)]
 fn test_a_collect(v: Vec<u32>) {
+    println!("test_a_collect({:?})", &v);
     let s: SetU32 = v.iter().cloned().collect();
+    println!("  s is {:?}", s.iter().collect::<Vec<_>>());
     let vv: Vec<_> = s.iter().collect();
     let ss: SetU32 = vv.iter().cloned().collect();
     let vvv: Vec<_> = ss.iter().collect();
