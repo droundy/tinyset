@@ -617,6 +617,53 @@ impl Default for SetU32 {
     }
 }
 
+impl std::iter::FromIterator<u32> for SetU32 {
+    fn from_iter<T>(iter: T) -> Self
+        where
+        T: IntoIterator<Item = u32>
+    {
+        let v: Vec<_> = iter.into_iter().collect();
+        if let Some(mx) = v.iter().cloned().max() {
+            if let Some(t) = Tiny::from_slice(&v) {
+                SetU32(I { tiny: t.to_usize() })
+            } else {
+                let mut new = match decide_set_type(mx, v.len() as u32) {
+                    SetType::Dense => SetU32::dense_for_mx(mx),
+                    SetType::Table => {
+                        let cap = v.len() as u32;
+                        let newcap = cap + 1 + (rand::random::<u32>()) % cap;
+                        SetU32::table_with_cap(newcap)
+                    }
+                };
+                for x in v.iter().cloned() {
+                    new.insert(x);
+                }
+                new
+            }
+        } else {
+            SetU32(I { tiny: 0})
+        }
+    }
+}
+
+#[cfg(test)]
+fn test_a_collect(v: Vec<u32>) {
+    let s: SetU32 = v.iter().cloned().collect();
+    let vv: Vec<_> = s.iter().collect();
+    let ss: SetU32 = vv.iter().cloned().collect();
+    let vvv: Vec<_> = ss.iter().collect();
+    assert_eq!(vv, vvv);
+}
+
+#[test]
+fn test_collect() {
+    test_a_collect(vec![]);
+    test_a_collect(vec![0]);
+    test_a_collect(vec![0,1<<29]);
+    test_a_collect(vec![0,1<<30,1<<30]);
+    test_a_collect((0..1024).collect());
+}
+
 const fn bytes_for_num_u32(sz: u32) -> usize {
     sz as usize*4+std::mem::size_of::<S>()-4
 }
@@ -1036,14 +1083,6 @@ impl LookedUp {
     #[cfg(test)]
     fn key_found(self) -> bool {
         if let LookedUp::KeyFound(_) = self {
-            true
-        } else {
-            false
-        }
-    }
-    #[cfg(test)]
-    fn empty_spot(self) -> bool {
-        if let LookedUp::EmptySpot(_) = self {
             true
         } else {
             false
