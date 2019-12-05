@@ -886,16 +886,17 @@ impl<'a> Iterator for DenseIter<'a> {
         loop {
             if let Some(word) = self.a.get(self.whichword) {
                 if *word != 0 {
-                    while self.whichbit < 32 {
-                        let bit = self.whichbit;
-                        self.whichbit += 1;
-                        if word & (1 << bit) != 0 {
-                            // println!("found {}", ((self.whichword as u32) << 5) + bit as u32);
-                            // println!("sz_left is {}", self.sz_left);
-                            self.sz_left -= 1;
-                            return Some(((self.whichword as u32) << 5) + bit as u32);
-                        }
+                    let w = *word as u64 & !((1 << self.whichbit) - 1);
+                    let bit = w.trailing_zeros();
+                    let foo = self.whichword as u32;
+                    if w.wrapping_shr(bit+1) == 0 {
+                        self.whichword += 1;
+                        self.whichbit = 0;
+                    } else {
+                        self.whichbit = bit+1;
                     }
+                    self.sz_left -= 1;
+                    return Some((foo << 5) + bit as u32);
                 }
                 self.whichword += 1;
                 self.whichbit = 0;
