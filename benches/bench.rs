@@ -104,8 +104,8 @@ fn bench_sets(density: f64, num_elements: usize) {
 
 fn bench_collect(density: f64) {
     assert!(density <= 1.0);
-    println!("\ncollect {:5}:{:>12} {:>13} {:>13} {:>13}", density,
-             "setu64", "setu32", "tiny", "std");
+    println!("\ncollect {:5}:{:>12} {:>13} {:>13} {:>13} {:>13} {:>13}", density,
+             "setu32", "setu32b", "std32", "setu64", "tiny", "std");
     for sz in 0..10 {
         let mut gen = move || {
             let mut rng = rand::thread_rng();
@@ -125,12 +125,18 @@ fn bench_collect(density: f64) {
             }
             vec
         };
-        println!("{:>11}: {:8.0}ns    {:8.0}ns    {:8.0}ns    {:8.0}ns", sz,
-                 bench_gen_env(&mut gen, |v| {
-                     v.iter().cloned().collect::<tinyset::SetU64>().len()
-                 }).ns_per_iter,
+        println!("{:>11}: {:8.0}ns    {:8.0}ns    {:8.0}ns    {:8.0}ns    {:8.0}ns    {:8.0}ns", sz,
                  bench_gen_env(&mut gen32, |v| {
                      v.iter().cloned().collect::<tinyset::SetU32>().len()
+                 }).ns_per_iter,
+                 bench_gen_env(&mut gen32, |v| {
+                     v.iter().cloned().collect::<tinyset::setu32b::SetU32>().len()
+                 }).ns_per_iter,
+                 bench_gen_env(&mut gen32, |v| {
+                     v.iter().cloned().collect::<std::collections::HashSet<_>>().len()
+                 }).ns_per_iter,
+                 bench_gen_env(&mut gen, |v| {
+                     v.iter().cloned().collect::<tinyset::SetU64>().len()
                  }).ns_per_iter,
                  bench_gen_env(&mut gen, |v| {
                      v.iter().cloned().collect::<tinyset::Set64<_>>().len()
@@ -158,12 +164,18 @@ fn bench_collect(density: f64) {
             }
         vec
     };
-    println!("{:>11}: {:8.0} {:8.0} {:8.0} {:8.0}", ".collect()",
-             bench_power_scaling(&mut gen, |v| {
-                 v.iter().cloned().collect::<tinyset::SetU64>().len()
-             }, 10).scaling,
+    println!("{:>11}: {:8.0} {:8.0} {:8.0} {:8.0} {:8.0} {:8.0}", ".collect()",
              bench_power_scaling(&mut gen32, |v| {
                  v.iter().cloned().collect::<tinyset::SetU32>().len()
+             }, 10).scaling,
+             bench_power_scaling(&mut gen32, |v| {
+                 v.iter().cloned().collect::<tinyset::setu32b::SetU32>().len()
+             }, 10).scaling,
+             bench_power_scaling(&mut gen32, |v| {
+                 v.iter().cloned().collect::<std::collections::HashSet<_>>().len()
+             }, 10).scaling,
+             bench_power_scaling(&mut gen, |v| {
+                 v.iter().cloned().collect::<tinyset::SetU64>().len()
              }, 10).scaling,
              bench_power_scaling(&mut gen, |v| {
                  v.iter().cloned().collect::<tinyset::Set64<_>>().len()
@@ -365,6 +377,11 @@ fn bench_scaling(density: f64, min: usize) {
 
 fn main() {
 
+    bench_collect(0.001);
+    bench_collect(0.05);
+    bench_collect(0.5);
+    bench_collect(0.8);
+
     bench_sum(0.001);
     bench_sum(0.05);
     bench_sum(0.5);
@@ -374,11 +391,6 @@ fn main() {
     bench_min(0.05);
     bench_min(0.5);
     bench_min(0.8);
-
-    bench_collect(0.001);
-    bench_collect(0.05);
-    bench_collect(0.5);
-    bench_collect(0.8);
 
     bench_scaling(0.05, 8);
     bench_scaling(0.5, 8);

@@ -471,7 +471,7 @@ impl SetU32 {
                     self.insert(e);
                     false
                 } else {
-                    *self = SetU32::table_with_cap(4);
+                    *self = SetU32::table_with_cap(3);
                     for x in t {
                         self.insert(x);
                     }
@@ -547,7 +547,7 @@ impl SetU32 {
                     }
                     SetType::Table => {
                         let cap = a.len() as u32;
-                        let newcap = cap + 1+ (rand::random::<u32>()) % cap;
+                        let newcap = cap + 1 + (rand::random::<u32>()) % (cap>>1);
                         let mut new = SetU32::table_with_cap(newcap);
                         if let InternalMut::Table { a: newa, sz: newsz } = new.internal_mut() {
                             *newsz = *sz;
@@ -562,6 +562,52 @@ impl SetU32 {
                 new.insert(e);
                 *self = new;
                 false
+            }
+        }
+    }
+
+
+    /// Insert a number into the set.
+    ///
+    /// Return a bool indicating if it was already present.
+    fn insert_unchecked_table_or_dense(&mut self, e: u32) {
+        match self.internal_mut() {
+            InternalMut::Empty => unreachable!(),
+            InternalMut::Tiny(_) => unreachable!(),
+            InternalMut::Dense { sz, a } => {
+                let key = e as usize >> 5;
+                let bit = 1 << (e & 31);
+                let was_here = a[key] & bit != 0;
+                a[key] = a[key] | bit;
+                if !was_here {
+                    *sz += 1;
+                }
+            }
+            InternalMut::Table { sz, a } => {
+                let key = e >> 5;
+                let bits = 1 << (e & 31);
+                match p_lookfor(key, a) {
+                    LookedUp::EmptySpot(i) => {
+                        a[i] = (key, bits);
+                        *sz += 1;
+                        return;
+                    }
+                    LookedUp::KeyFound(i) => {
+                        if a[i].1 & bits == 0 {
+                            a[i].1 = a[i].1 | bits;
+                            *sz += 1;
+                            return;
+                        } else {
+                            return;
+                        }
+                    }
+                    LookedUp::NeedInsert => (),
+                }
+                let idx = p_insert(key, a);
+                // println!("about to insert key {} with elem {} at {}",
+                //          key, e, idx);
+                a[idx] = (key, bits);
+                *sz += 1;
             }
         }
     }
@@ -632,13 +678,19 @@ impl std::iter::FromIterator<u32> for SetU32 {
                 let mut new = match decide_set_type(mx, v.len() as u32) {
                     SetType::Dense => SetU32::dense_for_mx(mx),
                     SetType::Table => {
-                        let cap = v.len() as u32;
-                        let newcap = cap + 1 + (rand::random::<u32>()) % cap;
+                        let cap = {
+                            let mut vv: Vec<_> = v.iter().cloned().map(|x| x >> 5).collect();
+                            vv.sort();
+                            vv.dedup();
+                            vv.len() as u32
+                        };
+                        // let cap = v.len() as u32;
+                        let newcap = cap + 1 + cap/16;
                         SetU32::table_with_cap(newcap)
                     }
                 };
                 for x in v.iter().cloned() {
-                    new.insert(x);
+                    new.insert_unchecked_table_or_dense(x);
                 }
                 new
             }
