@@ -454,7 +454,7 @@ impl SetU32 {
                     *self = SetU32::dense_for_mx(e+1);
                     self.insert(e);
                 } else {
-                    *self = SetU32::table_with_cap(1);
+                    *self = SetU32::table_with_cap(2);
                     self.insert(e);
                 }
                 false
@@ -471,7 +471,7 @@ impl SetU32 {
                     self.insert(e);
                     false
                 } else {
-                    *self = SetU32::table_with_cap(3);
+                    *self = SetU32::table_with_cap(4);
                     for x in t {
                         self.insert(x);
                     }
@@ -548,8 +548,9 @@ impl SetU32 {
                     SetType::Table => {
                         let cap = a.len() as u32;
                         let newcap = cap + 1+ (rand::random::<u32>()) % cap;
-                        let mut new = SetU32::table_with_cap(newcap);
-                        if let InternalMut::Table { a: newa, .. } = new.internal_mut() {
+                        let mut new = SetU32::table_with_cap(2*newcap);
+                        if let InternalMut::Table { a: newa, sz: newsz } = new.internal_mut() {
+                            *newsz = *sz;
                             for x in a.iter() {
                                 let idx = p_insert(x.0, newa);
                                 newa[idx] = *x;
@@ -633,7 +634,7 @@ impl std::iter::FromIterator<u32> for SetU32 {
                     SetType::Table => {
                         let cap = v.len() as u32;
                         let newcap = cap + 1 + (rand::random::<u32>()) % cap;
-                        SetU32::table_with_cap(newcap)
+                        SetU32::table_with_cap(2*newcap)
                     }
                 };
                 for x in v.iter().cloned() {
@@ -954,16 +955,16 @@ impl<'a> Iterator for TableIter<'a> {
         loop {
             if let Some(word) = self.a.get(self.whichword) {
                 if word.1 != 0 {
-                    while self.whichbit < 32 {
-                        let bit = self.whichbit;
-                        self.whichbit += 1;
-                        if word.1 & (1 << bit) != 0 {
-                            // println!("found {}", (word.0 << 5) + bit as u32);
-                            // println!("sz_left is {}", self.sz_left);
-                            self.sz_left -= 1;
-                            return Some((word.0 << 5) + bit as u32);
-                        }
+                    let w = word.1 as u64 & !((1 << self.whichbit) - 1);
+                    let bit = w.trailing_zeros();
+                    if w.wrapping_shr(bit+1) == 0 {
+                        self.whichword += 1;
+                        self.whichbit = 0;
+                    } else {
+                        self.whichbit = bit+1;
                     }
+                    self.sz_left -= 1;
+                    return Some((word.0 << 5) + bit as u32);
                 }
                 self.whichword += 1;
                 self.whichbit = 0;

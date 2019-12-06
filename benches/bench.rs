@@ -336,14 +336,17 @@ fn bench_scaling(density: f64, min: usize) {
 
 fn main() {
 
+    bench_sum(0.001);
     bench_sum(0.05);
     bench_sum(0.5);
     bench_sum(0.8);
 
+    bench_min(0.001);
     bench_min(0.05);
     bench_min(0.5);
     bench_min(0.8);
 
+    bench_collect(0.001);
     bench_collect(0.05);
     bench_collect(0.5);
     bench_collect(0.8);
