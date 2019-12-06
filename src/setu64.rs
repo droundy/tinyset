@@ -788,7 +788,6 @@ impl SetU64 {
                     return false;
                 }
                 let e = if e == 0 { s.bits } else { e };
-                println!("  e to remove is {}", e);
                 let had_e = p_remove(e, a, 0);
                 if had_e {
                     s.sz -= 1;
