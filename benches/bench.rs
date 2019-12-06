@@ -1,6 +1,24 @@
 use easybench::{bench_gen_env, bench_power_scaling};
 use rand::Rng;
 
+use stats_alloc::{Region, StatsAlloc, INSTRUMENTED_SYSTEM};
+use std::alloc::System;
+
+#[global_allocator]
+static GLOBAL: &StatsAlloc<System> = &INSTRUMENTED_SYSTEM;
+
+fn mem_used<T>(f: impl Fn() -> T) -> (T, usize) {
+    let reg = Region::new(&GLOBAL);
+    let v = f();
+    let stats = reg.change();
+    let total = stats.bytes_allocated as isize - stats.bytes_deallocated as isize + stats.bytes_reallocated;
+    if total > 0 {
+        (v, std::mem::size_of::<T>() + total as usize)
+    } else {
+        (v, std::mem::size_of::<T>())
+    }
+}
+
 fn bench_sets(density: f64, num_elements: usize) {
     assert!(density <= 1.0);
     let mut gen = move || {
@@ -177,23 +195,34 @@ fn bench_funcs<O>(name: &str,
             }
             vec
         };
-        println!("{:>11}: {:8.0}ns    {:8.0}ns    {:8.0}ns    {:8.0}ns    {:8.0}ns    {:8.0}ns", sz,
+        println!("{:>9}:{:8.0}ns/{:<3.0} {:7.0}ns/{:<3.0} {:7.0}ns/{:<3.0} {:7.0}ns/{:<3.0} {:7.0}ns/{:<3.0} {:7.0}ns/{:<3.0}",
+                 sz,
                  bench_gen_env(|| { gen().iter().cloned()
                                     .map(|x| x as u32).collect::<tinyset::SetU32>() },
                                func32).ns_per_iter,
+                 (0..100).map(|_| mem_used(|| gen().iter().cloned()
+                                           .map(|x| x as u32).collect::<tinyset::SetU32>()).1).sum::<usize>() as f64/100.0,
                  bench_gen_env(|| { gen().iter().cloned()
                                     .map(|x| x as u32).collect::<tinyset::setu32b::SetU32>() },
                                func32b).ns_per_iter,
+                 (0..100).map(|_| mem_used(|| gen().iter().cloned()
+                                           .map(|x| x as u32).collect::<tinyset::setu32b::SetU32>()).1).sum::<usize>() as f64/100.0,
                  bench_gen_env(|| { gen().iter().cloned()
                                     .map(|x| x as u32)
                                     .collect::<std::collections::HashSet<_>>() },
                                funchash32).ns_per_iter,
+                 (0..100).map(|_| mem_used(|| gen().iter().cloned()
+                                           .map(|x| x as u32)
+                                           .collect::<std::collections::HashSet<_>>()).1).sum::<usize>() as f64/100.0,
                  bench_gen_env(|| { gen().iter().cloned().collect::<tinyset::SetU64>() },
                                func64).ns_per_iter,
+                 (0..100).map(|_| mem_used(|| gen().iter().cloned().collect::<tinyset::SetU64>()).1).sum::<usize>() as f64/100.0,
                  bench_gen_env(|| { gen().iter().cloned().collect::<tinyset::Set64<_>>() },
                                oldtiny).ns_per_iter,
+                 (0..100).map(|_| mem_used(|| gen().iter().cloned().collect::<tinyset::Set64<_>>()).1).sum::<usize>() as f64/100.0,
                  bench_gen_env(|| { gen().iter().cloned().collect::<std::collections::HashSet<_>>() },
                                funchash).ns_per_iter,
+                 (0..100).map(|_| mem_used(|| gen().iter().cloned().collect::<std::collections::HashSet<_>>()).1).sum::<usize>() as f64/100.0,
         );
     }
     let gen = move |sz| {
@@ -205,7 +234,7 @@ fn bench_funcs<O>(name: &str,
         }
         vec
     };
-    println!("{:>11}: {:8.0} {:8.0} {:8.0} {:8.0} {:8.0} {:8.0}", "scaling",
+    println!("{:>10}: {:8.0} {:8.0} {:8.0} {:8.0} {:8.0} {:8.0}", "scaling",
              bench_power_scaling(
                  |sz| {
                      gen(sz).iter().cloned().map(|x| x as u32).collect::<tinyset::SetU32>()
