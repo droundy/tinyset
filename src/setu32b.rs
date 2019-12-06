@@ -900,7 +900,6 @@ impl<'a> Iterator for DenseIter<'a> {
                     return Some((foo << 5) + bit as u32);
                 }
                 self.whichword += 1;
-                self.whichbit = 0;
             } else {
                 return None;
             }
@@ -967,7 +966,6 @@ impl<'a> Iterator for TableIter<'a> {
                     return Some((word.0 << 5) + bit as u32);
                 }
                 self.whichword += 1;
-                self.whichbit = 0;
             } else {
                 return None;
             }
