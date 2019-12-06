@@ -454,7 +454,7 @@ impl SetU32 {
                     *self = SetU32::dense_for_mx(e+1);
                     self.insert(e);
                 } else {
-                    *self = SetU32::table_with_cap(2);
+                    *self = SetU32::table_with_cap(1);
                     self.insert(e);
                 }
                 false
@@ -493,7 +493,7 @@ impl SetU32 {
                     if key > 3*(*sz as usize) {
                         // It is getting sparse, so let us switch back
                         // to a non-hash table.
-                        let mut new = SetU32::table_with_cap(2*(*sz + 1));
+                        let mut new = SetU32::table_with_cap(*sz + 1);
                         for x in DenseIter::new( *sz as usize, a ) {
                             new.insert(x);
                         }
@@ -548,7 +548,7 @@ impl SetU32 {
                     SetType::Table => {
                         let cap = a.len() as u32;
                         let newcap = cap + 1+ (rand::random::<u32>()) % cap;
-                        let mut new = SetU32::table_with_cap(2*newcap);
+                        let mut new = SetU32::table_with_cap(newcap);
                         if let InternalMut::Table { a: newa, sz: newsz } = new.internal_mut() {
                             *newsz = *sz;
                             for x in a.iter() {
@@ -606,8 +606,8 @@ impl SetU32 {
 
     fn table_with_cap(cap: u32) -> Self {
         unsafe {
-            let x = SetU32(I { ptr: std::alloc::alloc_zeroed(layout_for_num_u32(cap)) as *mut S});
-            (*x.0.ptr).cap = cap;
+            let x = SetU32(I { ptr: std::alloc::alloc_zeroed(layout_for_num_u32(2*cap)) as *mut S});
+            (*x.0.ptr).cap = 2*cap;
             x
         }
     }
@@ -634,7 +634,7 @@ impl std::iter::FromIterator<u32> for SetU32 {
                     SetType::Table => {
                         let cap = v.len() as u32;
                         let newcap = cap + 1 + (rand::random::<u32>()) % cap;
-                        SetU32::table_with_cap(2*newcap)
+                        SetU32::table_with_cap(newcap)
                     }
                 };
                 for x in v.iter().cloned() {
