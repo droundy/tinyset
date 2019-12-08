@@ -510,8 +510,8 @@ impl SetU32 {
                 }
             }
             InternalMut::Table { sz, available, a } => {
-                assert_eq!(*available,
-                           a.iter().filter(|&x| x == &(0,0)).count() as u32);
+                // assert_eq!(*available,
+                //            a.iter().filter(|&x| x == &(0,0)).count() as u32);
                 let key = e >> 5;
                 let bits = 1 << (e & 31);
                 match p_lookfor(key, a) {
@@ -532,8 +532,8 @@ impl SetU32 {
                     }
                     LookedUp::NeedInsert => (),
                 }
-                // Check if at least 1/16 of our table is available...
-                if *available as usize > a.len()>>4 {
+                // Check if at least 1/8 of our table is available...
+                if *available as usize > a.len()>>3 {
                     let idx = p_insert(key, a);
                     *available -= 1;
                     // println!("about to insert key {} with elem {} at {}",

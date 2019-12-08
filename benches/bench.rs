@@ -448,7 +448,7 @@ fn bench_scaling(density: f64, min: usize) {
 
 fn main() {
 
-    for sz in  0..10 {
+    for &sz in [0,1,2,3,4,8,16,32,1024].iter() {
         bench_sets(0.001, sz);
     }
     for sz in  0..10 {
