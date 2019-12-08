@@ -1086,7 +1086,7 @@ fn p_insert(k: u32, a: &mut [(u32,u32)]) -> usize {
                 let jj = (stolen + j) % n;
                 let kj = a[jj].0;
                 let pov_kj = p_poverty(kj, jj, n);
-                if kj == 0 {
+                if a[jj] == (0,0) {
                     // We finally found an unoccupied spot!
                     // println!("put the displaced at {}", jj);
                     a[jj] = displaced;
