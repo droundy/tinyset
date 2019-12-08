@@ -21,53 +21,104 @@ fn mem_used<T>(f: impl Fn() -> T) -> (T, usize) {
 
 fn bench_sets(density: f64, num_elements: usize) {
     assert!(density <= 1.0);
-    let mut gen = move || {
+    let gen32 = move || {
+        let mut rng = rand::thread_rng();
+        let mx = (num_elements as f64/density) as u32 + 1;
+        let mut set = tinyset::SetU32::new();
+        while set.len() < num_elements {
+            set.insert(rng.gen_range(0, mx));
+        }
+        let x = rng.gen_range(0, mx);
+        set.insert(x);
+        set.remove(x); // ensure there is room for one more
+        (rng.gen_range(0, mx), set)
+    };
+    let gen32b = move || {
+        let mut rng = rand::thread_rng();
+        let mx = (num_elements as f64/density) as u32 + 1;
+        let mut set = tinyset::setu32b::SetU32::new();
+        while set.len() < num_elements {
+            set.insert(rng.gen_range(0, mx));
+        }
+        let x = rng.gen_range(0, mx);
+        set.insert(x);
+        set.remove(x); // ensure there is room for one more
+        (rng.gen_range(0, mx), set)
+    };
+    let genstd32 = move || {
+        let mut rng = rand::thread_rng();
+        let mx = (num_elements as f64/density) as u32 + 1;
+        let mut set = std::collections::HashSet::new();
+        while set.len() < num_elements {
+            set.insert(rng.gen_range(0, mx));
+        }
+        let x = rng.gen_range(0, mx);
+        set.insert(x);
+        set.remove(&x); // ensure there is room for one more
+        (rng.gen_range(0, mx), set)
+    };
+    let gen = move || {
         let mut rng = rand::thread_rng();
         let mx = (num_elements as f64/density) as u64 + 1;
         let mut set = tinyset::SetU64::new();
         while set.len() < num_elements {
             set.insert(rng.gen_range(0, mx));
         }
+        let x = rng.gen_range(0, mx);
+        set.insert(x);
+        set.remove(x); // ensure there is room for one more
         (rng.gen_range(0, mx), set)
     };
-    let mut gen_hashset = move || {
+    let gen_hashset = move || {
         let mut rng = rand::thread_rng();
         let mx = (num_elements as f64/density) as u64 + 1;
         let mut set = std::collections::HashSet::new();
         while set.len() < num_elements {
             set.insert(rng.gen_range(0, mx));
         }
+        let x = rng.gen_range(0, mx);
+        set.insert(x);
+        set.remove(&x); // ensure there is room for one more
         (rng.gen_range(0, mx), set)
     };
-    let mut gen_tiny = move || {
+    let gen_tiny = move || {
         let mut rng = rand::thread_rng();
         let mx = (num_elements as f64/density) as u64 + 1;
         let mut set = tinyset::Set64::new();
         while set.len() < num_elements {
             set.insert(rng.gen_range(0, mx));
         }
+        let x = rng.gen_range(0, mx);
+        set.insert(x);
+        set.remove(&x); // ensure there is room for one more
         (rng.gen_range(0, mx), set)
     };
 
-    let mut sz_total = 0.0;
-    for _ in 0..1000 {
-        sz_total += gen().1.mem_used() as f64;
-    }
-    sz_total /= 1000.0;
-    println!("\n{}, {}: {:.1} bytes {:>9} {:>9} {:>9}", density, num_elements, sz_total,
-             "this", "tiny", "std");
-    println!("{:>18}: {:5.0}ns {:5.0}ns {:5.0}ns", ".len()",
-             bench_gen_env(&mut gen, |(_,set)| {
-                 set.len()
-             }).ns_per_iter,
-             bench_gen_env(&mut gen_tiny, |(_,set)| {
-                 set.len()
-             }).ns_per_iter,
-             bench_gen_env(&mut gen_hashset, |(_,set)| {
-                 set.len()
-             }).ns_per_iter,
+    println!("\n{:5}, {:3}:        {:>7} {:>7} {:>7} {:>7} {:>7} {:>7}",
+             density, num_elements,
+             "u32", "u32b", "std32", "u64", "old64", "std");
+
+    println!("{:>17}: {:6.0}b {:6.0}b {:6.0}b {:6.0}b {:6.0}b {:6.0}b",
+             "size",
+             (0..100).map(|_| mem_used(|| gen32().1).1).sum::<usize>() as f64/100.0,
+             (0..100).map(|_| mem_used(|| gen32b().1).1).sum::<usize>() as f64/100.0,
+             (0..100).map(|_| mem_used(|| genstd32().1).1).sum::<usize>() as f64/100.0,
+             (0..100).map(|_| mem_used(|| gen().1).1).sum::<usize>() as f64/100.0,
+             (0..100).map(|_| mem_used(|| gen_tiny().1).1).sum::<usize>() as f64/100.0,
+             (0..100).map(|_| mem_used(|| gen_hashset().1).1).sum::<usize>() as f64/100.0,
     );
-    println!("{:>18}: {:5.0}ns {:5.0}ns {:5.0}ns", ".contains(ran)",
+
+    println!("{:>17}: {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns",
+             ".contains(ran)",
+             bench_gen_env(gen32, |(idx,set)| {
+                 set.contains(*idx)
+             }).ns_per_iter,
+             bench_gen_env(gen32b, |(idx,set)| {
+                 set.contains(*idx)
+             }).ns_per_iter,
+             bench_gen_env(genstd32, |(idx,set)| {
+                 set.contains(idx)
+             }).ns_per_iter,
              bench_gen_env(gen, |(idx,set)| {
                  set.contains(*idx)
              }).ns_per_iter,
@@ -78,7 +129,17 @@ fn bench_sets(density: f64, num_elements: usize) {
                  set.contains(idx)
              }).ns_per_iter,
     );
-    println!("{:>18}: {:5.0}ns {:5.0}ns {:5.0}ns", ".remove(ran)",
+    println!("{:>17}: {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns",
+             ".remove(ran)",
+             bench_gen_env(gen32, |(idx,set)| {
+                 set.remove(*idx)
+             }).ns_per_iter,
+             bench_gen_env(gen32b, |(idx,set)| {
+                 set.remove(*idx)
+             }).ns_per_iter,
+             bench_gen_env(genstd32, |(idx,set)| {
+                 set.remove(idx)
+             }).ns_per_iter,
              bench_gen_env(gen, |(idx,set)| {
                  set.remove(*idx)
              }).ns_per_iter,
@@ -89,7 +150,17 @@ fn bench_sets(density: f64, num_elements: usize) {
                  set.remove(idx)
              }).ns_per_iter,
     );
-    println!("{:>18}: {:5.0}ns {:5.0}ns {:5.0}ns", ".insert(ran)",
+    println!("{:>17}: {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns",
+             ".insert(ran)",
+             bench_gen_env(gen32, |(idx,set)| {
+                 set.insert(*idx)
+             }).ns_per_iter,
+             bench_gen_env(gen32b, |(idx,set)| {
+                 set.insert(*idx)
+             }).ns_per_iter,
+             bench_gen_env(genstd32, |(idx,set)| {
+                 set.insert(*idx)
+             }).ns_per_iter,
              bench_gen_env(gen, |(idx,set)| {
                  set.insert(*idx)
              }).ns_per_iter,
@@ -377,6 +448,16 @@ fn bench_scaling(density: f64, min: usize) {
 
 fn main() {
 
+    for sz in  0..10 {
+        bench_sets(0.001, sz);
+    }
+    for sz in  0..10 {
+        bench_sets(0.05, sz);
+    }
+    for sz in  0..10 {
+        bench_sets(0.5, sz);
+    }
+
     bench_collect(0.001);
     bench_collect(0.05);
     bench_collect(0.5);
@@ -395,12 +476,4 @@ fn main() {
     bench_scaling(0.05, 8);
     bench_scaling(0.5, 8);
     bench_scaling(0.8, 8);
-
-    for sz in  0..10 {
-        bench_sets(0.05, sz);
-    }
-
-    for sz in  0..10 {
-        bench_sets(0.5, sz);
-    }
 }
