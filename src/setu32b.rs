@@ -252,6 +252,7 @@ enum Internal<'a> {
     Tiny(Tiny),
     Table {
         sz: u32,
+        available: u32,
         a: &'a [(u32,u32)],
     },
     Dense {
@@ -264,6 +265,7 @@ enum InternalMut<'a> {
     Tiny(Tiny),
     Table {
         sz: &'a mut u32,
+        available: &'a mut u32,
         a: &'a mut [(u32,u32)],
     },
     Dense {
@@ -290,9 +292,9 @@ impl SetU32 {
                 Internal::Tiny(Tiny::from_usize(self.0.tiny))
             } else if self.0.tiny & 3 == 0 {
                 let s = &*self.0.ptr;
-                let a = std::slice::from_raw_parts((&s.array as *const u32) as *const (u32,u32),
-                                                   s.cap as usize/2);
-                Internal::Table { sz: s.sz, a }
+                let start = (&s.array as *const u32 as usize + 4) as *const (u32,u32);
+                let a = std::slice::from_raw_parts(start, (s.cap-1) as usize/2);
+                Internal::Table { sz: s.sz, available: s.array, a }
             } else {
                 let ptr = (self.0.tiny & !3) as *mut S;
                 let s = &*ptr;
@@ -311,9 +313,9 @@ impl SetU32 {
                 InternalMut::Tiny(Tiny::from_usize(self.0.tiny))
             } else if self.0.tiny & 3 == 0 {
                 let s = &mut *self.0.ptr;
-                let a = std::slice::from_raw_parts_mut((&mut s.array as *mut u32) as *mut (u32,u32),
-                                                       s.cap as usize/2);
-                InternalMut::Table { sz: &mut s.sz, a }
+                let start = (&s.array as *const u32 as usize + 4) as *mut (u32,u32);
+                let a = std::slice::from_raw_parts_mut(start, (s.cap-1) as usize/2);
+                InternalMut::Table { sz: &mut s.sz, available: &mut s.array, a }
             } else {
                 let ptr = (self.0.tiny & !3) as *mut S;
                 let s = &mut *ptr;
@@ -355,7 +357,7 @@ impl SetU32 {
         match self.internal() {
             Internal::Empty => Iter::Empty,
             Internal::Tiny(t) => Iter::Tiny( t ),
-            Internal::Table { a, sz } => {
+            Internal::Table { a, sz, .. } => {
                 Iter::Table ( TableIter::new(sz as usize, a) )
             }
             Internal::Dense { a, sz } => {
@@ -417,7 +419,7 @@ impl SetU32 {
                     false
                 }
             }
-            InternalMut::Table { a, sz } => {
+            InternalMut::Table { a, sz, available } => {
                 let key = e >> 5;
                 let bits = 1 << (e & 31);
                 if let LookedUp::KeyFound(idx) = p_lookfor(key, a) {
@@ -428,6 +430,7 @@ impl SetU32 {
                             // We've removed everything with this key,
                             // so remove the whole key!
                             p_remove(key, a);
+                            *available += 1;
                         } else {
                             a[idx].1 = new;
                         }
@@ -506,13 +509,16 @@ impl SetU32 {
                     false
                 }
             }
-            InternalMut::Table { sz, a } => {
+            InternalMut::Table { sz, available, a } => {
+                assert_eq!(*available,
+                           a.iter().filter(|&x| x == &(0,0)).count() as u32);
                 let key = e >> 5;
                 let bits = 1 << (e & 31);
                 match p_lookfor(key, a) {
                     LookedUp::EmptySpot(i) => {
                         a[i] = (key, bits);
                         *sz += 1;
+                        *available -= 1;
                         return false;
                     }
                     LookedUp::KeyFound(i) => {
@@ -527,8 +533,9 @@ impl SetU32 {
                     LookedUp::NeedInsert => (),
                 }
                 // Check if at least 1/16 of our table is available...
-                if a.iter().filter(|&x| x == &(0,0)).count() > a.len()>>4 {
+                if *available as usize > a.len()>>4 {
                     let idx = p_insert(key, a);
+                    *available -= 1;
                     // println!("about to insert key {} with elem {} at {}",
                     //          key, e, idx);
                     a[idx] = (key, bits);
@@ -547,14 +554,15 @@ impl SetU32 {
                     }
                     SetType::Table => {
                         let cap = a.len() as u32;
-                        let newcap = cap + 1 + (rand::random::<u32>()) % (cap>>1);
+                        let newcap = cap + 1 + (rand::random::<u32>() % cap);
                         let mut new = SetU32::table_with_cap(newcap);
-                        if let InternalMut::Table { a: newa, sz: newsz } = new.internal_mut() {
+                        if let InternalMut::Table { a: newa, sz: newsz, available: av } = new.internal_mut() {
                             *newsz = *sz;
                             for x in a.iter() {
                                 let idx = p_insert(x.0, newa);
                                 newa[idx] = *x;
                             }
+                            *av = newa.iter().filter(|&x| x == &(0,0)).count() as u32;
                         }
                         new
                     }
@@ -583,17 +591,21 @@ impl SetU32 {
                     *sz += 1;
                 }
             }
-            InternalMut::Table { sz, a } => {
+            InternalMut::Table { sz, a, available } => {
                 let key = e >> 5;
                 let bits = 1 << (e & 31);
                 match p_lookfor(key, a) {
                     LookedUp::EmptySpot(i) => {
                         a[i] = (key, bits);
                         *sz += 1;
+                        *available -= 1;
                         return;
                     }
                     LookedUp::KeyFound(i) => {
                         if a[i].1 & bits == 0 {
+                            if a[i].1 == 0 {
+                                *available -= 1;
+                            }
                             a[i].1 = a[i].1 | bits;
                             *sz += 1;
                             return;
@@ -652,8 +664,9 @@ impl SetU32 {
 
     fn table_with_cap(cap: u32) -> Self {
         unsafe {
-            let x = SetU32(I { ptr: std::alloc::alloc_zeroed(layout_for_num_u32(2*cap)) as *mut S});
-            (*x.0.ptr).cap = 2*cap;
+            let x = SetU32(I { ptr: std::alloc::alloc_zeroed(layout_for_num_u32(1+2*cap)) as *mut S});
+            (*x.0.ptr).cap = 1+2*cap;
+            (*x.0.ptr).array = cap;
             x
         }
     }
