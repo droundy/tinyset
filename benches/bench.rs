@@ -7,6 +7,8 @@ use std::alloc::System;
 #[global_allocator]
 static GLOBAL: &StatsAlloc<System> = &INSTRUMENTED_SYSTEM;
 
+static SIZES: &[usize] = &[0,1,2,3,4,10,100,1000];
+
 fn mem_used<T>(f: impl Fn() -> T) -> (T, usize) {
     let reg = Region::new(&GLOBAL);
     let v = f();
@@ -177,7 +179,7 @@ fn bench_collect(density: f64) {
     assert!(density <= 1.0);
     println!("\ncollect {:5}:{:>12} {:>13} {:>13} {:>13} {:>13} {:>13}", density,
              "setu32", "setu32b", "std32", "setu64", "tiny", "std");
-    for sz in 0..10 {
+    for &sz in SIZES.iter() {
         let mut gen = move || {
             let mut rng = rand::thread_rng();
             let mx = (sz as f64/density) as u64 + 1;
@@ -257,6 +259,138 @@ fn bench_collect(density: f64) {
     );
 }
 
+fn bench_fill_with_inserts(density: f64) {
+    assert!(density <= 1.0);
+    println!("\ninserts {:5}:{:>12} {:>13} {:>13} {:>13} {:>13} {:>13}", density,
+             "setu32", "setu32b", "std32", "setu64", "tiny", "std");
+    for &sz in SIZES.iter() {
+        let mut gen = move || {
+            let mut rng = rand::thread_rng();
+            let mx = (sz as f64/density) as u64 + 1;
+            let mut vec = Vec::new();
+            while vec.iter().cloned().collect::<tinyset::SetU64>().len() < sz {
+                vec.push(rng.gen_range(0, mx));
+            }
+            vec
+        };
+        let mut gen32 = move || {
+            let mut rng = rand::thread_rng();
+            let mx = (sz as f64/density) as u32 + 1;
+            let mut vec = Vec::new();
+            while vec.iter().cloned().collect::<tinyset::SetU32>().len() < sz {
+                vec.push(rng.gen_range(0, mx));
+            }
+            vec
+        };
+        println!("{:>11}: {:8.0}ns    {:8.0}ns    {:8.0}ns    {:8.0}ns    {:8.0}ns    {:8.0}ns", sz,
+                 bench_gen_env(&mut gen32, |v| {
+                     let mut s = tinyset::SetU32::new();
+                     for x in v.iter().cloned() {
+                         s.insert(x);
+                     }
+                     s.len()
+                 }).ns_per_iter,
+                 bench_gen_env(&mut gen32, |v| {
+                     let mut s = tinyset::setu32b::SetU32::new();
+                     for x in v.iter().cloned() {
+                         s.insert(x);
+                     }
+                     s.len()
+                 }).ns_per_iter,
+                 bench_gen_env(&mut gen32, |v| {
+                     let mut s = std::collections::HashSet::new();
+                     for x in v.iter().cloned() {
+                         s.insert(x);
+                     }
+                     s.len()
+                 }).ns_per_iter,
+                 bench_gen_env(&mut gen, |v| {
+                     let mut s = tinyset::SetU64::new();
+                     for x in v.iter().cloned() {
+                         s.insert(x);
+                     }
+                     s.len()
+                 }).ns_per_iter,
+                 bench_gen_env(&mut gen, |v| {
+                     let mut s = tinyset::Set64::new();
+                     for x in v.iter().cloned() {
+                         s.insert(x);
+                     }
+                     s.len()
+                 }).ns_per_iter,
+                 bench_gen_env(&mut gen, |v| {
+                     let mut s = std::collections::HashSet::new();
+                     for x in v.iter().cloned() {
+                         s.insert(x);
+                     }
+                     s.len()
+                 }).ns_per_iter,
+        );
+    }
+    let mut gen = move |sz| {
+        let mut rng = rand::thread_rng();
+        let mx = (sz as f64/density) as u64 + 1;
+        let mut vec = Vec::new();
+        while vec.iter().cloned().collect::<tinyset::SetU64>().len() < sz {
+            vec.push(rng.gen_range(0, mx));
+            }
+        vec
+    };
+    let mut gen32 = move |sz| {
+        let mut rng = rand::thread_rng();
+        let mx = (sz as f64/density) as u32 + 1;
+        let mut vec = Vec::new();
+        while vec.iter().cloned().collect::<tinyset::SetU32>().len() < sz {
+            vec.push(rng.gen_range(0, mx));
+            }
+        vec
+    };
+    println!("{:>11}: {:8.0} {:8.0} {:8.0} {:8.0} {:8.0} {:8.0}", "inserts",
+             bench_power_scaling(&mut gen32, |v| {
+                 let mut s = tinyset::SetU32::new();
+                 for x in v.iter().cloned() {
+                     s.insert(x);
+                 }
+                 s.len()
+             }, 10).scaling,
+             bench_power_scaling(&mut gen32, |v| {
+                 let mut s = tinyset::setu32b::SetU32::new();
+                 for x in v.iter().cloned() {
+                     s.insert(x);
+                 }
+                 s.len()
+             }, 10).scaling,
+             bench_power_scaling(&mut gen32, |v| {
+                 let mut s = std::collections::HashSet::new();
+                 for x in v.iter().cloned() {
+                     s.insert(x);
+                 }
+                 s.len()
+             }, 10).scaling,
+             bench_power_scaling(&mut gen, |v| {
+                 let mut s = tinyset::SetU64::new();
+                 for x in v.iter().cloned() {
+                     s.insert(x);
+                 }
+                 s.len()
+             }, 10).scaling,
+             bench_power_scaling(&mut gen, |v| {
+                 let mut s = tinyset::Set64::new();
+                 for x in v.iter().cloned() {
+                     s.insert(x);
+                 }
+                 s.len()
+             }, 10).scaling,
+             bench_power_scaling(&mut gen, |v| {
+                 let mut s = std::collections::HashSet::new();
+                 for x in v.iter().cloned() {
+                     s.insert(x);
+                 }
+                 s.len()
+             }, 10).scaling,
+    );
+}
+
 fn bench_funcs<O>(name: &str,
                   density: f64,
                   func32: impl Copy + Fn(&mut tinyset::SetU32) -> O,
@@ -268,7 +402,7 @@ fn bench_funcs<O>(name: &str,
     assert!(density <= 1.0);
     println!("\n{:<5}{:5}:{:>11} {:>13} {:>13} {:>13} {:>13} {:>13}", name, density,
              "setu32", "setu32b", "std32", "setu64", "tiny", "std64");
-    for sz in 0..10 {
+    for &sz in SIZES.iter() {
         let gen = move || {
             let mut rng = rand::thread_rng();
             let mx = (sz as f64/density) as u64 + 1;
@@ -448,20 +582,20 @@ fn bench_scaling(density: f64, min: usize) {
 
 fn main() {
 
-    for &sz in [0,1,2,3,4,8,16,32,1024].iter() {
-        bench_sets(0.001, sz);
-    }
-    for sz in  0..10 {
-        bench_sets(0.05, sz);
-    }
-    for sz in  0..10 {
-        bench_sets(0.5, sz);
+    for f in [0.001,0.01,0.05,0.8].iter().cloned() {
+        bench_fill_with_inserts(f);
+        bench_collect(f);
     }
 
-    bench_collect(0.001);
-    bench_collect(0.05);
-    bench_collect(0.5);
-    bench_collect(0.8);
+    for &sz in SIZES.iter() {
+        bench_sets(0.001, sz);
+    }
+    for &sz in SIZES.iter() {
+        bench_sets(0.05, sz);
+    }
+    for &sz in SIZES.iter() {
+        bench_sets(0.5, sz);
+    }
 
     bench_sum(0.001);
     bench_sum(0.05);
