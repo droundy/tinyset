@@ -247,6 +247,13 @@ struct S {
     array: u32,
 }
 
+fn to_key_and_bit(v: u32) -> (u32, u32) {
+    (v >> 5, 1 << (v & 31))
+}
+fn from_key(key: u32) -> u32 {
+    key << 5
+}
+
 enum Internal<'a> {
     Empty,
     Tiny(Tiny),
@@ -265,7 +272,8 @@ enum InternalMut<'a> {
     Tiny(Tiny),
     Table {
         sz: &'a mut u32,
-        available: &'a mut u32,
+        cap_ptr: &'a mut u32,
+        available: u32,
         a: &'a mut [(u32,u32)],
     },
     Dense {
@@ -292,9 +300,13 @@ impl SetU32 {
                 Internal::Tiny(Tiny::from_usize(self.0.tiny))
             } else if self.0.tiny & 3 == 0 {
                 let s = &*self.0.ptr;
-                let start = (&s.array as *const u32 as usize + 4) as *const (u32,u32);
-                let a = std::slice::from_raw_parts(start, (s.cap-1) as usize/2);
-                Internal::Table { sz: s.sz, available: s.array, a }
+                // assert_eq!((s.cap & 31).count_ones(), 1);
+                let cap = 1 << (s.cap & 31);
+                let available = s.cap >> 5;
+                let start = &s.array as *const u32 as usize as *const (u32,u32);
+                let a = std::slice::from_raw_parts(start, cap);
+                assert!(a.len().count_ones() == 1);
+                Internal::Table { sz: s.sz, available, a }
             } else {
                 let ptr = (self.0.tiny & !3) as *mut S;
                 let s = &*ptr;
@@ -313,9 +325,12 @@ impl SetU32 {
                 InternalMut::Tiny(Tiny::from_usize(self.0.tiny))
             } else if self.0.tiny & 3 == 0 {
                 let s = &mut *self.0.ptr;
-                let start = (&s.array as *const u32 as usize + 4) as *mut (u32,u32);
-                let a = std::slice::from_raw_parts_mut(start, (s.cap-1) as usize/2);
-                InternalMut::Table { sz: &mut s.sz, available: &mut s.array, a }
+                let cap = 1 << (s.cap & 31);
+                let available = s.cap >> 5;
+                let start = &mut s.array as *mut u32 as usize as *mut (u32,u32);
+                let a = std::slice::from_raw_parts_mut(start, cap);
+                assert!(a.len().count_ones() == 1);
+                InternalMut::Table { sz: &mut s.sz, cap_ptr: &mut s.cap, available, a }
             } else {
                 let ptr = (self.0.tiny & !3) as *mut S;
                 let s = &mut *ptr;
@@ -324,6 +339,29 @@ impl SetU32 {
                 InternalMut::Dense { sz: &mut s.sz, a }
             }
         }
+    }
+    /// The total memory used by the set (including stack)
+    pub fn mem_used(&self) -> usize {
+        let mut tot = std::mem::size_of::<usize>();
+        unsafe {
+            if self.0.tiny == 0 {
+                // nothing
+            } else if self.0.tiny & 3 == 1 {
+                // nothing
+            } else if self.0.tiny & 3 == 0 {
+                let s = &*self.0.ptr;
+                // assert_eq!((s.cap & 31).count_ones(), 1);
+                let cap = 1 << (s.cap & 31);
+                tot += std::mem::size_of::<S>() - 4 + cap*8;
+                // println!("mem_used for table {}", tot);
+            } else {
+                let ptr = (self.0.tiny & !3) as *mut S;
+                let s = &*ptr;
+                tot += std::mem::size_of::<S>() - 4 + s.cap as usize*4;
+                // println!("mem_used for dense {}", tot);
+            }
+        }
+        tot
     }
 
     fn num_u32(&self) -> u32 {
@@ -381,12 +419,10 @@ impl SetU32 {
                 }
             }
             Internal::Table { a, .. } => {
-                let key = e >> 5;
-                let bits = 1 << (e & 31);
+                let (key, bits) = to_key_and_bit(e);
                 if let LookedUp::KeyFound(idx) = p_lookfor(key, a) {
                     a[idx].1 & bits != 0
                 } else {
-                    // self.debug_me(&format!("did not find key {} from {}", key, e));
                     false
                 }
             }
@@ -419,9 +455,8 @@ impl SetU32 {
                     false
                 }
             }
-            InternalMut::Table { a, sz, available } => {
-                let key = e >> 5;
-                let bits = 1 << (e & 31);
+            InternalMut::Table { a, sz, cap_ptr, .. } => {
+                let (key, bits) = to_key_and_bit(e);
                 if let LookedUp::KeyFound(idx) = p_lookfor(key, a) {
                     if a[idx].1 & bits != 0 {
                         let new = a[idx].1 & !bits;
@@ -430,7 +465,7 @@ impl SetU32 {
                             // We've removed everything with this key,
                             // so remove the whole key!
                             p_remove(key, a);
-                            *available += 1;
+                            *cap_ptr += 32;
                         } else {
                             a[idx].1 = new;
                         }
@@ -454,9 +489,11 @@ impl SetU32 {
                 if let Some(t) = Tiny::from_singleton(e) {
                     *self = SetU32::tiny(t);
                 } else if e < 64 {
+                    println!("allocating dense from empty");
                     *self = SetU32::dense_for_mx(e+1);
                     self.insert(e);
                 } else {
+                    println!("allocating from empty");
                     *self = SetU32::table_with_cap(1);
                     self.insert(e);
                 }
@@ -466,18 +503,29 @@ impl SetU32 {
                 if let Some(b) = t.insert(e) {
                     *self = SetU32::tiny(t);
                     b
-                } else if (e as usize) < (t.len() + 1)*64 {
-                    *self = SetU32::dense_for_mx(e+1);
+                } else if e < 128 && t.max().unwrap() < 128 {
+                    // println!("===allocating dense from tiny tinylen {} for e {}", t.len(), e);
+                    let mx = if e > t.max().unwrap() { e } else { t.max().unwrap() };
+                    *self = SetU32::dense_for_mx(mx);
                     for x in t {
+                        // println!("===  inserting {}", x);
                         self.insert(x);
                     }
+                    // println!("===  inserting e {}", e);
                     self.insert(e);
+                    // println!("===should now have dense with len 2: {}", self.len());
                     false
                 } else {
-                    *self = SetU32::table_with_cap(3);
+                    // println!("== allocating from tiny");
+                    *self = SetU32::table_with_cap(1);
+                    self.mem_used();
                     for x in t {
+                        // println!("== inserting {}", x);
                         self.insert(x);
                     }
+                    // println!("== inserting e {}", e);
+                    self.mem_used();
+                    // println!("== DONE");
                     self.insert(e);
                     false
                 }
@@ -494,11 +542,20 @@ impl SetU32 {
                     was_here
                 } else {
                     if key > 3*(*sz as usize) {
+                        let nkeys = a.iter().filter(|&&x| x != 0).count() as u32;
+                        // println!("thing is getting sparse adding {} new cap {} from dense nkeys {}/{} with sz {}!",
+                        //          e, log2(nkeys+1), nkeys, a.len(), *sz);
                         // It is getting sparse, so let us switch back
                         // to a non-hash table.
-                        let mut new = SetU32::table_with_cap(*sz + 1);
+                        let mut new = SetU32::table_with_cap(log2(nkeys+1));
+                        // println!("   Dense thing was {:?}",
+                        //          DenseIter::new( *sz as usize, a ).collect::<Vec<_>>());
                         for x in DenseIter::new( *sz as usize, a ) {
                             new.insert(x);
+                            // println!("      addinng {}",
+                            //          x,
+                            //          // new.iter().collect::<Vec<_>>(),
+                            // );
                         }
                         new.insert(e);
                         *self = new;
@@ -509,117 +566,82 @@ impl SetU32 {
                     false
                 }
             }
-            InternalMut::Table { sz, available, a } => {
-                // assert_eq!(*available,
+            InternalMut::Table { sz, cap_ptr, a, available } => {
+                // assert_eq!(available,
                 //            a.iter().filter(|&x| x == &(0,0)).count() as u32);
-                let key = e >> 5;
-                let bits = 1 << (e & 31);
-                match p_lookfor(key, a) {
-                    LookedUp::EmptySpot(i) => {
-                        a[i] = (key, bits);
-                        *sz += 1;
-                        *available -= 1;
-                        return false;
+                let (key, bits) = to_key_and_bit(e);
+                // println!("   inserting {} with {}/{} available", e, available, a.len());
+                if available < a.len() as u32 >> 4 {
+                    let cap = a.len().trailing_zeros();
+                    let newcap = cap + 1;
+                    // println!("cap {} from {} -> {}", cap, a.len(), newcap);
+                    let mut new = SetU32::table_with_cap(newcap);
+                    if let InternalMut::Table { a: newa, sz: newsz, cap_ptr, .. } = new.internal_mut() {
+                        *newsz = *sz;
+                        for x in a.iter() {
+                            let idx = p_insert_better(x.0, newa);
+                            newa[idx.unwrap()] = *x;
+                        }
+                        let av = newa.iter().filter(|&x| x == &(0,0)).count() as u32;
+                        *cap_ptr = (av << 5) | newcap;
                     }
-                    LookedUp::KeyFound(i) => {
+                    *self = new;
+                    return self.insert(e);
+                }
+                match p_insert_better(key, a) {
+                    Inserted::Present(i) => {
                         if a[i].1 & bits == 0 {
                             a[i].1 = a[i].1 | bits;
                             *sz += 1;
-                            return false;
+                            // println!("=> key already here");
+                            false
                         } else {
-                            return true;
+                            // println!("=> already here");
+                            true
                         }
                     }
-                    LookedUp::NeedInsert => (),
-                }
-                // Check if at least 1/8 of our table is available...
-                if *available as usize > a.len()>>3 {
-                    let idx = p_insert(key, a);
-                    *available -= 1;
-                    // println!("about to insert key {} with elem {} at {}",
-                    //          key, e, idx);
-                    a[idx] = (key, bits);
-                    *sz += 1;
-                    return false;
-                }
-                // Need a bigger table!
-                let mx = TableIter::new(*sz as usize, a).max().unwrap();
-                let mut new = match decide_set_type(mx, *sz) {
-                    SetType::Dense => {
-                        let mut new = SetU32::dense_for_mx(mx);
-                        for x in self.iter() {
-                            new.insert(x);
-                        }
-                        new
-                    }
-                    SetType::Table => {
-                        let cap = a.len() as u32;
-                        let newcap = cap + 1 + (rand::random::<u32>() % cap);
-                        let mut new = SetU32::table_with_cap(newcap);
-                        if let InternalMut::Table { a: newa, sz: newsz, available: av } = new.internal_mut() {
-                            *newsz = *sz;
-                            for x in a.iter() {
-                                let idx = p_insert(x.0, newa);
-                                newa[idx] = *x;
-                            }
-                            *av = newa.iter().filter(|&x| x == &(0,0)).count() as u32;
-                        }
-                        new
-                    }
-                };
-                new.insert(e);
-                *self = new;
-                false
-            }
-        }
-    }
-
-
-    /// Insert a number into the set.
-    ///
-    /// Return a bool indicating if it was already present.
-    fn insert_unchecked_table_or_dense(&mut self, e: u32) {
-        match self.internal_mut() {
-            InternalMut::Empty => unreachable!(),
-            InternalMut::Tiny(_) => unreachable!(),
-            InternalMut::Dense { sz, a } => {
-                let key = e as usize >> 5;
-                let bit = 1 << (e & 31);
-                let was_here = a[key] & bit != 0;
-                a[key] = a[key] | bit;
-                if !was_here {
-                    *sz += 1;
-                }
-            }
-            InternalMut::Table { sz, a, available } => {
-                let key = e >> 5;
-                let bits = 1 << (e & 31);
-                match p_lookfor(key, a) {
-                    LookedUp::EmptySpot(i) => {
+                    Inserted::EmptySpot(i) => {
                         a[i] = (key, bits);
                         *sz += 1;
-                        *available -= 1;
-                        return;
+                        *cap_ptr -= 32;
+                        // println!("=> found an empty spot");
+                        false
                     }
-                    LookedUp::KeyFound(i) => {
-                        if a[i].1 & bits == 0 {
-                            if a[i].1 == 0 {
-                                *available -= 1;
+                    Inserted::NoRoom => {
+                        // Need a bigger table!
+                        // println!("=> need bigger table");
+                        let mx = TableIter::new(*sz as usize, a).max().unwrap();
+                        let mut new = match decide_set_type(mx, *sz) {
+                            SetType::Dense => {
+                                let mut new = SetU32::dense_for_mx(mx);
+                                for x in self.iter() {
+                                    new.insert(x);
+                                }
+                                new
                             }
-                            a[i].1 = a[i].1 | bits;
-                            *sz += 1;
-                            return;
-                        } else {
-                            return;
-                        }
+                            SetType::Table => {
+                                let cap = a.len().trailing_zeros();
+                                let newcap = cap + 1;
+                                // println!("XXX    {:?}", a);
+                                // println!("XXX foo cap {} from {} -> {}", cap, a.len(), newcap);
+                                let mut new = SetU32::table_with_cap(newcap);
+                                if let InternalMut::Table { a: newa, sz: newsz, cap_ptr, .. } = new.internal_mut() {
+                                    *newsz = *sz;
+                                    for x in a.iter() {
+                                        let idx = p_insert_better(x.0, newa);
+                                        newa[idx.unwrap()] = *x;
+                                    }
+                                    let av = newa.iter().filter(|&x| x == &(0,0)).count() as u32;
+                                    *cap_ptr = (av << 5) | newcap;
+                                }
+                                new
+                            }
+                        };
+                        new.insert(e);
+                        *self = new;
+                        false
                     }
-                    LookedUp::NeedInsert => (),
                 }
-                let idx = p_insert(key, a);
-                // println!("about to insert key {} with elem {} at {}",
-                //          key, e, idx);
-                a[idx] = (key, bits);
-                *sz += 1;
             }
         }
     }
@@ -663,19 +685,41 @@ impl SetU32 {
     }
 
     fn table_with_cap(cap: u32) -> Self {
+        // assert_eq!(cap.count_ones(), 1);
         unsafe {
-            let x = SetU32(I { ptr: std::alloc::alloc_zeroed(layout_for_num_u32(1+2*cap)) as *mut S});
-            (*x.0.ptr).cap = 1+2*cap;
-            (*x.0.ptr).array = cap;
+            let x = SetU32(I { ptr: std::alloc::alloc_zeroed(layout_for_num_u32(1<<(cap+1))) as *mut S});
+            (*x.0.ptr).cap = cap | (1 << (cap + 5));
             x
         }
     }
+}
+
+#[test]
+fn table_sizes() {
+    let size_without_data = std::mem::size_of::<S>() - 4;
+    let size_usize = std::mem::size_of::<usize>();
+    assert_eq!(SetU32::table_with_cap(1).mem_used(),
+               size_usize + size_without_data + 8*2);
+    assert_eq!(SetU32::table_with_cap(2).mem_used(),
+               size_usize + size_without_data + 8*4);
 }
 
 impl Default for SetU32 {
     fn default() -> Self {
         SetU32(I { tiny: 0})
     }
+}
+
+fn log2(x: u32) -> u32 {
+    std::mem::size_of::<u32>() as u32*8 - x.leading_zeros()
+}
+
+#[test]
+fn test_log2() {
+    assert_eq!(1, log2(1));
+    assert_eq!(2, log2(2));
+    assert_eq!(2, log2(3));
+    assert_eq!(3, log2(4));
 }
 
 impl std::iter::FromIterator<u32> for SetU32 {
@@ -692,18 +736,20 @@ impl std::iter::FromIterator<u32> for SetU32 {
                     SetType::Dense => SetU32::dense_for_mx(mx),
                     SetType::Table => {
                         let cap = {
-                            let mut vv: Vec<_> = v.iter().cloned().map(|x| x >> 5).collect();
+                            let mut vv: Vec<_> = v.iter().cloned()
+                                .map(|x| to_key_and_bit(x).0).collect();
                             vv.sort();
                             vv.dedup();
-                            vv.len() as u32
+                            // println!("   vv.len is {}", vv.len());
+                            log2(vv.len() as u32)
                         };
+                        // println!("FOO CAP {} from {:?}", cap, v);
                         // let cap = v.len() as u32;
-                        let newcap = cap + 1 + cap/16;
-                        SetU32::table_with_cap(newcap)
+                        SetU32::table_with_cap(cap)
                     }
                 };
                 for x in v.iter().cloned() {
-                    new.insert_unchecked_table_or_dense(x);
+                    new.insert(x);
                 }
                 new
             }
@@ -823,11 +869,20 @@ fn test_insert_remove() {
         assert_eq!(v.iter().cloned().min(), s.iter().min());
     }
 
+    println!("now inserting {}", 1<<20);
     assert!(!s.insert(1<<20));
     v.push(1<<20);
     // at this point it should be a table...
     assert!(s.contains(1<<20));
-    assert_eq!(&v, &s.iter().collect::<Vec<u32>>());
+    let mut vvv = s.iter().collect::<Vec<u32>>();
+    vvv.sort();
+    println!("  v: {:?}", v);
+    println!("vvv: {:?}", vvv);
+    for i in 0..v.len() {
+        println!("   {:6} {:6}", v[i], vvv[i]);
+    }
+    assert_eq!(v.len(), vvv.len());
+    assert_eq!(&v, &vvv);
     assert_eq!(v.len(), s.iter().count());
     assert_eq!(v.len(), s.len());
     assert_eq!(v.iter().cloned().max(), s.iter().max());
@@ -837,7 +892,9 @@ fn test_insert_remove() {
     assert!(s.remove(2));
     v.retain(|x| *x != 2);
     assert!(!s.contains(2));
-    assert_eq!(&v, &s.iter().collect::<Vec<u32>>());
+    vvv = s.iter().collect::<Vec<u32>>();
+    vvv.sort();
+    assert_eq!(&v, &vvv);
     assert_eq!(v.len(), s.iter().count());
     assert_eq!(v.len(), s.len());
     assert_eq!(v.iter().cloned().max(), s.iter().max());
@@ -1028,7 +1085,7 @@ impl<'a> Iterator for TableIter<'a> {
                         self.whichbit = bit+1;
                     }
                     self.sz_left -= 1;
-                    return Some((word.0 << 5) + bit as u32);
+                    return Some(from_key(word.0) | bit as u32);
                 }
                 self.whichword += 1;
             } else {
@@ -1046,14 +1103,19 @@ impl<'a> Iterator for TableIter<'a> {
     }
     #[inline]
     fn min(self) -> Option<u32> {
-        self.a.iter().filter(|&x| x != &(0,0)).min().map(|word| word.0 << 5 + word.1.trailing_zeros())
+        self.a.iter().filter(|&x| x != &(0,0))
+            .map(|word| from_key(word.0) | word.1.trailing_zeros())
+            .min()
     }
     #[inline]
     fn max(self) -> Option<u32> {
         if self.sz_left == 0 {
             None
         } else {
-            self.a.iter().max().map(|word| (word.0 << 5) + 31-word.1.leading_zeros())
+            self.a.iter()
+                .filter(|&x| x != &(0,0))
+                .map(|word| from_key(word.0) | (31-word.1.leading_zeros()))
+                .max()
         }
     }
 }
@@ -1074,17 +1136,39 @@ fn p_poverty(k: u32, idx: usize, n: usize) -> usize {
     ((idx % n) + n - (k % n as u32) as usize) % n
 }
 
+#[derive(Debug,Eq,PartialEq,Clone,Copy)]
+enum Inserted {
+    EmptySpot(usize),
+    Present(usize),
+    NoRoom,
+}
+impl Inserted {
+    fn unwrap(self) -> usize {
+        self.expect("unwappred Instered with no room")
+    }
+    fn expect(self, msg: &'static str) -> usize {
+        match self {
+            Inserted::EmptySpot(i) => i,
+            Inserted::Present(i) => i,
+            Inserted::NoRoom => panic!(msg),
+        }
+    }
+}
+
 /// This inserts k into the array, and requires that there be room for
 /// one more element.  Otherwise, things will be sad.
-fn p_insert(k: u32, a: &mut [(u32,u32)]) -> usize {
+fn p_insert_better(k: u32, a: &mut [(u32,u32)]) -> Inserted {
     let n = a.len();
-    for pov in 0..n {
+    let poverty_limit = n;
+    for pov in 0..poverty_limit {
         let ii = ((k + pov as u32) % n as u32) as usize;
         let ki = a[ii].0;
         let pov_ki = p_poverty(ki, ii, n);
-        if a[ii] == (0,0) || ki == k {
+        if a[ii] == (0,0) {
+            return Inserted::EmptySpot(ii);
+        } else if ki == k {
             // println!("already got a spot");
-            return ii;
+            return Inserted::Present(ii);
         } else if pov_ki < pov {
             // println!("need to steal from {} < {} at spot {}", pov_ki, pov, ii);
             // need to steal
@@ -1094,16 +1178,16 @@ fn p_insert(k: u32, a: &mut [(u32,u32)]) -> usize {
             let mut pov_displaced = pov_ki;
             a[stolen] = (0,0);
 
-            for j in 1..n {
+            for j in 1..poverty_limit {
                 pov_displaced += 1;
-                let jj = (stolen + j) % n;
+                let jj = (stolen + j) % n as usize;
                 let kj = a[jj].0;
                 let pov_kj = p_poverty(kj, jj, n);
                 if a[jj] == (0,0) {
                     // We finally found an unoccupied spot!
                     // println!("put the displaced at {}", jj);
                     a[jj] = displaced;
-                    return stolen;
+                    return Inserted::EmptySpot(stolen);
                 }
                 if pov_kj < pov_displaced {
                     // need to steal again!
@@ -1111,10 +1195,17 @@ fn p_insert(k: u32, a: &mut [(u32,u32)]) -> usize {
                     pov_displaced = pov_kj;
                 }
             }
-            panic!("p_insert was called when there was no room!")
+            return Inserted::NoRoom;
         }
     }
-    unreachable!()
+    Inserted::NoRoom
+}
+
+/// This inserts k into the array, and requires that there be room for
+/// one more element.  Otherwise, things will be sad.
+#[cfg(test)]
+fn p_insert(k: u32, a: &mut [(u32,u32)]) -> usize {
+    p_insert_better(k, a).expect("p_insert without room")
 }
 
 #[test]
