@@ -489,11 +489,11 @@ impl SetU32 {
                 if let Some(t) = Tiny::from_singleton(e) {
                     *self = SetU32::tiny(t);
                 } else if e < 64 {
-                    println!("allocating dense from empty");
+                    // println!("allocating dense from empty");
                     *self = SetU32::dense_for_mx(e+1);
                     self.insert(e);
                 } else {
-                    println!("allocating from empty");
+                    // println!("allocating from empty");
                     *self = SetU32::table_with_cap(1);
                     self.insert(e);
                 }
