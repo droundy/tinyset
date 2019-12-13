@@ -199,30 +199,56 @@ fn bench_collect(density: f64) {
             vec
         };
         let nsize = 100;
-        println!("{:>11}: {:8.0}ns/{:<6.0} {:8.0}ns    {:8.0}ns    {:8.0}ns    {:8.0}ns    {:8.0}ns", sz,
-                 bench_gen_env(&mut gen32, |v| {
-                     v.iter().cloned().collect::<tinyset::SetU32>().len()
-                 }).ns_per_iter,
-                 (0..nsize).map(|_|
-                                mem_used(|| gen32().iter().cloned()
-                                         .collect::<tinyset::SetU32>()).1)
-                 .sum::<usize>() as f64/nsize as f64,
-                 bench_gen_env(&mut gen32, |v| {
-                     v.iter().cloned().collect::<tinyset::setu32b::SetU32>().len()
-                 }).ns_per_iter,
-                 bench_gen_env(&mut gen32, |v| {
-                     v.iter().cloned().collect::<std::collections::HashSet<_>>().len()
-                 }).ns_per_iter,
-                 bench_gen_env(&mut gen, |v| {
-                     v.iter().cloned().collect::<tinyset::SetU64>().len()
-                 }).ns_per_iter,
-                 bench_gen_env(&mut gen, |v| {
-                     v.iter().cloned().collect::<tinyset::Set64<_>>().len()
-                 }).ns_per_iter,
-                 bench_gen_env(&mut gen, |v| {
-                     v.iter().cloned().collect::<std::collections::HashSet<_>>().len()
-                 }).ns_per_iter,
-        );
+        print_times(sz, &[
+            bench_gen_env(&mut gen32, |v| {
+                v.iter().cloned().collect::<tinyset::SetU32>().len()
+            }).ns_per_iter,
+            (0..nsize).map(|_|
+                           mem_used(|| gen32().iter().cloned()
+                                    .collect::<tinyset::SetU32>()).1)
+                .sum::<usize>() as f64/nsize as f64,
+            bench_gen_env(&mut gen32, |v| {
+                v.iter().cloned().collect::<tinyset::setu32b::SetU32>().len()
+            }).ns_per_iter,
+            bench_gen_env(&mut gen32, |v| {
+                v.iter().cloned().collect::<std::collections::HashSet<_>>().len()
+            }).ns_per_iter,
+            bench_gen_env(&mut gen, |v| {
+                v.iter().cloned().collect::<tinyset::SetU64>().len()
+            }).ns_per_iter,
+            bench_gen_env(&mut gen, |v| {
+                v.iter().cloned().collect::<tinyset::Set64<_>>().len()
+            }).ns_per_iter,
+            bench_gen_env(&mut gen, |v| {
+                v.iter().cloned().collect::<std::collections::HashSet<_>>().len()
+            }).ns_per_iter,
+        ]);
+        print_sizes(sz, &[
+            (0..nsize).map(|_|
+                           mem_used(|| {
+                               gen32().iter().cloned().collect::<tinyset::SetU32>()
+                           }).1).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_|
+                           mem_used(|| {
+                               gen32().iter().cloned().collect::<tinyset::setu32b::SetU32>()
+                           }).1).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_|
+                           mem_used(|| {
+                               gen32().iter().cloned().collect::<std::collections::HashSet<_>>()
+                           }).1).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_|
+                           mem_used(|| {
+                               gen().iter().cloned().collect::<tinyset::SetU64>()
+                           }).1).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_|
+                           mem_used(|| {
+                               gen().iter().cloned().collect::<tinyset::Set64<_>>()
+                           }).1).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_|
+                           mem_used(|| {
+                               gen().iter().cloned().collect::<std::collections::HashSet<_>>()
+                           }).1).sum::<usize>() as f64/nsize as f64,
+        ]);
     }
     let mut gen = move |sz| {
         let mut rng = rand::thread_rng();
@@ -264,6 +290,25 @@ fn bench_collect(density: f64) {
     );
 }
 
+fn print_sizes(n: usize, sizes: &[f64]) {
+    print!("{:>11} ", "");
+    for s in sizes.iter().cloned() {
+        if n < 2 {
+            print!(" {:6}  {:<6.0}", "", s);
+        } else {
+            print!(" {:6.0}N {:<6.0}", s/n as f64, s);
+        }
+    }
+    println!("");
+}
+fn print_times(n: usize, times: &[f64]) {
+    print!("{:>11}:    ", n);
+    for t in times.iter().cloned() {
+        print!(" {:^13}", format!("{:.0}ns", t));
+    }
+    println!("");
+}
+
 fn bench_fill_with_inserts(density: f64) {
     assert!(density <= 1.0);
     println!("\ninserts {:5}:{:>12} {:>13} {:>13} {:>13} {:>13} {:>13}", density,
@@ -288,85 +333,111 @@ fn bench_fill_with_inserts(density: f64) {
             vec
         };
         let nsize = 100;
-        println!("{:>11}: {:8.0}ns/{:<6.0} {:8.0}ns/{:<6.0} {:8.0}ns/{:<6.0} {:8.0}ns    {:8.0}ns    {:8.0}ns", sz,
-                 bench_gen_env(&mut gen32, |v| {
-                     let mut s = tinyset::SetU32::new();
-                     for x in v.iter().cloned() {
-                         s.insert(x);
-                     }
-                     s.len()
-                 }).ns_per_iter,
-                 (0..nsize).map(|_|
-                                mem_used(|| {
-                                    let mut s = tinyset::setu32b::SetU32::new();
-                                    for x in gen32().iter().cloned() {
-                                        s.insert(x);
-                                    }
-                                    s
-                                }).1).sum::<usize>() as f64/nsize as f64,
-                 bench_gen_env(&mut gen32, |v| {
-                     let mut s = tinyset::setu32b::SetU32::new();
-                     for x in v.iter().cloned() {
-                         s.insert(x);
-                     }
-                     s.len()
-                 }).ns_per_iter,
-                 (0..nsize).map(|_| {
-                     let v = gen32();
-                     let _x = {
-                         let mut s = tinyset::setu32b::SetU32::new();
-                         for x in v.iter().cloned() {
-                             s.insert(x);
-                         }
-                         s.mem_used()
-                     };
-                     let y = mem_used(|| {
-                         let mut s = tinyset::setu32b::SetU32::new();
-                         for x in v.iter().cloned() {
-                             s.insert(x);
-                         }
-                         s
-                     }).1;
-                     // assert_eq!(_x,y);
-                     y
-                 }).sum::<usize>() as f64/nsize as f64,
-                 bench_gen_env(&mut gen32, |v| {
-                     let mut s = std::collections::HashSet::new();
-                     for x in v.iter().cloned() {
-                         s.insert(x);
-                     }
-                     s.len()
-                 }).ns_per_iter,
-                 (0..nsize).map(|_|
-                                mem_used(|| {
-                                    let mut s = std::collections::HashSet::new();
-                                    for x in gen32().iter().cloned() {
-                                        s.insert(x);
-                                    }
-                                    s
-                                }).1).sum::<usize>() as f64/nsize as f64,
-                 bench_gen_env(&mut gen, |v| {
-                     let mut s = tinyset::SetU64::new();
-                     for x in v.iter().cloned() {
-                         s.insert(x);
-                     }
-                     s.len()
-                 }).ns_per_iter,
-                 bench_gen_env(&mut gen, |v| {
-                     let mut s = tinyset::Set64::new();
-                     for x in v.iter().cloned() {
-                         s.insert(x);
-                     }
-                     s.len()
-                 }).ns_per_iter,
-                 bench_gen_env(&mut gen, |v| {
-                     let mut s = std::collections::HashSet::new();
-                     for x in v.iter().cloned() {
-                         s.insert(x);
-                     }
-                     s.len()
-                 }).ns_per_iter,
-        );
+        print_times(sz, &[
+            bench_gen_env(&mut gen32, |v| {
+                let mut s = tinyset::SetU32::new();
+                for x in v.iter().cloned() {
+                    s.insert(x);
+                }
+                s.len()
+            }).ns_per_iter,
+            bench_gen_env(&mut gen32, |v| {
+                let mut s = tinyset::setu32b::SetU32::new();
+                for x in v.iter().cloned() {
+                    s.insert(x);
+                }
+                s.len()
+            }).ns_per_iter,
+            bench_gen_env(&mut gen32, |v| {
+                let mut s = std::collections::HashSet::new();
+                for x in v.iter().cloned() {
+                    s.insert(x);
+                }
+                s.len()
+            }).ns_per_iter,
+            bench_gen_env(&mut gen, |v| {
+                let mut s = tinyset::SetU64::new();
+                for x in v.iter().cloned() {
+                    s.insert(x);
+                }
+                s.len()
+            }).ns_per_iter,
+            bench_gen_env(&mut gen, |v| {
+                let mut s = tinyset::Set64::new();
+                for x in v.iter().cloned() {
+                    s.insert(x);
+                }
+                s.len()
+            }).ns_per_iter,
+            bench_gen_env(&mut gen, |v| {
+                let mut s = std::collections::HashSet::new();
+                for x in v.iter().cloned() {
+                    s.insert(x);
+                }
+                s.len()
+            }).ns_per_iter,
+        ]);
+        print_sizes(sz, &[
+            (0..nsize).map(|_|
+                           mem_used(|| {
+                               let mut s = tinyset::setu32b::SetU32::new();
+                               for x in gen32().iter().cloned() {
+                                   s.insert(x);
+                               }
+                               s
+                           }).1).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_| {
+                let v = gen32();
+                let _x = {
+                    let mut s = tinyset::setu32b::SetU32::new();
+                    for x in v.iter().cloned() {
+                        s.insert(x);
+                    }
+                    s.mem_used()
+                };
+                let y = mem_used(|| {
+                    let mut s = tinyset::setu32b::SetU32::new();
+                    for x in v.iter().cloned() {
+                        s.insert(x);
+                    }
+                    s
+                }).1;
+                // assert_eq!(_x,y);
+                y
+            }).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_|
+                           mem_used(|| {
+                               let mut s = std::collections::HashSet::new();
+                               for x in gen32().iter().cloned() {
+                                   s.insert(x);
+                               }
+                               s
+                           }).1).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_|
+                           mem_used(|| {
+                               let mut s = tinyset::SetU64::new();
+                               for x in gen().iter().cloned() {
+                                   s.insert(x);
+                               }
+                               s
+                           }).1).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_|
+                           mem_used(|| {
+                               let mut s = tinyset::Set64::new();
+                               for x in gen().iter().cloned() {
+                                   s.insert(x);
+                               }
+                               s
+                           }).1).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_|
+                           mem_used(|| {
+                               let mut s = std::collections::HashSet::new();
+                               for x in gen().iter().cloned() {
+                                   s.insert(x);
+                               }
+                               s
+                           }).1).sum::<usize>() as f64/nsize as f64,
+        ]);
     }
     let mut gen = move |sz| {
         let mut rng = rand::thread_rng();
