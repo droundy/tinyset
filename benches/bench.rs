@@ -198,7 +198,7 @@ fn bench_collect(density: f64) {
             }
             vec
         };
-        let nsize = 100;
+        let nsize = 10;
         print_times(sz, &[
             bench_gen_env(&mut gen32, |v| {
                 v.iter().cloned().collect::<tinyset::SetU32>().len()
@@ -332,7 +332,7 @@ fn bench_fill_with_inserts(density: f64) {
             }
             vec
         };
-        let nsize = 100;
+        let nsize = 10;
         print_times(sz, &[
             bench_gen_env(&mut gen32, |v| {
                 let mut s = tinyset::SetU32::new();
