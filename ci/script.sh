@@ -11,8 +11,8 @@ main() {
     fi
 
     cross test --target $TARGET
-    cross test --target $TARGET --benches
-    cross test --target $TARGET --release
+    cross bench --target $TARGET
+    # cross test --target $TARGET --release
 
     # cross run --target $TARGET
     # cross run --target $TARGET --release
