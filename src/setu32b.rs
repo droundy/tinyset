@@ -518,13 +518,13 @@ impl SetU32 {
                 } else {
                     // println!("== allocating from tiny");
                     *self = SetU32::table_with_cap(1);
-                    self.mem_used();
+                    // self.mem_used();
                     for x in t {
                         // println!("== inserting {}", x);
                         self.insert(x);
                     }
                     // println!("== inserting e {}", e);
-                    self.mem_used();
+                    // self.mem_used();
                     // println!("== DONE");
                     self.insert(e);
                     false
@@ -702,6 +702,9 @@ fn table_sizes() {
                size_usize + size_without_data + 8*2);
     assert_eq!(SetU32::table_with_cap(2).mem_used(),
                size_usize + size_without_data + 8*4);
+
+    let v: SetU32 = (1..1000).map(|x| x*64).collect();
+    assert_eq!(10008, v.mem_used());
 }
 
 impl Default for SetU32 {
