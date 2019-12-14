@@ -2857,7 +2857,7 @@ impl U64Map {
                 }
             },
             U64Map::Su8 {sz:_,keys:_,vals:_} => (),
-            U64Map::Su16 { sz, keys: k, vals: v } if max_k >= u16::invalid() as u64 => {
+            U64Map::Su16 { sz, keys: k, vals: v } if max_k >= u16::invalid() as u64 || max_v > 255 => {
                 let mut n = Self::with_maxes_cap(max_k, max_v, sz as usize + additional);
                 for i in 0..sz as usize {
                     n.insert_unchecked(k[i] as u64, v[i] as u64);
@@ -2876,7 +2876,7 @@ impl U64Map {
                 }
             },
             U64Map::Su16 {sz:_,keys:_,vals:_} => (),
-            U64Map::Su32 { sz, keys: k, vals: v } if max_k >= u32::invalid() as u64 => {
+            U64Map::Su32 { sz, keys: k, vals: v } if max_k >= u32::invalid() as u64 || max_v > 255 => {
                 let mut n = Self::with_maxes_cap(max_k, max_v, sz as usize + additional);
                 for i in 0..sz as usize {
                     n.insert_unchecked(k[i] as u64, v[i] as u64);
@@ -2895,6 +2895,13 @@ impl U64Map {
                 }
             },
             U64Map::Su32 {sz:_,keys:_,vals:_} => (),
+            U64Map::Su64 { sz, keys: k, vals: v } if max_v > 255 => {
+                let mut n = Self::with_maxes_cap(max_k, max_v, sz as usize + additional);
+                for i in 0..sz as usize {
+                    n.insert_unchecked(k[i] as u64, v[i] as u64);
+                }
+                *self = n;
+            },
             U64Map::Su64 { sz, keys, vals } if sz as usize + additional > MAP_NUM_U64 => {
                 let nextcap = capacity_to_rawcapacity(sz as usize + additional);
                 *self = U64Map::Vu64 {
@@ -3924,6 +3931,50 @@ mod map6464_tests {
             true
         }
     }
+
+    #[test]
+    fn bad_matches_with_invalid() {
+        let steps = vec![Ok((8,8)), Ok((0,32))];
+        println!("\n\nstarting again...");
+        let mut map = Map6464::<u64,u64>::new();
+        let mut refmap = HashMap::<u64,u64>::new();
+        for x in steps {
+            match x {
+                Ok((mut k,mut v)) => {
+                    if k == 8 {
+                        k = u64::invalid();
+                    }
+                    println!("inserting {} -> {}", k, v);
+                    if v == 32 {
+                        v = u64::invalid();
+                    }
+                    map.insert(k,v); refmap.insert(k,v);
+                    println!("map is now {:?}", map);
+                    for (k,v) in map.iter() {
+                        println!("    {}: {}", k, v);
+                    }
+                    println!("done with printing map... and asserting {} is some", k);
+                    println!("looking up {}", k);
+                    assert_eq!(map.get(&k), Some(v));
+                    println!("done with assertion...");
+                },
+                Err(mut k) => {
+                    if k == 8 {
+                        k = u64::invalid();
+                    }
+                    println!("removing {}", k);
+                    map.remove(&k); refmap.remove(&k);
+                    assert!(map.get(&k).is_none());
+                }
+            }
+            assert_eq!(map.len(), refmap.len());
+            for i in 0..2550 {
+                assert_eq!(map.get(&i), refmap.get(&i).map(|&x|x));
+            }
+            println!("done with checking");
+        }
+    }
+
 }
 
 /// A map type that can use any key that fits in a `u64` (i.e. that
