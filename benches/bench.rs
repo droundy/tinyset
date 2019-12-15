@@ -13,7 +13,7 @@ fn mem_used<T>(f: impl Fn() -> T) -> (T, usize) {
     let reg = Region::new(&GLOBAL);
     let v = f();
     let stats = reg.change();
-    let total = stats.bytes_allocated as isize - stats.bytes_deallocated as isize + stats.bytes_reallocated;
+    let total = stats.bytes_allocated as i64 + stats.bytes_reallocated as i64 - stats.bytes_deallocated as i64;
     if total > 0 {
         (v, std::mem::size_of::<T>() + total as usize)
     } else {
@@ -203,10 +203,6 @@ fn bench_collect(density: f64) {
             bench_gen_env(&mut gen32, |v| {
                 v.iter().cloned().collect::<tinyset::SetU32>().len()
             }).ns_per_iter,
-            (0..nsize).map(|_|
-                           mem_used(|| gen32().iter().cloned()
-                                    .collect::<tinyset::SetU32>()).1)
-                .sum::<usize>() as f64/nsize as f64,
             bench_gen_env(&mut gen32, |v| {
                 v.iter().cloned().collect::<tinyset::setu32b::SetU32>().len()
             }).ns_per_iter,
@@ -224,30 +220,31 @@ fn bench_collect(density: f64) {
             }).ns_per_iter,
         ]);
         print_sizes(sz, &[
-            (0..nsize).map(|_|
-                           mem_used(|| {
-                               gen32().iter().cloned().collect::<tinyset::SetU32>()
-                           }).1).sum::<usize>() as f64/nsize as f64,
-            (0..nsize).map(|_|
-                           mem_used(|| {
-                               gen32().iter().cloned().collect::<tinyset::setu32b::SetU32>()
-                           }).1).sum::<usize>() as f64/nsize as f64,
-            (0..nsize).map(|_|
-                           mem_used(|| {
-                               gen32().iter().cloned().collect::<std::collections::HashSet<_>>()
-                           }).1).sum::<usize>() as f64/nsize as f64,
-            (0..nsize).map(|_|
-                           mem_used(|| {
-                               gen().iter().cloned().collect::<tinyset::SetU64>()
-                           }).1).sum::<usize>() as f64/nsize as f64,
-            (0..nsize).map(|_|
-                           mem_used(|| {
-                               gen().iter().cloned().collect::<tinyset::Set64<_>>()
-                           }).1).sum::<usize>() as f64/nsize as f64,
-            (0..nsize).map(|_|
-                           mem_used(|| {
-                               gen().iter().cloned().collect::<std::collections::HashSet<_>>()
-                           }).1).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_| {
+                let v = gen32();
+                mem_used(|| { v.iter().cloned().collect::<tinyset::SetU32>() }).1
+            }).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_| {
+                let v = gen32();
+                mem_used(|| { v.iter().cloned().collect::<tinyset::setu32b::SetU32>() }).1
+            }).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_| {
+                let v = gen32();
+                mem_used(|| { v.iter().cloned().collect::<std::collections::HashSet<_>>() }).1
+            }).sum::<usize>() as f64/nsize as f64,
+
+            (0..nsize).map(|_| {
+                let v = gen();
+                mem_used(|| { v.iter().cloned().collect::<tinyset::SetU64>() }).1
+            }).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_| {
+                let v = gen();
+                mem_used(|| { v.iter().cloned().collect::<tinyset::Set64<_>>() }).1
+            }).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_| {
+                let v = gen();
+                mem_used(|| { v.iter().cloned().collect::<std::collections::HashSet<_>>() }).1
+            }).sum::<usize>() as f64/nsize as f64,
         ]);
     }
     let mut gen = move |sz| {
@@ -378,65 +375,67 @@ fn bench_fill_with_inserts(density: f64) {
             }).ns_per_iter,
         ]);
         print_sizes(sz, &[
-            (0..nsize).map(|_|
-                           mem_used(|| {
-                               let mut s = tinyset::setu32b::SetU32::new();
-                               for x in gen32().iter().cloned() {
-                                   s.insert(x);
-                               }
-                               s
-                           }).1).sum::<usize>() as f64/nsize as f64,
             (0..nsize).map(|_| {
                 let v = gen32();
-                let _x = {
-                    let mut s = tinyset::setu32b::SetU32::new();
+                mem_used(|| {
+                    let mut s = tinyset::SetU32::new();
                     for x in v.iter().cloned() {
                         s.insert(x);
                     }
-                    s.mem_used()
-                };
-                let y = mem_used(|| {
+                    s
+                }).1
+            }).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_| {
+                let v = gen32();
+                mem_used(|| {
                     let mut s = tinyset::setu32b::SetU32::new();
                     for x in v.iter().cloned() {
                         s.insert(x);
                     }
                     s
-                }).1;
-                // assert_eq!(_x,y);
-                y
+                }).1
             }).sum::<usize>() as f64/nsize as f64,
-            (0..nsize).map(|_|
-                           mem_used(|| {
-                               let mut s = std::collections::HashSet::new();
-                               for x in gen32().iter().cloned() {
-                                   s.insert(x);
-                               }
-                               s
-                           }).1).sum::<usize>() as f64/nsize as f64,
-            (0..nsize).map(|_|
-                           mem_used(|| {
-                               let mut s = tinyset::SetU64::new();
-                               for x in gen().iter().cloned() {
-                                   s.insert(x);
-                               }
-                               s
-                           }).1).sum::<usize>() as f64/nsize as f64,
-            (0..nsize).map(|_|
-                           mem_used(|| {
-                               let mut s = tinyset::Set64::new();
-                               for x in gen().iter().cloned() {
-                                   s.insert(x);
-                               }
-                               s
-                           }).1).sum::<usize>() as f64/nsize as f64,
-            (0..nsize).map(|_|
-                           mem_used(|| {
-                               let mut s = std::collections::HashSet::new();
-                               for x in gen().iter().cloned() {
-                                   s.insert(x);
-                               }
-                               s
-                           }).1).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_| {
+                let v = gen32();
+                mem_used(|| {
+                    let mut s = std::collections::HashSet::new();
+                    for x in v.iter().cloned() {
+                        s.insert(x);
+                    }
+                    s
+                }).1
+            }).sum::<usize>() as f64/nsize as f64,
+
+            (0..nsize).map(|_| {
+                let v = gen();
+                mem_used(|| {
+                    let mut s = tinyset::SetU64::new();
+                    for x in v.iter().cloned() {
+                        s.insert(x);
+                    }
+                    s
+                }).1
+            }).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_| {
+                let v = gen();
+                mem_used(|| {
+                    let mut s = tinyset::Set64::new();
+                    for x in v.iter().cloned() {
+                        s.insert(x);
+                    }
+                    s
+                }).1
+            }).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_| {
+                let v = gen();
+                mem_used(|| {
+                    let mut s = std::collections::HashSet::new();
+                    for x in v.iter().cloned() {
+                        s.insert(x);
+                    }
+                    s
+                }).1
+            }).sum::<usize>() as f64/nsize as f64,
         ]);
     }
     let mut gen = move |sz| {
