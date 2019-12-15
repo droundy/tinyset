@@ -268,22 +268,22 @@ fn bench_collect(density: f64) {
     println!("{:>11}: {:8.0} {:8.0} {:8.0} {:8.0} {:8.0} {:8.0}", ".collect()",
              bench_power_scaling(&mut gen32, |v| {
                  v.iter().cloned().collect::<tinyset::SetU32>().len()
-             }, 10).scaling,
+             }, 20).scaling,
              bench_power_scaling(&mut gen32, |v| {
                  v.iter().cloned().collect::<tinyset::setu32b::SetU32>().len()
-             }, 10).scaling,
+             }, 20).scaling,
              bench_power_scaling(&mut gen32, |v| {
                  v.iter().cloned().collect::<std::collections::HashSet<_>>().len()
-             }, 10).scaling,
+             }, 20).scaling,
              bench_power_scaling(&mut gen, |v| {
                  v.iter().cloned().collect::<tinyset::SetU64>().len()
-             }, 10).scaling,
+             }, 20).scaling,
              bench_power_scaling(&mut gen, |v| {
                  v.iter().cloned().collect::<tinyset::Set64<_>>().len()
-             }, 10).scaling,
+             }, 20).scaling,
              bench_power_scaling(&mut gen, |v| {
                  v.iter().cloned().collect::<std::collections::HashSet<_>>().len()
-             }, 10).scaling,
+             }, 20).scaling,
     );
 }
 
@@ -463,42 +463,42 @@ fn bench_fill_with_inserts(density: f64) {
                      s.insert(x);
                  }
                  s.len()
-             }, 10).scaling,
+             }, 20).scaling,
              bench_power_scaling(&mut gen32, |v| {
                  let mut s = tinyset::setu32b::SetU32::new();
                  for x in v.iter().cloned() {
                      s.insert(x);
                  }
                  s.len()
-             }, 10).scaling,
+             }, 20).scaling,
              bench_power_scaling(&mut gen32, |v| {
                  let mut s = std::collections::HashSet::new();
                  for x in v.iter().cloned() {
                      s.insert(x);
                  }
                  s.len()
-             }, 10).scaling,
+             }, 20).scaling,
              bench_power_scaling(&mut gen, |v| {
                  let mut s = tinyset::SetU64::new();
                  for x in v.iter().cloned() {
                      s.insert(x);
                  }
                  s.len()
-             }, 10).scaling,
+             }, 20).scaling,
              bench_power_scaling(&mut gen, |v| {
                  let mut s = tinyset::Set64::new();
                  for x in v.iter().cloned() {
                      s.insert(x);
                  }
                  s.len()
-             }, 10).scaling,
+             }, 20).scaling,
              bench_power_scaling(&mut gen, |v| {
                  let mut s = std::collections::HashSet::new();
                  for x in v.iter().cloned() {
                      s.insert(x);
                  }
                  s.len()
-             }, 10).scaling,
+             }, 20).scaling,
     );
 }
 
@@ -693,7 +693,13 @@ fn bench_scaling(density: f64, min: usize) {
 
 fn main() {
 
-    for f in [0.001,0.01,0.05,0.8].iter().cloned() {
+    // let mut s = tinyset::SetU32::new();
+    // while s.len() < 10000 {
+    //     s.insert(rand::random::<u32>() % 15000);
+    // }
+    // assert_eq!(s.len(), 5);
+
+    for f in [0.8, 0.001,0.05,0.8].iter().cloned() {
         bench_fill_with_inserts(f);
         bench_collect(f);
     }
