@@ -2006,56 +2006,64 @@ mod tests {
     #[cfg(test)]
     quickcheck! {
         fn fits64_i8(num: i8) -> bool {
-            num.test_fits64()
+            test_fits64(num);
+            true
         }
     }
 
     #[cfg(test)]
     quickcheck! {
         fn fits64_u8(num: u8) -> bool {
-            num.test_fits64()
+            test_fits64(num);
+            true
         }
     }
 
     #[cfg(test)]
     quickcheck! {
         fn fits64_i16(num: i16) -> bool {
-            num.test_fits64()
+            test_fits64(num);
+            true
         }
     }
 
     #[cfg(test)]
     quickcheck! {
         fn fits64_u16(num: u16) -> bool {
-            num.test_fits64()
+            test_fits64(num);
+            true
         }
     }
 
     #[cfg(test)]
     quickcheck! {
         fn fits32_i32(num: i32) -> bool {
-            num.test_fits64()
+            test_fits64(num);
+            true
         }
     }
 
     #[cfg(test)]
     quickcheck! {
         fn fits32_u32(num: u32) -> bool {
-            num.test_fits64()
+            test_fits64(num);
+            true
         }
     }
 
     #[cfg(test)]
     quickcheck! {
         fn fits64_i64(num: i64) -> bool {
-            num.test_fits64()
+            test_fits64(num);
+            true
         }
     }
 
     #[cfg(test)]
     quickcheck! {
         fn fits64_u64(num: u64) -> bool {
-            num.test_fits64()
+            test_fits64(num);
+            true
         }
     }
 }
@@ -2134,15 +2142,13 @@ pub trait Fits64 : Copy {
     /// Convert to a `u64`.  This should be infallible.
     #[inline]
     fn to_u64(self) -> u64;
-    /// verify that the conversion is lossless
-    fn test_fits64(self) -> bool {
-        // println!("\ntest_fits64 {:?}", &self);
-        let x = self.to_u64();
-        let y = unsafe { Self::from_u64(x).to_u64() };
-        // println!("x: {}, and y: {}", x, y);
-        // assert_eq!(x, y);
-        x == y
-    }
+}
+
+#[cfg(test)]
+fn test_fits64<T: Fits64>(x: T) {
+    let x = x.to_u64();
+    let y = unsafe { T::from_u64(x).to_u64() };
+    assert_eq!(x, y);
 }
 
 macro_rules! define_fits {
