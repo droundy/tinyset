@@ -476,19 +476,25 @@ impl SetU64 {
                 std::mem::size_of::<Self>() + s.cap*8-8,
         }
     }
+    fn dense_with_max(mx: u64) -> SetU64 {
+        let cap = 1 + mx/64 + mx/256;
+        // This should be stored in a dense bitset.
+        unsafe {
+            let x = SetU64(std::alloc::alloc_zeroed(layout_for_capacity(cap as usize))
+                           as *mut S);
+            (*x.0).cap = cap as usize;
+            (*x.0).bits = 64;
+            x
+        }
+    }
+
     /// Create a set with the given capacity
     pub fn with_capacity_and_max(cap: usize, mx: u64) -> SetU64 {
-        if cap as u64 > mx >> 4 {
-            // This should be stored in a dense bitset.
-            return unsafe {
-                let cap = 1 + cap/64;
-                let x = SetU64(std::alloc::alloc_zeroed(layout_for_capacity(cap)) as *mut S);
-                (*x.0).cap = cap;
-                (*x.0).bits = 64;
-                x
-            };
+        if cap as u64 > mx >> 7 {
+            SetU64::dense_with_max(mx)
+        } else {
+            SetU64::with_capacity_and_bits(cap, compute_array_bits(mx))
         }
-        SetU64::with_capacity_and_bits(cap, compute_array_bits(mx))
     }
     /// Create a set with the given capacity and bits
     pub fn with_capacity_and_bits(cap: usize, bits: u64) -> SetU64 {
@@ -560,7 +566,7 @@ impl SetU64 {
                     present
                 } else {
                     // println!("key is {}", key);
-                    if key > 4*(*sz as usize) {
+                    if key > 128*(*sz as usize) {
                         // It is getting sparse, so let us switch back
                         // to a non-hash table.
                         let cap = 2*(*sz + 1);
@@ -634,12 +640,11 @@ impl SetU64 {
                 }
                 // println!("no room in the sparse set... {:?}", a);
                 // We'll have to expand the set.
-                let mx = a.iter().cloned().map(|x| (x >> s.bits) + s.bits).max().unwrap();
+                let mx = a.iter().cloned().map(|x| (x >> s.bits)*s.bits + s.bits).max().unwrap();
                 let mx = if e > mx { e } else { mx };
                 if s.cap as u64 > mx >> 6 {
                     // A dense set will save memory
-                    let newcap = (1 + mx/64 + mx/128) as usize;
-                    let mut new = Self::with_capacity_and_bits(newcap, 64);
+                    let mut new = Self::dense_with_max(mx);
                     for x in self.iter() {
                         new.insert(x);
                     }
@@ -647,8 +652,8 @@ impl SetU64 {
                     *self = new;
                 } else {
                     // Let's keep things sparse
-                    // A dense set will save memory
-                    let newcap: usize = s.cap + 1 + (rand::random::<usize>() % (2*s.cap));
+                    // A dense set will cost us memory
+                    let newcap: usize = s.cap + 1 + (rand::random::<usize>() % s.cap);
                     let mut new = Self::with_capacity_and_bits(newcap, s.bits);
                     // new.debug_me("initial new");
                     for v in self.iter() {

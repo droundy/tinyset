@@ -476,19 +476,47 @@ impl SetU32 {
                 std::mem::size_of::<Self>() + s.cap as usize*4-4,
         }
     }
+        /// This requires that we currently be a dense!
+    unsafe fn dense_increase_mx(&mut self, mx: u32) -> &mut [u32] {
+        let ptr = self.0;
+        let cap = 1 + mx/32 + mx/128;
+
+        let oldcap = (*ptr).cap;
+        self.0 = std::alloc::realloc(ptr as *mut u8,
+                                     layout_for_capacity(oldcap as usize),
+                                     bytes_for_capacity(cap as usize)) as *mut S;
+        if self.0 as usize == 0 {
+            std::alloc::handle_alloc_error(layout_for_capacity(cap as usize));
+        }
+        (*self.0).cap = cap;
+        match self.internal_mut() {
+            InternalMut::Dense { a, .. } => {
+                for i in oldcap as usize .. a.len() {
+                    a[i] = 0;
+                }
+                a
+            }
+            _ => unreachable!(),
+        }
+    }
+    fn dense_with_max(mx: u32) -> SetU32 {
+        let cap = 1 + mx/32 + mx/128;
+        // This should be stored in a dense bitset.
+        unsafe {
+            let x = SetU32(std::alloc::alloc_zeroed(layout_for_capacity(cap as usize)) as *mut S);
+            (*x.0).cap = cap;
+            (*x.0).bits = 32;
+            x
+        }
+    }
     /// Create a set with the given capacity
     pub fn with_capacity_and_max(cap: usize, mx: u32) -> SetU32 {
-        if cap as u32 > mx >> 4 {
+        if cap as u32 > mx >> 5 {
             // This should be stored in a dense bitset.
-            return unsafe {
-                let cap = 1 + cap/32;
-                let x = SetU32(std::alloc::alloc_zeroed(layout_for_capacity(cap)) as *mut S);
-                (*x.0).cap = cap as u32;
-                (*x.0).bits = 32;
-                x
-            };
+            SetU32::dense_with_max(mx)
+        } else {
+            SetU32::with_capacity_and_bits(cap, compute_array_bits(mx))
         }
-        SetU32::with_capacity_and_bits(cap, compute_array_bits(mx))
     }
     /// Create a set with the given capacity and bits
     pub fn with_capacity_and_bits(cap: usize, bits: u32) -> SetU32 {
@@ -560,39 +588,27 @@ impl SetU32 {
                     present
                 } else {
                     // println!("key is {}", key);
-                    if key > 4*(*sz as usize) {
+                    if key > 64*(*sz as usize) {
                         // It is getting sparse, so let us switch back
                         // to a non-hash table.
-                        let cap = 2*(*sz + 1);
-                        let mut new = SetU32::with_capacity_and_bits(cap as usize, 0);
+                        let cap = 1+2*(*sz as usize);
+                        let mut new = SetU32::with_capacity_and_bits(cap, 0);
                         for x in self.iter() {
                             new.insert(x);
                         }
                         new.insert(e);
                         *self = new;
                     } else {
-                        let mut new = SetU32::with_capacity_and_bits(1 + key + key/4, 32);
-                        match new.internal_mut() {
-                            InternalMut::Empty => unreachable!(),
-                            InternalMut::Stack(_) => unreachable!(),
-                            InternalMut::Big { .. } => unreachable!(),
-                            InternalMut::Heap { .. } => unreachable!(),
-                            InternalMut::Dense { sz: newsz, a: na } => {
-                                for (i,v) in a.iter().cloned().enumerate() {
-                                    na[i] = v;
-                                }
-                                na[key] = 1 << (e & 31);
-                                *newsz = *sz + 1;
-                            }
+                        unsafe {
+                            self.dense_increase_mx(e)[key] = 1 << (e & 31);
                         }
-                        *self = new;
                     }
                     false
                 }
             }
             InternalMut::Heap { s, a } => {
                 if compute_array_bits(e) < s.bits {
-                    let newcap = s.cap+1+2*(rand::random::<u32>() % s.cap);
+                    let newcap = s.cap+1+(rand::random::<u32>() % s.cap);
                     let mut new = Self::with_capacity_and_bits(newcap as usize,
                                                                compute_array_bits(e));
                     // new.debug_me("\n\nnew set");
@@ -625,7 +641,11 @@ impl SetU32 {
                     },
                 }
                 // println!("looking for space in sparse... {:?}", a);
-                if a.iter().cloned().any(|x| x == 0) {
+                if a.iter().cloned()
+                    .filter(|&x| x == 0) // look for empty spots
+                    .enumerate() // count them
+                    .any(|(n,_)| n+1 > a.len() >> 4) // we have more than 1/16 empty?
+                {
                     let idx = p_insert(e, a, s.bits);
                     // println!("about to insert key {} with elem {} at {}",
                     //          key, e, idx);
@@ -635,12 +655,11 @@ impl SetU32 {
                 }
                 // println!("no room in the sparse set... {:?}", a);
                 // We'll have to expand the set.
-                let mx = a.iter().cloned().map(|x| (x >> s.bits) + s.bits).max().unwrap();
+                let mx = a.iter().cloned().map(|x| (x >> s.bits)*s.bits + s.bits).max().unwrap();
                 let mx = if e > mx { e } else { mx };
-                if s.cap > mx >> 5 {
-                    // A dense set will save memory
-                    let newcap = (1 + key/32 + key/64) as usize;
-                    let mut new = Self::with_capacity_and_bits(newcap as usize, 32);
+                if s.cap > mx >> 6 {
+                    // A dense set will probably save memory
+                    let mut new = Self::dense_with_max(mx);
                     for x in self.iter() {
                         new.insert(x);
                     }
@@ -648,8 +667,8 @@ impl SetU32 {
                     *self = new;
                 } else {
                     // Let's keep things sparse
-                    // A dense set will save memory
-                    let newcap: u32 = s.cap + 1 + (rand::random::<u32>() % (2*s.cap));
+                    // A dense set will cost us memory
+                    let newcap: u32 = s.cap + 1 + (rand::random::<u32>() % s.cap);
                     let mut new = Self::with_capacity_and_bits(newcap as usize, s.bits);
                     // new.debug_me("initial new");
                     for v in self.iter() {
@@ -700,7 +719,7 @@ impl SetU32 {
                     return false;
                 }
                 // println!("no room in the set... {:?}", a);
-                let newcap: u32 = s.cap + 1 + (rand::random::<u32>() % (2*s.cap));
+                let newcap: u32 = s.cap + 1 + (rand::random::<u32>() % s.cap);
                 let mut new = Self::with_capacity_and_bits(newcap as usize, s.bits);
                 // new.debug_me("initial new");
                 match new.internal_mut() {
@@ -960,9 +979,12 @@ fn test_collect() {
     test_a_collect((0..1024).collect());
 }
 
+fn bytes_for_capacity(sz: usize) -> usize {
+    sz*4+std::mem::size_of::<S>()-4
+}
 fn layout_for_capacity(sz: usize) -> std::alloc::Layout {
     unsafe {
-        std::alloc::Layout::from_size_align_unchecked(sz*4+std::mem::size_of::<S>()-4, 4)
+        std::alloc::Layout::from_size_align_unchecked(bytes_for_capacity(sz), 4)
     }
 }
 
