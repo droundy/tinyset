@@ -110,3 +110,5 @@ pub use setu64::SetU64;
 
 pub mod u64set;
 pub use crate::u64set::{Set64, Map64, Map6464, Fits64};
+
+mod copyset;

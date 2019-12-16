@@ -402,7 +402,24 @@ impl<'a> Iterator for Iter<'a> {
     }
 }
 
-
+impl crate::copyset::CopySet for SetU32 {
+    type Item = u32;
+    fn ins(&mut self, e: u32) -> bool {
+        self.insert(e)
+    }
+    fn rem(&mut self, e: u32) -> bool {
+        self.remove(e)
+    }
+    fn con(&self, e: u32) -> bool {
+        self.contains(e)
+    }
+    fn vec(&self) -> Vec<u32> {
+        self.iter().collect()
+    }
+    fn ln(&self) -> usize {
+        self.len()
+    }
+}
 
 impl SetU32 {
     /// The number of elements in the set
@@ -1098,6 +1115,20 @@ mod tests {
     }
 
     use proptest::prelude::*;
+    proptest!{
+        #[test]
+        fn copycheck_random_sets(slice in prop::collection::vec(1u32..5, 1usize..10)) {
+            crate::copyset::check_set::<SetU32>(&slice);
+        }
+        #[test]
+        fn copycheck_medium_sets(slice in prop::collection::vec(1u32..255, 1usize..100)) {
+            crate::copyset::check_set::<SetU32>(&slice);
+        }
+        #[test]
+        fn copycheck_big_sets(slice: Vec<u32>) {
+            crate::copyset::check_set::<SetU32>(&slice);
+        }
+    }
     proptest!{
         #[test]
         fn check_random_sets(slice in prop::collection::vec(1u32..5, 1usize..10)) {
