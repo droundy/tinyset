@@ -699,7 +699,7 @@ fn main() {
     // }
     // assert_eq!(s.len(), 5);
 
-    for f in [0.8, 0.001,0.05,0.8].iter().cloned() {
+    for f in [0.001,0.05,0.8].iter().cloned() {
         bench_fill_with_inserts(f);
         bench_collect(f);
     }

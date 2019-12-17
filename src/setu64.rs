@@ -129,6 +129,9 @@ static BITSPLITS: [&[u64]; 8] = [
 ];
 
 impl Tiny {
+    fn debug_me(self, msg: &str) {
+        println!("{}: {:?} => {:?}", msg, self, self.collect::<Vec<_>>());
+    }
     fn to_usize(self) -> usize {
         self.sz as usize | self.bits << 3
     }
@@ -152,20 +155,18 @@ impl Tiny {
             })
         }
     }
-    fn new(mut v: Vec<u64>) -> Option<Self> {
+    fn new_sorted_deduped(v: &[u64]) -> Option<Self> {
         if v.len() == 0 {
             return None;
         } else if v.len() > BITSPLITS.len() - 1 {
             return None;
         }
         let sz = v.len() as u8;
-        v.sort();
-        v.dedup();
         let mut last = 0;
         let mut offset = 0;
         let mut bits: usize = 0;
         let bitsplits = BITSPLITS[sz as usize];
-        for (x,nbits) in v.into_iter().zip(bitsplits.iter().cloned()) {
+        for (x,nbits) in v.iter().cloned().zip(bitsplits.iter().cloned()) {
             let y = if offset == 0 {
                 x
             } else {
@@ -180,57 +181,115 @@ impl Tiny {
         }
         Some (Tiny { sz, bits, sz_spent: 0, last: 0 })
     }
-    fn new_unchecked(v: impl Iterator<Item=u64>, sz: u8) -> Self {
-        let mut last = 0;
-        let mut offset = 0;
-        let mut bits: usize = 0;
-        let bitsplits = BITSPLITS[sz as usize];
-        for (x,nbits) in v.zip(bitsplits.iter().cloned()) {
-            let y = if offset == 0 {
-                x
-            } else {
-                x - last - 1
-            };
-            bits = bits | (y as usize) << offset;
-            offset += nbits;
-            last = x;
+    fn insert(mut self, e: u64) -> Option<Self> {
+        if e > std::usize::MAX as u64 {
+            return None;
         }
-        Tiny { sz, bits, sz_spent: 0, last: 0 }
-    }
-    fn insert(self, e: u64) -> Option<Self> {
-        let mut last = 0;
-        let mut offset = 0;
-        let mut bits: usize = 0;
-        let sz = self.sz + 1;
-        let bitsplits = BITSPLITS.get(sz as usize)?;
-        for (x,nbits) in self.clone().merge(Some(e).into_iter()).zip(bitsplits.iter().cloned()) {
-            let y = if offset == 0 {
-                x
-            } else if x == last {
-                return Some(self);
-            } else {
-                x - last - 1
+        let mut e = e as usize;
+        let old_bitsplits = BITSPLITS[self.sz as usize];
+        if let Some(new_bitsplits) = BITSPLITS.get(self.sz as usize + 1) {
+            let mut new = Tiny {
+                bits: 0,
+                sz: self.sz + 1,
+                last: 0,
+                sz_spent: 0,
             };
-            if log_2(y) > nbits {
-                return None;
+            let backup = self.clone();
+            let mut offset = 0;
+            let mut old_iter = old_bitsplits.iter().cloned();
+            let mut new_iter = new_bitsplits.iter().cloned();
+            while let Some(newb) = new_iter.next() {
+                if let Some(oldb) = old_iter.next() {
+                    let mut n = self.bits & mask(oldb as usize) as usize;
+                    if e == n {
+                        return Some(backup);
+                    } else if log_2(n as u64) > newb {
+                        if e < n {
+                            return None;
+                        }
+                        e -= n + 1;
+                        self.bits = self.bits >> oldb;
+                        for oldb in old_iter {
+                            let n = self.bits & mask(oldb as usize) as usize;
+                            if n == e { return Some(backup); }
+                            if e < n { return None; }
+                            e -= n + 1;
+                            self.bits = self.bits >> oldb;
+                        }
+                        return None;
+                    } else if e < n {
+                        new.bits = new.bits | (e << offset);
+                        offset += newb;
+                        n = n - e - 1;
+                        let newb = new_iter.next().unwrap();
+                        if log_2(n as u64) > newb {
+                            return None;
+                        }
+                        new.bits = new.bits | (n << offset);
+                        offset += newb;
+                        self.bits = self.bits >> oldb;
+                        for newb in new_iter {
+                            let oldb = old_iter.next().unwrap();
+                            let n = self.bits & mask(oldb as usize) as usize;
+                            if log_2(n as u64) > newb {
+                                return None;
+                            }
+                            new.bits = new.bits | (n << offset);
+                            self.bits = self.bits >> oldb;
+                            offset += newb;
+                        }
+                        return Some(new);
+                    }
+                    e -= n + 1;
+                    new.bits = new.bits | (n << offset);
+                    offset += newb;
+                    self.bits = self.bits >> oldb;
+                } else {
+                    // the new one is last
+                    if log_2(e as u64) > newb {
+                        return None;
+                    }
+                    new.bits = new.bits | (e << offset);
+                }
             }
-            bits = bits | (y as usize) << offset;
-            offset += nbits;
-            last = x;
+            Some(new)
+        } else {
+            if self.clone().any(|x| x == e as u64) {
+                Some(self)
+            } else {
+                None
+            }
         }
-        Some(Tiny { sz, bits, sz_spent: 0, last: 0 })
+    }
+    fn contains(mut self, e: u64) -> bool {
+        if e > std::usize::MAX as u64 {
+            return false;
+        }
+        let mut e = e as usize;
+        let bitsplits = BITSPLITS[self.sz as usize];
+        for b in bitsplits.iter().cloned() {
+            let n: usize = self.bits & mask(b as usize) as usize;
+            if e == n {
+                return true;
+            } else if e < n {
+                return false;
+            }
+            e -= n + 1;
+            self.bits = self.bits >> b;
+        }
+        false
     }
 }
 
 #[cfg(test)]
 fn test_vec(v: Vec<u64>) {
     println!("\ntesting {:?}", v);
-    assert_eq!(Tiny::new(v.clone()).unwrap().collect::<Vec<_>>(), v);
+    assert_eq!(Tiny::new_sorted_deduped(&v).unwrap().collect::<Vec<_>>(), v);
 }
 
 #[test]
 fn test_tiny() {
-    assert_eq!(Tiny::new(vec![]), None);
+    assert_eq!(Tiny::new_sorted_deduped(&[]), None);
     test_vec(vec![1]);
     test_vec(vec![1024]);
     test_vec(vec![1,2]);
@@ -273,6 +332,7 @@ enum InternalMut<'a> {
     },
 }
 
+#[derive(Debug)]
 enum Iter<'a> {
     Empty,
     Stack(Tiny),
@@ -313,6 +373,7 @@ impl<'a> Iterator for Iter<'a> {
                                 return Some(((*whichword as u64) << 6) + bit as u64);
                             }
                         }
+                        *whichbit = 0;
                         *whichword = *whichword + 1;
                     } else {
                         return None;
@@ -401,8 +462,113 @@ impl<'a> Iterator for Iter<'a> {
         }
     }
 }
+/// An iterator over a set of `u64`.
+pub struct IntoIter {
+    sz_left: usize,
+    whichbit: u64,
+    whichword: usize,
+    set: SetU64,
+}
+impl IntoIterator for SetU64 {
+    type Item = u64;
+    type IntoIter = IntoIter;
 
+    fn into_iter(self) -> IntoIter {
+        IntoIter {
+            whichword: 0,
+            whichbit: 0,
+            sz_left: self.len(),
+            set: self,
+        }
+    }
+}
+impl Iterator for IntoIter {
+    type Item = u64;
+    #[inline]
+    fn next(&mut self) -> Option<u64> {
+        if self.sz_left == 0 {
+            return None;
+        }
+        match self.set.internal() {
+            Internal::Empty => unreachable!(),
+            Internal::Stack(mut t) => {
+                if let Some(next) = t.next() {
+                    self.set.0 = t.to_usize() as *mut S;
+                    self.sz_left -= 1;
+                    Some(next)
+                } else {
+                    None
+                }
+            }
+            Internal::Dense { a, .. } => {
+                loop {
+                    if let Some(&word) = a.get(self.whichword) {
+                        while self.whichbit < 64 {
+                            let bit = self.whichbit;
+                            self.whichbit = 1 + bit;
+                            if word & (1 << bit) != 0 {
+                                self.sz_left -= 1;
+                                return Some(((self.whichword as u64) << 6) + bit as u64);
+                            }
+                        }
+                        self.whichword += 1;
+                    } else {
+                        return None;
+                    }
+                }
+            }
+            Internal::Big { a, s, .. } => {
+                let bits = s.bits;
+                while let Some(&word) = a.get(self.whichword) {
+                    if word != 0 {
+                        self.sz_left -= 1;
+                        self.whichword += 1;
+                        return Some( if word == bits { 0 } else { word });
+                    }
+                }
+                None
+            }
+            Internal::Heap { a, s, .. } => {
+                while let Some(&x) = a.get(self.whichword) {
+                    while self.whichbit < s.bits {
+                        let oldbit = self.whichbit;
+                        self.whichbit += 1;
+                        if (x & (1 << oldbit)) != 0 {
+                            self.sz_left -= 1;
+                            return Some(unsplit_u64(x >> s.bits, oldbit, s.bits));
+                        }
+                    }
+                    self.whichbit = 0;
+                }
+                None
+            }
+        }
+    }
+    #[inline]
+    fn count(self) -> usize {
+        self.sz_left
+    }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.sz_left, Some(self.sz_left))
+    }
+}
 
+impl Clone for SetU64 {
+    fn clone(&self) -> Self {
+        if self.0 as usize & 7 == 0 {
+            let c = self.capacity();
+            unsafe {
+                let ptr = std::alloc::alloc_zeroed(layout_for_capacity(c)) as *mut S;
+                std::ptr::copy_nonoverlapping(self.0 as *const u8, ptr as *mut u8,
+                                              bytes_for_capacity(c));
+                SetU64(ptr)
+            }
+        } else {
+            SetU64(self.0)
+        }
+    }
+}
 
 impl SetU64 {
     /// The number of elements in the set
@@ -439,26 +605,30 @@ impl SetU64 {
             }
         }
     }
-    /// Print debugging information about this set.Heap
+    /// Print debugging information about this set.
     pub fn debug_me(&self, msg: &str) {
         match self.internal() {
             Internal::Empty => println!("empty set: {}", msg),
-            Internal::Stack(t) => println!("stack {:?} => {:?}", t, t.collect::<Vec<_>>()),
+            Internal::Stack(t) => println!("{}: stack {:?} => {:?}", msg, t, t.collect::<Vec<_>>()),
             Internal::Heap { s, a } => {
-                println!("{}: {:?}", msg, s);
-                for x in a.iter().cloned() {
-                    println!("      {} (key {}): {:0b} ({})",
+                println!("{}: heap {:?}", msg, s);
+                for (i,x) in a.iter().cloned().enumerate() {
+                    println!("      {} (key {} pov {}): {:0b} ({})",
                              (x >> s.bits)*s.bits, x >> s.bits,
+                             p_poverty(x >> s.bits, i, a.len()),
                              x & mask(s.bits as usize), x);
                 }
+                println!("    => {:?}", self.iter().collect::<Vec<_>>());
             }
             Internal::Big { s, a } => {
-                println!("{}: {:?}\n    {:?}", msg, s, a);
+                println!("{}: big {:?}\n    {:?}", msg, s, a);
                 let v: Vec<_> = a.iter().cloned().map(|x| x % a.len() as u64).collect();
                 println!("     >>>{:?}", v);
             }
             Internal::Dense { sz, a } => {
-                println!("{}: {:?}\n    {:?}", msg, sz, a);
+                println!("{}: dense {:?}\n    {:?}\n    => {:?}",
+                         msg, sz, a, self.iter().collect::<Vec<u64>>());
+                println!("    foo {:?}", self.iter());
             }
         }
     }
@@ -523,13 +693,13 @@ impl SetU64 {
         SetU64(0 as *mut S)
     }
 
-    /// Insert
+    /// Insert and return true if it was not present.
     pub fn insert(&mut self, e: u64) -> bool {
         match self.internal_mut() {
             InternalMut::Empty => {
                 if let Some(t) = Tiny::from_singleton(e) {
                     *self = SetU64(t.to_usize() as *mut S);
-                    return false;
+                    return true;
                 }
                 // println!("I could not create tiny set with singleton {}", e);
                 *self = Self::with_capacity_and_max(1, e);
@@ -537,7 +707,7 @@ impl SetU64 {
             InternalMut::Stack(t) => {
                 if let Some(newt) = t.insert(e) {
                     *self = SetU64(newt.to_usize() as *mut S);
-                    return newt.sz == t.sz;
+                    return newt.sz != t.sz;
                 }
                 *self = Self::with_capacity_and_max(t.sz as usize + 1,
                                                     t.merge(Some(e).into_iter()).max().unwrap());
@@ -547,7 +717,7 @@ impl SetU64 {
                     // self.debug_me(&format!("   ...after inserting {}", x));
                 }
                 self.insert(e);
-                return false;
+                return true;
             }
             _ => (),
         }
@@ -563,7 +733,7 @@ impl SetU64 {
                     if !present {
                         *sz = *sz + 1;
                     }
-                    present
+                    !present
                 } else {
                     // println!("key is {}", key);
                     if key > 128*(*sz as usize) {
@@ -593,7 +763,7 @@ impl SetU64 {
                         }
                         *self = new;
                     }
-                    false
+                    true
                 }
             }
             InternalMut::Heap { s, a } => {
@@ -608,35 +778,35 @@ impl SetU64 {
                     new.insert(e);
                     // new.debug_me(&format!("\n -- after inserting {}", e));
                     *self = new;
-                    return false;
+                    return true;
                 }
                 let (key, offset) = split_u64(e, s.bits);
                 match p_lookfor(key, a, s.bits) {
                     LookedUp::KeyFound(idx) => {
                         if a[idx] & (1 << offset) != 0 {
-                            return true;
+                            return false;
                         } else {
                             a[idx] = a[idx] | (1 << offset);
                             s.sz += 1;
-                            return false;
+                            return true;
                         }
                     }
                     LookedUp::EmptySpot(idx) => {
                             a[idx] = key << s.bits | 1 << offset;
                             s.sz += 1;
-                            return false;
+                            return true;
                     }
                     LookedUp::NeedInsert => {
                     },
                 }
                 // println!("looking for space in sparse... {:?}", a);
                 if a.iter().cloned().any(|x| x == 0) {
-                    let idx = p_insert(e, a, s.bits);
+                    let idx = p_insert(key, a, s.bits);
                     // println!("about to insert key {} with elem {} at {}",
                     //          key, e, idx);
                     a[idx] = (key << s.bits) | (1 << offset);
                     s.sz += 1;
-                    return false;
+                    return true;
                 }
                 // println!("no room in the sparse set... {:?}", a);
                 // We'll have to expand the set.
@@ -662,7 +832,7 @@ impl SetU64 {
                     new.insert(e);
                     *self = new;
                 }
-                false
+                true
             }
             InternalMut::Big { s, a } => {
                 if e == s.bits {
@@ -687,12 +857,12 @@ impl SetU64 {
                 let e = if e == 0 { s.bits } else { e };
                 match p_lookfor(e, a, 0) {
                     LookedUp::KeyFound(_) => {
-                        return true;
+                        return false;
                     }
                     LookedUp::EmptySpot(idx) => {
                         a[idx] = e;
                         s.sz += 1;
-                        return false;
+                        return true;
                     }
                     LookedUp::NeedInsert => (),
                 }
@@ -701,7 +871,7 @@ impl SetU64 {
                     // println!("about to insert at {}", p_insert(e, a, 0));
                     a[p_insert(e, a, 0)] = e;
                     s.sz += 1;
-                    return false;
+                    return true;
                 }
                 // println!("no room in the set... {:?}", a);
                 let newcap: usize = s.cap + 1 + (rand::random::<usize>() % (2*s.cap));
@@ -727,7 +897,7 @@ impl SetU64 {
                     }
                 }
                 *self = new;
-                false
+                true
             }
         }
     }
@@ -742,8 +912,7 @@ impl SetU64 {
                     if sz == 0 {
                         *self = SetU64(0 as *mut S);
                     } else {
-                        let newt = Tiny::new_unchecked(t.filter(|&x| x != e), sz);
-                        *self = SetU64(newt.to_usize() as *mut S);
+                        *self = t.filter(|&x| x != e).collect();
                     }
                     true
                 } else {
@@ -817,6 +986,7 @@ impl SetU64 {
             }
             Internal::Heap { s, a } => {
                 if compute_array_bits(e) < s.bits {
+                    // println!("too big a thing");
                     return false;
                 }
                 let (key, offset) = split_u64(e, s.bits);
@@ -839,7 +1009,7 @@ impl SetU64 {
 
     /// Iterate over
     #[inline]
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item=u64> + 'a {
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item=u64> + 'a + std::fmt::Debug {
         match self.internal() {
             Internal::Empty => Iter::Empty,
             Internal::Stack(t) => Iter::Stack( t ),
@@ -857,6 +1027,16 @@ impl SetU64 {
             Internal::Dense { a, sz } => {
                 Iter::Dense { sz_left: sz, whichword: 0, whichbit: 0, a }
             }
+        }
+    }
+    /// Clears the set, returning all elements in an iterator.
+    #[inline]
+    pub fn drain<'a>(&'a mut self) -> impl Iterator<Item=u64> + 'a {
+        IntoIter {
+            whichword: 0,
+            whichbit: 0,
+            sz_left: self.len(),
+            set: std::mem::replace(self, SetU64::new()),
         }
     }
 
@@ -897,6 +1077,25 @@ impl SetU64 {
     }
 }
 
+impl crate::copyset::CopySet for SetU64 {
+    type Item = u64;
+    fn ins(&mut self, e: u64) -> bool {
+        self.insert(e)
+    }
+    fn rem(&mut self, e: u64) -> bool {
+        self.remove(e)
+    }
+    fn con(&self, e: u64) -> bool {
+        self.contains(e)
+    }
+    fn vec(&self) -> Vec<u64> {
+        self.iter().collect()
+    }
+    fn ln(&self) -> usize {
+        self.len()
+    }
+}
+
 impl Default for SetU64 {
     fn default() -> Self {
         SetU64(0 as *mut S)
@@ -908,9 +1107,11 @@ impl std::iter::FromIterator<u64> for SetU64 {
         where
         T: IntoIterator<Item = u64>
     {
-        let v: Vec<_> = iter.into_iter().collect();
+        let mut v: Vec<_> = iter.into_iter().collect();
+        v.sort();
+        v.dedup();
         if let Some(mx) = v.iter().cloned().max() {
-            if let Some(t) = Tiny::new(v.clone()) {
+            if let Some(t) = Tiny::new_sorted_deduped(&v) {
                 SetU64(t.to_usize() as *mut S)
             } else {
                 if v.len() as u64 > mx >> 4 {
@@ -964,9 +1165,12 @@ fn test_collect() {
     test_a_collect((0..1024).collect());
 }
 
+fn bytes_for_capacity(sz: usize) -> usize {
+    sz*8+std::mem::size_of::<S>()-8
+}
 fn layout_for_capacity(sz: usize) -> std::alloc::Layout {
     unsafe {
-        std::alloc::Layout::from_size_align_unchecked(sz*8+std::mem::size_of::<S>()-8, 8)
+        std::alloc::Layout::from_size_align_unchecked(bytes_for_capacity(sz), 8)
     }
 }
 
@@ -1015,10 +1219,17 @@ mod tests {
         s.debug_me("default set");
         let mut count = 0;
         for x in elems.iter().cloned() {
-            if !s.insert(x) {
+            let was_here = s.contains(x);
+            s.debug_me(&format!("\n\n\nabout to insert {}", x));
+            let changed_something = s.insert(x);
+            s.debug_me(&format!("\n\nafter inserting {}", x));
+            if changed_something {
                 count += 1;
+                println!("    {} is new now count {}", x, count);
             }
-            s.debug_me(&format!("   after inserting {} length is {}", x, s.len()));
+            assert_eq!(!was_here, changed_something);
+            s.debug_me(&format!("after inserting {} length is {}", x, s.len()));
+            println!("what is this? count {} does it have {}?", count, x);
             assert!(s.contains(x));
             assert_eq!(s.len(), count);
             assert_eq!(s.iter().count(), count);
@@ -1099,12 +1310,92 @@ mod tests {
         check_set(&[0, 1024, 1 << 63]);
     }
 
+    fn check_tiny_from_vec(slice: Vec<u64>) {
+        println!("\n\n\ncheck_tiny_from_vec({:?})", slice);
+        let mut t = Tiny::from_singleton(slice[0]).unwrap();
+        t.debug_me("to start with");
+        let mut count = 1;
+        let mut included = Vec::new();
+        for x in slice.iter().cloned() {
+            t.debug_me(&format!("starting in on {}", x));
+            assert_eq!(t.clone().any(|e| e == x), t.contains(x));
+            let already = t.clone().any(|e| e == x);
+            let next = t.insert(x);
+            if let Some(tt) = next {
+                tt.debug_me("    inserting gives");
+                assert_eq!(tt.sz == t.sz, already);
+                if tt.sz != t.sz {
+                    count += 1;
+                    included.push(x);
+                }
+                t = tt;
+                t.debug_me("hello");
+                assert!(t.clone().any(|e| e == x));
+                assert!(t.insert(x).is_some()); // inserting a second time must succeeed
+                t.debug_me("hello again");
+                assert_eq!(t.sz, count);
+                for xx in t.clone() {
+                    assert!(t.contains(xx));
+                    assert!(t.clone().any(|x| x == xx));
+                }
+            } else {
+                assert!(!already);
+            }
+            t.debug_me("at end of loop");
+        }
+        for x in included.iter().cloned() {
+            assert!(t.contains(x));
+        }
+    }
+    #[test]
+    fn check_specific_tinies() {
+        check_tiny_from_vec(vec![49,50,1]);
+        check_tiny_from_vec(vec![1]);
+        check_tiny_from_vec(vec![1,2]);
+        check_tiny_from_vec(vec![1000000, 1000030]);
+        check_tiny_from_vec(vec![3000027656, 3000030504]);
+        check_tiny_from_vec(vec![3127827656, 3125730504]);
+        check_tiny_from_vec(vec![3127827656, 3125730504,1]);
+        check_tiny_from_vec(vec![2,3,143,251,1,130,251]);
+        check_tiny_from_vec(vec![1,130,131,132,133,251]);
+    }
+
     use proptest::prelude::*;
+    proptest!{
+        #[test]
+        fn copycheck_random_sets(slice in prop::collection::vec(1u64..5, 1usize..10)) {
+            crate::copyset::check_set::<SetU64>(&slice);
+        }
+        #[test]
+        fn copycheck_medium_sets(slice in prop::collection::vec(1u64..255, 1usize..100)) {
+            crate::copyset::check_set::<SetU64>(&slice);
+        }
+        #[test]
+        fn copycheck_big_sets(slice: Vec<u64>) {
+            crate::copyset::check_set::<SetU64>(&slice);
+        }
+    }
     proptest!{
         #[test]
         fn check_random_sets(slice in prop::collection::vec(1u64..5, 1usize..10)) {
             check_set(&slice);
         }
+        #[test]
+        fn check_medium_sets(slice in prop::collection::vec(1u64..255, 1usize..100)) {
+            check_set(&slice);
+        }
+        #[test]
+        fn check_big_sets(slice: Vec<u64>) {
+            check_set(&slice);
+        }
+        #[test]
+        fn check_tiny(slice in prop::collection::vec(1u64..0xffffffff, 1usize..9)) {
+            check_tiny_from_vec(slice);
+        }
+    }
+    #[test]
+    fn check_specific_sets() {
+        check_set(&[2847318633310315892, 63058418965769059, 2042910419467651321, 1999840121589118486, 16041957357413958548, 3644150915196633528, 11391567487966916668, 2789376712080388913, 8889702475440805467, 16888113214698725429, 1249634136756270040, 15461625332902556004, 8159161795026448273, 12009229139422836646, 15912096166435473807]);
     }
 
     fn total_size_of<T: HeapSizeOf>(x: &T) -> usize {
@@ -1274,7 +1565,7 @@ fn p_insert(k: u64, a: &mut [u64], offset: u64) -> usize {
                 let jj = (stolen + j) % n;
                 let kj = a[jj] >> offset;
                 let pov_kj = p_poverty(kj, jj, n);
-                if kj == 0 {
+                if a[jj] == 0 {
                     // We finally found an unoccupied spot!
                     // println!("put the displaced at {}", jj);
                     a[jj] = displaced;
@@ -1352,6 +1643,7 @@ fn p_lookfor(k: u64, a: &[u64], offset: u64) -> LookedUp {
     let n = a.len();
     for pov in 0..n {
         let ii = ((k + pov as u64) % n as u64) as usize;
+        // println!("looking in spot ii = {} with pov={}", ii, pov);
         if a[ii] == 0 {
             // println!("got empty spot at {} for key {}", ii, k);
             return LookedUp::EmptySpot(ii);
@@ -1398,8 +1690,8 @@ fn p_remove(k: u64, a: &mut [u64], offset: u64) -> bool {
                 let jj = (ii + j) % n;
                 // println!("looking at removing offset {} at location {}", j, jj);
                 let kj = a[jj] >> offset;
-                let jkj = (((jj + n) as u64 - (kj % n as u64)) % n as u64) as usize;
-                if kj == 0 || jkj == 0 {
+                let pov_kj = p_poverty(kj, jj, n);
+                if a[jj] == 0 || pov_kj == 0 {
                     // We found an unoccupied spot or a perfectly
                     // happy customer, so nothing else could have been
                     // bumped.

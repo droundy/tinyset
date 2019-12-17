@@ -51,6 +51,7 @@ impl crate::copyset::CopySet for U64Set {
 
 #[cfg(test)]
 use proptest::prelude::*;
+#[cfg(test)]
 proptest!{
     #[test]
     fn copycheck_random_sets(slice in prop::collection::vec(1u64..5, 1usize..10)) {

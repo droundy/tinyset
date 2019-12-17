@@ -47,6 +47,7 @@ impl CopySet for std::collections::HashSet<u32> {
 
 #[cfg(test)]
 use proptest::prelude::*;
+#[cfg(test)]
 proptest!{
     #[test]
     fn check_random_sets(slice in prop::collection::vec(1u64..5, 1usize..10)) {
