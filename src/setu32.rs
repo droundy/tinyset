@@ -335,23 +335,9 @@ enum InternalMut<'a> {
 enum Iter<'a> {
     Empty,
     Stack(Tiny),
-    Heap {
-        sz_left: usize,
-        bits: u32,
-        whichbit: u32,
-        array: &'a [u32],
-    },
-    Big {
-        sz_left: usize,
-        bits: u32,
-        a: &'a [u32],
-    },
-    Dense {
-        sz_left: usize,
-        whichword: usize,
-        whichbit: u32,
-        a: &'a [u32],
-    },
+    Heap(HeapIter<'a>),
+    Big(BigIter<'a>),
+    Dense(DenseIter<'a>),
 }
 
 impl<'a> Iterator for Iter<'a> {
@@ -360,60 +346,10 @@ impl<'a> Iterator for Iter<'a> {
     fn next(&mut self) -> Option<u32> {
         match self {
             Iter::Empty => None,
-            Iter::Stack(ref mut t) => t.next(),
-            Iter::Dense { sz_left, whichword, whichbit, a } => {
-                loop {
-                    if let Some(word) = a.get(*whichword) {
-                        while *whichbit < 32 {
-                            let bit = *whichbit;
-                            *whichbit = 1 + bit;
-                            if word & (1 << bit) != 0 {
-                                *sz_left -= 1;
-                                return Some(((*whichword as u32) << 5) + bit as u32);
-                            }
-                        }
-                        *whichbit = 0;
-                        *whichword = *whichword + 1;
-                    } else {
-                        return None;
-                    }
-                }
-            }
-            Iter::Big { sz_left, bits, a } => {
-                let bits = *bits;
-                while let Some((&x, rest)) = a.split_first() {
-                    *a = rest;
-                    if x != 0 {
-                        *sz_left -= 1;
-                        return Some( if x == bits { 0 } else { x });
-                    }
-                }
-                None
-            }
-            Iter::Heap { sz_left, whichbit, array, bits } => {
-                let bits = *bits;
-                if bits > 0 {
-                    while let Some(&x) = array.first() {
-                        while *whichbit < bits {
-                            let oldbit = *whichbit;
-                            *whichbit += 1;
-                            if (x & (1 << oldbit)) != 0 {
-                                *sz_left -= 1;
-                                return Some(unsplit_u32(x >> bits, oldbit, bits));
-                            }
-                        }
-                        *array = array.split_first().unwrap().1;
-                        *whichbit = 0;
-                    }
-                } else {
-                    if let Some((&first,rest)) = array.split_first() {
-                        *array = rest;
-                        *sz_left -= 1;
-                        return Some(first);
-                    }
-                }
-                None
-            }
+            Iter::Stack(t) => t.next(),
+            Iter::Dense(it) => it.next(),
+            Iter::Big(it) => it.next(),
+            Iter::Heap(it) => it.next(),
         }
     }
     #[inline]
@@ -421,9 +357,9 @@ impl<'a> Iterator for Iter<'a> {
         match self {
             Iter::Empty => 0,
             Iter::Stack(t) => t.count(),
-            Iter::Dense { sz_left, .. } => sz_left,
-            Iter::Big { sz_left, .. } => sz_left,
-            Iter::Heap { sz_left, .. } => sz_left,
+            Iter::Dense(it) => it.count(),
+            Iter::Big(it) => it.count(),
+            Iter::Heap(it) => it.count(),
         }
     }
     #[inline]
@@ -431,34 +367,182 @@ impl<'a> Iterator for Iter<'a> {
         match self {
             Iter::Empty => (0, Some(0)),
             Iter::Stack(t) => t.size_hint(),
-            Iter::Dense { sz_left, .. } => (*sz_left, Some(*sz_left)),
-            Iter::Big { sz_left, .. } => (*sz_left, Some(*sz_left)),
-            Iter::Heap { sz_left, .. } => (*sz_left, Some(*sz_left)),
+            Iter::Dense(it) => it.size_hint(),
+            Iter::Big(it) => it.size_hint(),
+            Iter::Heap(it) => it.size_hint(),
         }
     }
     #[inline]
-    fn min(mut self) -> Option<u32> {
+    fn min(self) -> Option<u32> {
         match self {
             Iter::Empty => None,
             Iter::Stack(t) => t.min(),
-            Iter::Dense { .. } => self.next(),
-            Iter::Big { sz_left: 0, .. } => None,
-            Iter::Big { a, bits, .. } => {
-                a.into_iter().cloned().filter(|x| *x != 0).map(|x| {
-                    if x == bits { 0 } else { x }
-                }).min()
+            Iter::Dense(it) => it.min(),
+            Iter::Big(it) => it.min(),
+            Iter::Heap(it) => it.min(),
+        }
+    }
+    #[inline]
+    fn last(self) -> Option<u32> {
+        match self {
+            Iter::Empty => None,
+            Iter::Stack(t) => t.last(),
+            Iter::Dense(it) => it.last(),
+            Iter::Big(it) => it.last(),
+            Iter::Heap(it) => it.last(),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct HeapIter<'a> {
+    sz_left: usize,
+    bits: u32,
+    whichbit: u32,
+    array: &'a [u32],
+}
+
+impl<'a> Iterator for HeapIter<'a> {
+    type Item = u32;
+    #[inline]
+    fn next(&mut self) -> Option<u32> {
+        if self.bits > 0 {
+            while let Some(&x) = self.array.first() {
+                while self.whichbit < self.bits {
+                    let oldbit = self.whichbit;
+                    self.whichbit += 1;
+                    if (x & (1 << oldbit)) != 0 {
+                        self.sz_left -= 1;
+                        return Some(unsplit_u32(x >> self.bits, oldbit, self.bits));
+                    }
+                }
+                self.array = self.array.split_first().unwrap().1;
+                self.whichbit = 0;
             }
-            Iter::Heap { sz_left: 0, .. } => None,
-            Iter::Heap { whichbit: 0, array, bits, .. } => {
-                let x = array.into_iter().cloned().filter(|x| *x != 0).min().unwrap();
-                Some((x >> bits)*bits + x.trailing_zeros() as u32)
-            }
-            Iter::Heap { .. } => {
-                let f = self.next().unwrap();
-                let r = self.min().unwrap();
-                Some(if f < r { f } else { r })
+        } else {
+            if let Some((&first,rest)) = self.array.split_first() {
+                self.array = rest;
+                self.sz_left -= 1;
+                return Some(first);
             }
         }
+        None
+    }
+    #[inline]
+    fn count(self) -> usize {
+        self.sz_left
+    }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.sz_left, Some(self.sz_left))
+    }
+    #[inline]
+    fn min(mut self) -> Option<u32> {
+        if self.sz_left == 0 {
+            None
+        } else if self.whichbit == 0 {
+            let x = self.array.into_iter().cloned()
+                .filter(|x| *x != 0).min().unwrap();
+            Some((x >> self.bits)*self.bits + x.trailing_zeros() as u32)
+        } else {
+            let mut min = self.next().unwrap();
+            while let Some(x) = self.next() {
+                if x < min {
+                    min = x;
+                }
+            }
+            Some(min)
+        }
+    }
+}
+
+#[derive(Debug)]
+struct BigIter<'a> {
+    sz_left: usize,
+    bits: u32,
+    a: &'a [u32],
+}
+
+impl<'a> Iterator for BigIter<'a> {
+    type Item = u32;
+    #[inline]
+    fn next(&mut self) -> Option<u32> {
+        while let Some((&x, rest)) = self.a.split_first() {
+            self.a = rest;
+            if x != 0 {
+                self.sz_left -= 1;
+                return Some( if x == self.bits { 0 } else { x });
+            }
+        }
+        None
+    }
+    #[inline]
+    fn last(self) -> Option<u32> {
+        self.a.into_iter().rev().cloned()
+            .filter(|&x| x != 0)
+            .map(|x| if x == self.bits { 0 } else { x })
+            .next()
+    }
+    #[inline]
+    fn count(self) -> usize {
+        self.sz_left
+    }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.sz_left, Some(self.sz_left))
+    }
+    #[inline]
+    fn min(self) -> Option<u32> {
+        if self.sz_left == 0 {
+            None
+        } else {
+            self.a.into_iter().cloned()
+                .filter(|x| *x != 0)
+                .map(|x| if x == self.bits { 0 } else { x }).min()
+        }
+    }
+}
+
+#[derive(Debug)]
+struct DenseIter<'a> {
+    sz_left: usize,
+    whichword: usize,
+    whichbit: u32,
+    a: &'a [u32],
+}
+
+impl<'a> Iterator for DenseIter<'a> {
+    type Item = u32;
+    #[inline]
+    fn next(&mut self) -> Option<u32> {
+        loop {
+            if let Some(word) = self.a.get(self.whichword) {
+                while self.whichbit < 32 {
+                    let bit = self.whichbit;
+                    self.whichbit = 1 + bit;
+                    if word & (1 << bit) != 0 {
+                        self.sz_left -= 1;
+                        return Some(((self.whichword as u32) << 5) + bit as u32);
+                    }
+                }
+                self.whichbit = 0;
+                self.whichword += 1;
+            } else {
+                return None;
+            }
+        }
+    }
+    #[inline]
+    fn count(self) -> usize {
+        self.sz_left
+    }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.sz_left, Some(self.sz_left))
+    }
+    #[inline]
+    fn min(mut self) -> Option<u32> {
+        self.next()
     }
 }
 
@@ -1061,18 +1145,23 @@ impl SetU32 {
             Internal::Empty => Iter::Empty,
             Internal::Stack(t) => Iter::Stack( t ),
             Internal::Heap { s, a } => {
-                Iter::Heap {
+                Iter::Heap(HeapIter {
                     sz_left: s.sz as usize,
                     bits: s.bits,
                     whichbit: 0,
                     array: a,
-                }
+                })
             }
             Internal::Big { s, a } => {
-                Iter::Big { sz_left: s.sz as usize, bits: s.bits, a }
+                Iter::Big(BigIter { sz_left: s.sz as usize, bits: s.bits, a })
             }
             Internal::Dense { a, sz } => {
-                Iter::Dense { sz_left: sz as usize, whichword: 0, whichbit: 0, a }
+                Iter::Dense(DenseIter {
+                    sz_left: sz as usize,
+                    whichword: 0,
+                    whichbit: 0,
+                    a
+                })
             }
         }
     }

@@ -603,6 +603,16 @@ fn bench_min(density: f64) {
                 |s| { s.iter().cloned().min() },
     );
 }
+fn bench_last(density: f64) {
+    bench_funcs("last", density,
+                |s| { s.iter().last().map(|x| x as u64) },
+                |s| { s.iter().last().map(|x| x as u64) },
+                |s| { s.iter().last().map(|x| *x as u64) },
+                |s| { s.iter().last() },
+                |s| { s.iter().last() },
+                |s| { s.iter().cloned().last() },
+    );
+}
 
 fn bench_sum(density: f64) {
     bench_funcs("sum", density,
@@ -695,6 +705,21 @@ fn bench_scaling(density: f64, min: usize) {
 }
 
 fn main() {
+
+    bench_last(0.001);
+    bench_last(0.05);
+    bench_last(0.5);
+    bench_last(0.8);
+
+    bench_min(0.001);
+    bench_min(0.05);
+    bench_min(0.5);
+    bench_min(0.8);
+
+    bench_sum(0.001);
+    bench_sum(0.05);
+    bench_sum(0.5);
+    bench_sum(0.8);
 
     // let mut s = tinyset::SetU32::new();
     // while s.len() < 10000 {
