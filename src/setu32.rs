@@ -201,14 +201,12 @@ impl Tiny {
             while let Some(newb) = new_iter.next() {
                 if let Some(oldb) = old_iter.next() {
                     let mut n = self.bits & mask(oldb as usize) as usize;
-                    println!("    n = {}", n);
                     if e == n {
                         return Some(backup);
                     } else if log_2(n as u32) > newb {
                         if e < n {
                             return None;
                         }
-                        println!("    going another route...");
                         e -= n + 1;
                         self.bits = self.bits >> oldb;
                         for oldb in old_iter {
@@ -220,7 +218,6 @@ impl Tiny {
                         }
                         return None;
                     } else if e < n {
-                        println!("    need to cram in e");
                         new.bits = new.bits | (e << offset);
                         offset += newb;
                         n = n - e - 1;
@@ -241,28 +238,20 @@ impl Tiny {
                             self.bits = self.bits >> oldb;
                             offset += newb;
                         }
-                        println!("returning new");
                         return Some(new);
                     }
                     e -= n + 1;
-                    println!("    updating e to {}", e);
                     new.bits = new.bits | (n << offset);
                     offset += newb;
                     self.bits = self.bits >> oldb;
                 } else {
-                    println!("    the new one is last, bits were {:b}", new.bits);
                     // the new one is last
                     if log_2(e as u32) > newb {
                         return None;
                     }
                     new.bits = new.bits | (e << offset);
-                    println!("    bits are now {:b}", new.bits);
-                    println!("    leading_zeros {}", new.bits.leading_zeros());
-                    new.debug_me("    hello");
-                    println!("   after round trip: {:?}", Tiny::from_usize(new.to_usize()));
                 }
             }
-            println!("got new");
             Some(new)
         } else {
             if self.clone().any(|x| x == e as u32) {
@@ -770,13 +759,13 @@ impl SetU32 {
                 }
                 *self = Self::with_capacity_and_max(t.sz as usize + 1,
                                                     t.merge(Some(e).into_iter()).max().unwrap());
-                self.debug_me("empty array");
+                // self.debug_me("empty array");
                 for x in t {
                     self.insert(x);
-                    self.debug_me(&format!("   ...after inserting {}", x));
+                    // self.debug_me(&format!("   ...after inserting {}", x));
                 }
                 self.insert(e);
-                self.debug_me(&format!("   ...and inserting {}", e));
+                // self.debug_me(&format!("   ...and inserting {}", e));
                 return true;
             }
             _ => (),
@@ -848,15 +837,15 @@ impl SetU32 {
                     LookedUp::NeedInsert => {
                     },
                 }
-                println!("looking for space in sparse... {:?}", a);
+                // println!("looking for space in sparse... {:?}", a);
                 if a.iter().cloned()
                     .filter(|&x| x == 0) // look for empty spots
                     .enumerate() // count them
                     .any(|(n,_)| n+1 > a.len() >> 4) // we have more than 1/16 empty?
                 {
                     let idx = p_insert(key, a, s.bits);
-                    println!("about to insert key {} with elem {} at {}",
-                             key, e, idx);
+                    // println!("about to insert key {} with elem {} at {}",
+                    //          key, e, idx);
                     a[idx] = (key << s.bits) | (1 << offset);
                     s.sz += 1;
                     return true;
@@ -1033,7 +1022,7 @@ impl SetU32 {
     pub fn contains(&self, e: u32) -> bool {
         match self.internal() {
             Internal::Empty => false,
-            Internal::Stack(t) => t.clone().any(|x| x == e),
+            Internal::Stack(t) => t.contains(e),
             Internal::Dense { a, .. } => {
                 let key = e >> 5;
                 if let Some(bits) = a.get(key as usize) {

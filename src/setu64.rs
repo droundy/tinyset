@@ -975,7 +975,7 @@ impl SetU64 {
     pub fn contains(&self, e: u64) -> bool {
         match self.internal() {
             Internal::Empty => false,
-            Internal::Stack(t) => t.clone().any(|x| x == e),
+            Internal::Stack(t) => t.contains(e), // t.clone().any(|x| x == e),
             Internal::Dense { a, .. } => {
                 let key = e >> 6;
                 if let Some(bits) = a.get(key as usize) {

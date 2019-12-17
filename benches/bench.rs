@@ -100,6 +100,9 @@ fn bench_sets(density: f64, num_elements: usize) {
              density, num_elements,
              "u32", "u32b", "std32", "u64", "old64", "std");
 
+    // ensure that we've used the random number generator at least
+    // once, so we won't be confused by any memory that it allocates.
+    gen32();
     println!("{:>17}: {:6.0}b {:6.0}b {:6.0}b {:6.0}b {:6.0}b {:6.0}b",
              "size",
              (0..100).map(|_| mem_used(|| gen32().1).1).sum::<usize>() as f64/100.0,
@@ -698,6 +701,9 @@ fn main() {
     //     s.insert(rand::random::<u32>() % 15000);
     // }
     // assert_eq!(s.len(), 5);
+    for &sz in SIZES.iter() {
+        bench_sets(0.8, sz);
+    }
 
     for f in [0.001,0.05,0.8].iter().cloned() {
         bench_fill_with_inserts(f);
