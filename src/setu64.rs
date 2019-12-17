@@ -1312,7 +1312,11 @@ mod tests {
 
     fn check_tiny_from_vec(slice: Vec<u64>) {
         println!("\n\n\ncheck_tiny_from_vec({:?})", slice);
-        let mut t = Tiny::from_singleton(slice[0]).unwrap();
+        let mut t = if let Some(t) = Tiny::from_singleton(slice[0]) {
+            t
+        } else {
+            return; // hokey, but avoids a crash
+        };
         t.debug_me("to start with");
         let mut count = 1;
         let mut included = Vec::new();

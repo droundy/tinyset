@@ -704,7 +704,7 @@ fn table_sizes() {
                size_usize + size_without_data + 8*4);
 
     let v: SetU32 = (1..1000).map(|x| x*64).collect();
-    assert_eq!(10008, v.mem_used());
+    assert_eq!(10000 + std::mem::size_of::<usize>(), v.mem_used());
 }
 
 impl Default for SetU32 {
