@@ -42,6 +42,9 @@
 #[doc(hidden)]
 pub mod setu32b;
 
+pub mod setusize;
+pub use setusize::SetUsize;
+
 pub mod setu32;
 pub use setu32::SetU32;
 
