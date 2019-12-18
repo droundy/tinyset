@@ -1,14 +1,17 @@
-pub trait CopySet : Default {
+pub trait CopySet : Default + Clone {
     type Item: Copy + Eq + Ord + std::fmt::Display + std::fmt::Debug;
+    type Iter: Iterator<Item=Self::Item>;
     fn ins(&mut self, e: Self::Item) -> bool;
     fn rem(&mut self, e: Self::Item) -> bool;
     fn con(&self, e: Self::Item) -> bool;
     fn vec(&self) -> Vec<Self::Item>;
     fn ln(&self) -> usize;
+    fn it(self) -> Self::Iter;
 }
 
 impl CopySet for std::collections::HashSet<u64> {
     type Item = u64;
+    type Iter = std::collections::hash_set::IntoIter<u64>;
     fn ins(&mut self, e: u64) -> bool {
         self.insert(e)
     }
@@ -24,10 +27,14 @@ impl CopySet for std::collections::HashSet<u64> {
     fn ln(&self) -> usize {
         self.len()
     }
+    fn it(self) -> Self::Iter {
+        self.into_iter()
+    }
 }
 
 impl CopySet for std::collections::HashSet<u32> {
     type Item = u32;
+    type Iter = std::collections::hash_set::IntoIter<u32>;
     fn ins(&mut self, e: u32) -> bool {
         self.insert(e)
     }
@@ -42,6 +49,9 @@ impl CopySet for std::collections::HashSet<u32> {
     }
     fn ln(&self) -> usize {
         self.len()
+    }
+    fn it(self) -> Self::Iter {
+        self.into_iter()
     }
 }
 
@@ -97,6 +107,14 @@ pub fn check_set<T: CopySet>(elems: &[T::Item]) {
         println!("found {}", x);
         assert!(elems.contains(&x));
     }
+    for x in s.clone().it() {
+        println!("found {}", x);
+        assert!(elems.contains(&x));
+    }
+    println!("checking max");
+    assert_eq!(s.clone().it().max(), elems.iter().cloned().max());
+    println!("checking min");
+    assert_eq!(s.clone().it().min(), elems.iter().cloned().min());
     for x in elems.iter().cloned() {
         println!("YYYY looking for {}", x);
         assert!(s.con(x));

@@ -53,6 +53,13 @@ fn unsplit_u32(k: u32, offset: u32, bits: u32) -> u32 {
 /// A set of u32
 pub struct SetU32(*mut S);
 
+impl std::fmt::Debug for SetU32 {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "SetU32 {:?}", self.iter().collect::<Vec<_>>())?;
+        Ok(())
+    }
+}
+
 #[repr(C)]
 #[derive(Debug)]
 struct S {
@@ -383,6 +390,16 @@ impl<'a> Iterator for Iter<'a> {
         }
     }
     #[inline]
+    fn max(self) -> Option<u32> {
+        match self {
+            Iter::Empty => None,
+            Iter::Stack(t) => t.max(),
+            Iter::Dense(it) => it.max(),
+            Iter::Big(it) => it.max(),
+            Iter::Heap(it) => it.max(),
+        }
+    }
+    #[inline]
     fn last(self) -> Option<u32> {
         match self {
             Iter::Empty => None,
@@ -429,6 +446,14 @@ impl<'a> Iterator for HeapIter<'a> {
         None
     }
     #[inline]
+    fn last(self) -> Option<u32> {
+        self.array.into_iter().rev().cloned()
+            .filter(|&x| x != 0)
+            .map(|x| x >> self.bits
+                 + (x & mask(self.bits as usize)).leading_zeros() - 31)
+            .next()
+    }
+    #[inline]
     fn count(self) -> usize {
         self.sz_left
     }
@@ -452,6 +477,27 @@ impl<'a> Iterator for HeapIter<'a> {
                 }
             }
             Some(min)
+        }
+    }
+    #[inline]
+    fn max(mut self) -> Option<u32> {
+        if self.sz_left == 0 {
+            None
+        } else if self.whichbit == 0 {
+            let x = self.array.into_iter().cloned()
+                .filter(|x| *x != 0).max().unwrap();
+            let reference = (x >> self.bits)*self.bits;
+            let m = mask(self.bits as usize);
+            let extra = 31 - (x & m).leading_zeros();
+            Some(reference + extra)
+        } else {
+            let mut max = self.next().unwrap();
+            while let Some(x) = self.next() {
+                if x > max {
+                    max = x;
+                }
+            }
+            Some(max)
         }
     }
 }
@@ -533,6 +579,20 @@ impl<'a> Iterator for DenseIter<'a> {
         }
     }
     #[inline]
+    fn last(self) -> Option<u32> {
+        if self.sz_left == 0 {
+            return None;
+        }
+        let zero_words = self.a.iter().rev().cloned()
+            .take_while(|&x| x == 0).count() as u32;
+        let zero_bits = self.a[self.a.len() - 1 - zero_words as usize].leading_zeros() as u32;
+        Some(self.a.len() as u32*32 - zero_bits - 1 - zero_words*32)
+    }
+    #[inline]
+    fn max(self) -> Option<u32> {
+        self.last()
+    }
+    #[inline]
     fn count(self) -> usize {
         self.sz_left
     }
@@ -548,6 +608,7 @@ impl<'a> Iterator for DenseIter<'a> {
 
 impl crate::copyset::CopySet for SetU32 {
     type Item = u32;
+    type Iter = IntoIter;
     fn ins(&mut self, e: u32) -> bool {
         self.insert(e)
     }
@@ -563,13 +624,15 @@ impl crate::copyset::CopySet for SetU32 {
     fn ln(&self) -> usize {
         self.len()
     }
+    fn it(self) -> Self::Iter {
+        self.into_iter()
+    }
 }
 
 /// An iterator over a set of `u32`.
+#[derive(Debug)]
 pub struct IntoIter {
-    sz_left: usize,
-    whichbit: u32,
-    whichword: usize,
+    iter: Iter<'static>,
     set: SetU32,
 }
 impl IntoIterator for SetU32 {
@@ -577,10 +640,9 @@ impl IntoIterator for SetU32 {
     type IntoIter = IntoIter;
 
     fn into_iter(self) -> IntoIter {
+        let iter = unsafe { std::mem::transmute(self.private_iter()) };
         IntoIter {
-            whichword: 0,
-            whichbit: 0,
-            sz_left: self.len(),
+            iter,
             set: self,
         }
     }
@@ -588,83 +650,42 @@ impl IntoIterator for SetU32 {
 impl Iterator for IntoIter {
     type Item = u32;
     #[inline]
-    fn next(&mut self) -> Option<u32> {
-        if self.sz_left == 0 {
-            return None;
-        }
-        match self.set.internal() {
-            Internal::Empty => unreachable!(),
-            Internal::Stack(mut t) => {
-                if let Some(next) = t.next() {
-                    self.set.0 = t.to_usize() as *mut S;
-                    self.sz_left -= 1;
-                    Some(next)
-                } else {
-                    None
-                }
-            }
-            Internal::Dense { a, .. } => {
-                loop {
-                    if let Some(&word) = a.get(self.whichword) {
-                        while self.whichbit < 32 {
-                            let bit = self.whichbit;
-                            self.whichbit = 1 + bit;
-                            if word & (1 << bit) != 0 {
-                                self.sz_left -= 1;
-                                return Some(((self.whichword as u32) << 6) + bit as u32);
-                            }
-                        }
-                        self.whichword += 1;
-                    } else {
-                        return None;
-                    }
-                }
-            }
-            Internal::Big { a, s, .. } => {
-                let bits = s.bits;
-                while let Some(&word) = a.get(self.whichword) {
-                    if word != 0 {
-                        self.sz_left -= 1;
-                        self.whichword += 1;
-                        return Some( if word == bits { 0 } else { word });
-                    }
-                }
-                None
-            }
-            Internal::Heap { a, s, .. } => {
-                while let Some(&x) = a.get(self.whichword) {
-                    while self.whichbit < s.bits {
-                        let oldbit = self.whichbit;
-                        self.whichbit += 1;
-                        if (x & (1 << oldbit)) != 0 {
-                            self.sz_left -= 1;
-                            return Some(unsplit_u32(x >> s.bits, oldbit, s.bits));
-                        }
-                    }
-                    self.whichbit = 0;
-                }
-                None
-            }
-        }
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+    #[inline]
+    fn last(self) -> Option<Self::Item> {
+        self.iter.last()
+    }
+    #[inline]
+    fn min(self) -> Option<Self::Item> {
+        self.iter.min()
+    }
+    #[inline]
+    fn max(self) -> Option<Self::Item> {
+        self.iter.max()
     }
     #[inline]
     fn count(self) -> usize {
-        self.sz_left
+        self.iter.count()
     }
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.sz_left, Some(self.sz_left))
+        self.iter.size_hint()
     }
 }
 
 impl Clone for SetU32 {
     fn clone(&self) -> Self {
-        if self.0 as usize & 7 == 0 {
+        if self.0 as usize & 7 == 0 && self.0 != std::ptr::null_mut() {
             let c = self.capacity();
             unsafe {
                 let ptr = std::alloc::alloc_zeroed(layout_for_capacity(c)) as *mut S;
+                if ptr == std::ptr::null_mut() {
+                    std::alloc::handle_alloc_error(layout_for_capacity(c));
+                }
                 std::ptr::copy_nonoverlapping(self.0 as *const u8, ptr as *mut u8,
-                                              bytes_for_capacity(c));
+                                             bytes_for_capacity(c));
                 SetU32(ptr)
             }
         } else {
@@ -1141,6 +1162,9 @@ impl SetU32 {
     /// Iterate over
     #[inline]
     pub fn iter<'a>(&'a self) -> impl Iterator<Item=u32> + 'a + std::fmt::Debug {
+        self.private_iter()
+    }
+    fn private_iter<'a>(&'a self) -> Iter<'a> {
         match self.internal() {
             Internal::Empty => Iter::Empty,
             Internal::Stack(t) => Iter::Stack( t ),
@@ -1168,11 +1192,11 @@ impl SetU32 {
     /// Clears the set, returning all elements in an iterator.
     #[inline]
     pub fn drain<'a>(&'a mut self) -> impl Iterator<Item=u32> + 'a {
+        let set: SetU32 = std::mem::replace(self, SetU32::new());
+        let iter = unsafe { std::mem::transmute(set.private_iter()) };
         IntoIter {
-            whichword: 0,
-            whichbit: 0,
-            sz_left: self.len(),
-            set: std::mem::replace(self, SetU32::new()),
+            iter,
+            set,
         }
     }
 

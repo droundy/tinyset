@@ -30,44 +30,6 @@ struct U64Set {
     v: Data,
 }
 
-impl crate::copyset::CopySet for U64Set {
-    type Item = u64;
-    fn ins(&mut self, e: u64) -> bool {
-        self.insert(e)
-    }
-    fn rem(&mut self, e: u64) -> bool {
-        self.remove(&e)
-    }
-    fn con(&self, e: u64) -> bool {
-        self.contains(&e).is_some()
-    }
-    fn vec(&self) -> Vec<u64> {
-        self.iter().collect()
-    }
-    fn ln(&self) -> usize {
-        self.len()
-    }
-}
-
-#[cfg(test)]
-use proptest::prelude::*;
-#[cfg(test)]
-proptest!{
-    #[test]
-    fn copycheck_random_sets(slice in prop::collection::vec(1u64..5, 1usize..10)) {
-        crate::copyset::check_set::<U64Set>(&slice);
-    }
-    #[test]
-    fn copycheck_medium_sets(slice in prop::collection::vec(1u64..255, 1usize..100)) {
-        crate::copyset::check_set::<U64Set>(&slice);
-    }
-    #[test]
-    fn copycheck_big_sets(slice: Vec<u64>) {
-        crate::copyset::check_set::<U64Set>(&slice);
-    }
-}
-
-
 const NUM_U8: usize = 22;
 const NUM_U16: usize = 11;
 const NUM_U32: usize = 5;

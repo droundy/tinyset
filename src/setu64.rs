@@ -53,6 +53,13 @@ fn unsplit_u64(k: u64, offset: u64, bits: u64) -> u64 {
 /// A set of u64
 pub struct SetU64(*mut S);
 
+impl std::fmt::Debug for SetU64 {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "SetU64 {:?}", self.iter().collect::<Vec<_>>())?;
+        Ok(())
+    }
+}
+
 #[repr(C)]
 #[derive(Debug)]
 struct S {
@@ -336,23 +343,9 @@ enum InternalMut<'a> {
 enum Iter<'a> {
     Empty,
     Stack(Tiny),
-    Heap {
-        sz_left: usize,
-        bits: u64,
-        whichbit: u64,
-        array: &'a [u64],
-    },
-    Big {
-        sz_left: usize,
-        bits: u64,
-        a: &'a [u64],
-    },
-    Dense {
-        sz_left: usize,
-        whichword: usize,
-        whichbit: usize,
-        a: &'a [u64],
-    },
+    Heap(HeapIter<'a>),
+    Big(BigIter<'a>),
+    Dense(DenseIter<'a>),
 }
 
 impl<'a> Iterator for Iter<'a> {
@@ -362,59 +355,9 @@ impl<'a> Iterator for Iter<'a> {
         match self {
             Iter::Empty => None,
             Iter::Stack(ref mut t) => t.next(),
-            Iter::Dense { sz_left, whichword, whichbit, a } => {
-                loop {
-                    if let Some(word) = a.get(*whichword) {
-                        while *whichbit < 64 {
-                            let bit = *whichbit;
-                            *whichbit = 1 + bit;
-                            if word & (1 << bit) != 0 {
-                                *sz_left -= 1;
-                                return Some(((*whichword as u64) << 6) + bit as u64);
-                            }
-                        }
-                        *whichbit = 0;
-                        *whichword = *whichword + 1;
-                    } else {
-                        return None;
-                    }
-                }
-            }
-            Iter::Big { sz_left, bits, a } => {
-                let bits = *bits;
-                while let Some((&x, rest)) = a.split_first() {
-                    *a = rest;
-                    if x != 0 {
-                        *sz_left -= 1;
-                        return Some( if x == bits { 0 } else { x });
-                    }
-                }
-                None
-            }
-            Iter::Heap { sz_left, whichbit, array, bits } => {
-                let bits = *bits;
-                if bits > 0 {
-                    while let Some(&x) = array.first() {
-                        while *whichbit < bits {
-                            let oldbit = *whichbit;
-                            *whichbit += 1;
-                            if (x & (1 << oldbit)) != 0 {
-                                *sz_left -= 1;
-                                return Some(unsplit_u64(x >> bits, oldbit, bits));
-                            }
-                        }
-                        *array = array.split_first().unwrap().1;
-                        *whichbit = 0;
-                    }
-                } else {
-                    if let Some((&first,rest)) = array.split_first() {
-                        *array = rest;
-                        *sz_left -= 1;
-                        return Some(first);
-                    }
-                }
-                None
-            }
+            Iter::Dense(it) => it.next(),
+            Iter::Big(it) => it.next(),
+            Iter::Heap(it) => it.next(),
         }
     }
     #[inline]
@@ -422,9 +365,9 @@ impl<'a> Iterator for Iter<'a> {
         match self {
             Iter::Empty => 0,
             Iter::Stack(t) => t.count(),
-            Iter::Dense { sz_left, .. } => sz_left,
-            Iter::Big { sz_left, .. } => sz_left,
-            Iter::Heap { sz_left, .. } => sz_left,
+            Iter::Dense(it) => it.count(),
+            Iter::Big(it) => it.count(),
+            Iter::Heap(it) => it.count(),
         }
     }
     #[inline]
@@ -432,41 +375,36 @@ impl<'a> Iterator for Iter<'a> {
         match self {
             Iter::Empty => (0, Some(0)),
             Iter::Stack(t) => t.size_hint(),
-            Iter::Dense { sz_left, .. } => (*sz_left, Some(*sz_left)),
-            Iter::Big { sz_left, .. } => (*sz_left, Some(*sz_left)),
-            Iter::Heap { sz_left, .. } => (*sz_left, Some(*sz_left)),
+            Iter::Dense(it) => it.size_hint(),
+            Iter::Big(it) => it.size_hint(),
+            Iter::Heap(it) => it.size_hint(),
         }
     }
     #[inline]
-    fn min(mut self) -> Option<u64> {
+    fn min(self) -> Option<u64> {
         match self {
             Iter::Empty => None,
             Iter::Stack(t) => t.min(),
-            Iter::Dense { .. } => self.next(),
-            Iter::Big { sz_left: 0, .. } => None,
-            Iter::Big { a, bits, .. } => {
-                a.into_iter().cloned().filter(|x| *x != 0).map(|x| {
-                    if x == bits { 0 } else { x }
-                }).min()
-            }
-            Iter::Heap { sz_left: 0, .. } => None,
-            Iter::Heap { whichbit: 0, array, bits, .. } => {
-                let x = array.into_iter().cloned().filter(|x| *x != 0).min().unwrap();
-                Some((x >> bits)*bits + x.trailing_zeros() as u64)
-            }
-            Iter::Heap { .. } => {
-                let f = self.next().unwrap();
-                let r = self.min().unwrap();
-                Some(if f < r { f } else { r })
-            }
+            Iter::Dense(it) => it.min(),
+            Iter::Big(it) => it.min(),
+            Iter::Heap(it) => it.min(),
+        }
+    }
+    #[inline]
+    fn max(self) -> Option<u64> {
+        match self {
+            Iter::Empty => None,
+            Iter::Stack(t) => t.max(),
+            Iter::Dense(it) => it.max(),
+            Iter::Big(it) => it.max(),
+            Iter::Heap(it) => it.max(),
         }
     }
 }
 /// An iterator over a set of `u64`.
+#[derive(Debug)]
 pub struct IntoIter {
-    sz_left: usize,
-    whichbit: u64,
-    whichword: usize,
+    iter: Iter<'static>,
     set: SetU64,
 }
 impl IntoIterator for SetU64 {
@@ -474,10 +412,9 @@ impl IntoIterator for SetU64 {
     type IntoIter = IntoIter;
 
     fn into_iter(self) -> IntoIter {
+        let iter = unsafe { std::mem::transmute(self.private_iter()) };
         IntoIter {
-            whichword: 0,
-            whichbit: 0,
-            sz_left: self.len(),
+            iter,
             set: self,
         }
     }
@@ -485,81 +422,40 @@ impl IntoIterator for SetU64 {
 impl Iterator for IntoIter {
     type Item = u64;
     #[inline]
-    fn next(&mut self) -> Option<u64> {
-        if self.sz_left == 0 {
-            return None;
-        }
-        match self.set.internal() {
-            Internal::Empty => unreachable!(),
-            Internal::Stack(mut t) => {
-                if let Some(next) = t.next() {
-                    self.set.0 = t.to_usize() as *mut S;
-                    self.sz_left -= 1;
-                    Some(next)
-                } else {
-                    None
-                }
-            }
-            Internal::Dense { a, .. } => {
-                loop {
-                    if let Some(&word) = a.get(self.whichword) {
-                        while self.whichbit < 64 {
-                            let bit = self.whichbit;
-                            self.whichbit = 1 + bit;
-                            if word & (1 << bit) != 0 {
-                                self.sz_left -= 1;
-                                return Some(((self.whichword as u64) << 6) + bit as u64);
-                            }
-                        }
-                        self.whichword += 1;
-                    } else {
-                        return None;
-                    }
-                }
-            }
-            Internal::Big { a, s, .. } => {
-                let bits = s.bits;
-                while let Some(&word) = a.get(self.whichword) {
-                    if word != 0 {
-                        self.sz_left -= 1;
-                        self.whichword += 1;
-                        return Some( if word == bits { 0 } else { word });
-                    }
-                }
-                None
-            }
-            Internal::Heap { a, s, .. } => {
-                while let Some(&x) = a.get(self.whichword) {
-                    while self.whichbit < s.bits {
-                        let oldbit = self.whichbit;
-                        self.whichbit += 1;
-                        if (x & (1 << oldbit)) != 0 {
-                            self.sz_left -= 1;
-                            return Some(unsplit_u64(x >> s.bits, oldbit, s.bits));
-                        }
-                    }
-                    self.whichbit = 0;
-                }
-                None
-            }
-        }
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+    #[inline]
+    fn last(self) -> Option<Self::Item> {
+        self.iter.last()
+    }
+    #[inline]
+    fn min(self) -> Option<Self::Item> {
+        self.iter.min()
+    }
+    #[inline]
+    fn max(self) -> Option<Self::Item> {
+        self.iter.max()
     }
     #[inline]
     fn count(self) -> usize {
-        self.sz_left
+        self.iter.count()
     }
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.sz_left, Some(self.sz_left))
+        self.iter.size_hint()
     }
 }
 
 impl Clone for SetU64 {
     fn clone(&self) -> Self {
-        if self.0 as usize & 7 == 0 {
+        if self.0 as usize & 7 == 0 && self.0 != std::ptr::null_mut() {
             let c = self.capacity();
             unsafe {
                 let ptr = std::alloc::alloc_zeroed(layout_for_capacity(c)) as *mut S;
+                if ptr == std::ptr::null_mut() {
+                    std::alloc::handle_alloc_error(layout_for_capacity(c));
+                }
                 std::ptr::copy_nonoverlapping(self.0 as *const u8, ptr as *mut u8,
                                               bytes_for_capacity(c));
                 SetU64(ptr)
@@ -568,6 +464,16 @@ impl Clone for SetU64 {
             SetU64(self.0)
         }
     }
+}
+
+#[test]
+fn just_clone() {
+    let mut x = SetU64::with_capacity_and_max(100, 1000000);
+    x.insert(100); x.insert(1000);
+    let y = x.clone();
+    assert_eq!(x.len(), y.len());
+    assert_eq!(x.len(), x.into_iter().count());
+    assert_eq!(y.len(), y.clone().into_iter().count());
 }
 
 impl SetU64 {
@@ -1010,33 +916,36 @@ impl SetU64 {
     /// Iterate over
     #[inline]
     pub fn iter<'a>(&'a self) -> impl Iterator<Item=u64> + 'a + std::fmt::Debug {
+        self.private_iter()
+    }
+    fn private_iter<'a>(&'a self) -> Iter<'a> {
         match self.internal() {
             Internal::Empty => Iter::Empty,
             Internal::Stack(t) => Iter::Stack( t ),
             Internal::Heap { s, a } => {
-                Iter::Heap {
+                Iter::Heap( HeapIter {
                     sz_left: s.sz,
                     bits: s.bits,
                     whichbit: 0,
                     array: a,
-                }
+                })
             }
             Internal::Big { s, a } => {
-                Iter::Big { sz_left: s.sz, bits: s.bits, a }
+                Iter::Big(BigIter { sz_left: s.sz, bits: s.bits, a })
             }
             Internal::Dense { a, sz } => {
-                Iter::Dense { sz_left: sz, whichword: 0, whichbit: 0, a }
+                Iter::Dense(DenseIter { sz_left: sz, whichword: 0, whichbit: 0, a })
             }
         }
     }
     /// Clears the set, returning all elements in an iterator.
     #[inline]
     pub fn drain<'a>(&'a mut self) -> impl Iterator<Item=u64> + 'a {
+        let set: SetU64 = std::mem::replace(self, SetU64::new());
+        let iter = unsafe { std::mem::transmute(set.private_iter()) };
         IntoIter {
-            whichword: 0,
-            whichbit: 0,
-            sz_left: self.len(),
-            set: std::mem::replace(self, SetU64::new()),
+            iter,
+            set,
         }
     }
 
@@ -1077,8 +986,204 @@ impl SetU64 {
     }
 }
 
+#[derive(Debug)]
+struct BigIter<'a> {
+    sz_left: usize,
+    bits: u64,
+    a: &'a [u64],
+}
+
+impl<'a> Iterator for BigIter<'a> {
+    type Item = u64;
+    #[inline]
+    fn next(&mut self) -> Option<u64> {
+        while let Some((&x, rest)) = self.a.split_first() {
+            self.a = rest;
+            if x != 0 {
+                self.sz_left -= 1;
+                return Some( if x == self.bits { 0 } else { x });
+            }
+        }
+        None
+    }
+    #[inline]
+    fn last(self) -> Option<u64> {
+        self.a.into_iter().rev().cloned()
+            .filter(|&x| x != 0)
+            .map(|x| if x == self.bits { 0 } else { x })
+            .next()
+    }
+    #[inline]
+    fn count(self) -> usize {
+        self.sz_left
+    }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.sz_left, Some(self.sz_left))
+    }
+    #[inline]
+    fn min(self) -> Option<u64> {
+        if self.sz_left == 0 {
+            None
+        } else {
+            self.a.into_iter().cloned()
+                .filter(|x| *x != 0)
+                .map(|x| if x == self.bits { 0 } else { x }).min()
+        }
+    }
+}
+
+#[derive(Debug)]
+struct HeapIter<'a> {
+    sz_left: usize,
+    bits: u64,
+    whichbit: u64,
+    array: &'a [u64],
+}
+
+impl<'a> Iterator for HeapIter<'a> {
+    type Item = u64;
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.bits > 0 {
+            while let Some(&x) = self.array.first() {
+                while self.whichbit < self.bits {
+                    let oldbit = self.whichbit;
+                    self.whichbit += 1;
+                    if (x & (1 << oldbit)) != 0 {
+                        self.sz_left -= 1;
+                        return Some(unsplit_u64(x >> self.bits, oldbit, self.bits));
+                    }
+                }
+                self.array = self.array.split_first().unwrap().1;
+                self.whichbit = 0;
+            }
+        } else {
+            if let Some((&first,rest)) = self.array.split_first() {
+                self.array = rest;
+                self.sz_left -= 1;
+                return Some(first);
+            }
+        }
+        None
+    }
+    #[inline]
+    fn last(self) -> Option<Self::Item> {
+        self.array.into_iter().rev().cloned()
+            .filter(|&x| x != 0)
+            .map(|x| x >> self.bits
+                 + (x & mask(self.bits as usize)).leading_zeros() as u64 - 63)
+            .next()
+    }
+    #[inline]
+    fn count(self) -> usize {
+        self.sz_left
+    }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.sz_left, Some(self.sz_left))
+    }
+    #[inline]
+    fn min(mut self) -> Option<Self::Item> {
+        if self.sz_left == 0 {
+            None
+        } else if self.whichbit == 0 {
+            let x = self.array.into_iter().cloned()
+                .filter(|x| *x != 0).min().unwrap();
+            Some((x >> self.bits)*self.bits + x.trailing_zeros() as u64)
+        } else {
+            let mut min = self.next().unwrap();
+            while let Some(x) = self.next() {
+                if x < min {
+                    min = x;
+                }
+            }
+            Some(min)
+        }
+    }
+    #[inline]
+    fn max(mut self) -> Option<Self::Item> {
+        if self.sz_left == 0 {
+            None
+        } else if self.whichbit == 0 {
+            let x = self.array.into_iter().cloned()
+                .filter(|x| *x != 0).max().unwrap();
+            let reference = (x >> self.bits)*self.bits;
+            let m = mask(self.bits as usize);
+            let extra = 63 - (x & m).leading_zeros() as u64;
+            Some(reference + extra)
+        } else {
+            let mut max = self.next().unwrap();
+            while let Some(x) = self.next() {
+                if x > max {
+                    max = x;
+                }
+            }
+            Some(max)
+        }
+    }
+}
+
+#[derive(Debug)]
+struct DenseIter<'a> {
+    sz_left: usize,
+    whichword: usize,
+    whichbit: u64,
+    a: &'a [u64],
+}
+
+impl<'a> Iterator for DenseIter<'a> {
+    type Item = u64;
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(word) = self.a.get(self.whichword) {
+                while self.whichbit < 64 {
+                    let bit = self.whichbit;
+                    self.whichbit = 1 + bit;
+                    if word & (1 << bit) != 0 {
+                        self.sz_left -= 1;
+                        return Some(((self.whichword as u64) << 6) + bit as u64);
+                    }
+                }
+                self.whichbit = 0;
+                self.whichword += 1;
+            } else {
+                return None;
+            }
+        }
+    }
+    #[inline]
+    fn last(self) -> Option<Self::Item> {
+        if self.sz_left == 0 {
+            return None;
+        }
+        let zero_words = self.a.iter().rev().cloned()
+            .take_while(|&x| x == 0).count() as u64;
+        let zero_bits = self.a[self.a.len() - 1 - zero_words as usize].leading_zeros() as u64;
+        Some(self.a.len() as u64*64 - zero_bits - 1 - zero_words*64)
+    }
+    #[inline]
+    fn max(self) -> Option<Self::Item> {
+        self.last()
+    }
+    #[inline]
+    fn count(self) -> usize {
+        self.sz_left
+    }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.sz_left, Some(self.sz_left))
+    }
+    #[inline]
+    fn min(mut self) -> Option<Self::Item> {
+        self.next()
+    }
+}
+
 impl crate::copyset::CopySet for SetU64 {
     type Item = u64;
+    type Iter = IntoIter;
     fn ins(&mut self, e: u64) -> bool {
         self.insert(e)
     }
@@ -1093,6 +1198,9 @@ impl crate::copyset::CopySet for SetU64 {
     }
     fn ln(&self) -> usize {
         self.len()
+    }
+    fn it(self) -> Self::Iter {
+        self.into_iter()
     }
 }
 
