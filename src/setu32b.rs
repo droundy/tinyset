@@ -259,7 +259,6 @@ enum Internal<'a> {
     Tiny(Tiny),
     Table {
         sz: u32,
-        available: u32,
         a: &'a [(u32,u32)],
     },
     Dense {
@@ -302,11 +301,10 @@ impl SetU32 {
                 let s = &*self.0.ptr;
                 // assert_eq!((s.cap & 31).count_ones(), 1);
                 let cap = 1 << (s.cap & 31);
-                let available = s.cap >> 5;
                 let start = &s.array as *const u32 as usize as *const (u32,u32);
                 let a = std::slice::from_raw_parts(start, cap);
                 assert!(a.len().count_ones() == 1);
-                Internal::Table { sz: s.sz, available, a }
+                Internal::Table { sz: s.sz, a }
             } else {
                 let ptr = (self.0.tiny & !3) as *mut S;
                 let s = &*ptr;
