@@ -181,7 +181,7 @@ fn bench_sets(density: f64, num_elements: usize) {
 fn bench_collect(density: f64) {
     assert!(density <= 1.0);
     println!("\ncollect {:5}:{:>12} {:>13} {:>13} {:>13} {:>13} {:>13}", density,
-             "setu32", "setu32b", "std32", "setu64", "tiny", "std");
+             "setu32", "setu32b", "std32", "setu64", "set64", "std");
     for &sz in SIZES.iter() {
         let mut gen = move || {
             let mut rng = rand::thread_rng();
@@ -312,7 +312,7 @@ fn print_times(n: usize, times: &[f64]) {
 fn bench_fill_with_inserts(density: f64) {
     assert!(density <= 1.0);
     println!("\ninserts {:5}:{:>12} {:>13} {:>13} {:>13} {:>13} {:>13}", density,
-             "setu32", "setu32b", "std32", "setu64", "tiny", "std");
+             "setu32", "setu32b", "std32", "setu64", "set64", "std");
     for &sz in SIZES.iter() {
         let mut gen = move || {
             let mut rng = rand::thread_rng();
@@ -523,7 +523,7 @@ fn bench_funcs<O>(name: &str,
                   funchash: impl Copy + Fn(&mut std::collections::HashSet<u64>) -> O) {
     assert!(density <= 1.0);
     println!("\n{:<5}{:5}:{:>11} {:>13} {:>13} {:>13} {:>13} {:>13}", name, density,
-             "setu32", "setu32b", "std32", "setu64", "tiny", "std64");
+             "setu32", "setu32b", "std32", "setu64", "set64", "std64");
     for &sz in SIZES.iter() {
         let gen = move || {
             let mut rng = rand::thread_rng();
@@ -686,7 +686,7 @@ fn bench_scaling(density: f64, min: usize) {
     };
 
     println!("\n{},      {:5}-: {:>13} {:>13} {:>13}", density, min,
-             "this", "tiny", "std");
+             "this", "set64", "std");
     println!("{:>18}: {:5.0} {:5.0} {:5.0}", ".len()",
              bench_power_scaling(&mut gen, |(_,set)| {
                  set.len()

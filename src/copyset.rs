@@ -73,6 +73,7 @@ proptest!{
     }
 }
 
+#[cfg(test)]
 pub fn check_set<T: CopySet>(elems: &[T::Item]) {
     println!("\n\ncheck_set {:?}\n", elems);
     let mut s = T::default();

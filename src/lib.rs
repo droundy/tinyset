@@ -90,15 +90,6 @@
 
 #![deny(missing_docs)]
 
-pub mod vecset;
-pub use crate::vecset::VecSet;
-
-pub mod set;
-pub use crate::set::Set;
-
-pub mod tinyset;
-pub use crate::tinyset::*;
-
 #[doc(hidden)]
 pub mod setu32b;
 
@@ -108,7 +99,7 @@ pub use setu32::SetU32;
 pub mod setu64;
 pub use setu64::SetU64;
 
-pub mod u64set;
-pub use crate::u64set::{Set64, Fits64};
+pub mod set64;
+pub use crate::set64::{Set64, Fits64};
 
 mod copyset;

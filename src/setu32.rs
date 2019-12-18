@@ -134,6 +134,7 @@ static BITSPLITS: [&[u32]; 7] = [
 ];
 
 impl Tiny {
+    #[cfg(test)]
     fn debug_me(self, msg: &str) {
         println!("{}: {:?} => {:?}", msg, self, self.collect::<Vec<_>>());
     }
