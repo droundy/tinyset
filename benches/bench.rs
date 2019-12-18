@@ -737,17 +737,14 @@ fn main() {
 
     bench_max(0.001);
     bench_max(0.05);
-    bench_max(0.5);
     bench_max(0.8);
 
     bench_min(0.001);
     bench_min(0.05);
-    bench_min(0.5);
     bench_min(0.8);
 
     bench_sum(0.001);
     bench_sum(0.05);
-    bench_sum(0.5);
     bench_sum(0.8);
 
     // let mut s = tinyset::SetU32::new();
@@ -776,7 +773,6 @@ fn main() {
 
     bench_last(0.001);
     bench_last(0.05);
-    bench_last(0.5);
     bench_last(0.8);
 
     bench_scaling(0.05, 8);
