@@ -21,10 +21,8 @@ pub trait Fits64 : Copy {
     /// Convert back *from* a u64.  This is unsafe, since it is only
     /// infallible (and lossless) if the `u64` originally came from
     /// type `Self`.
-    #[inline]
     unsafe fn from_u64(x: u64) -> Self;
     /// Convert to a `u64`.  This should be infallible.
-    #[inline]
     fn to_u64(self) -> u64;
 }
 /// A utility function that is useful for testing your Fits64
@@ -41,7 +39,9 @@ pub fn test_fits64<T: Fits64+Eq+std::fmt::Debug>(x: T) {
 macro_rules! define_fits {
     ($ty: ty, $test_name: ident) => {
         impl Fits64 for $ty {
+            #[inline]
             unsafe fn from_u64(x: u64) -> Self { x as $ty }
+            #[inline]
             fn to_u64(self) -> u64 { self as u64 }
         }
         #[cfg(test)]
@@ -59,9 +59,11 @@ define_fits!(u16, fits_u16);
 define_fits!(u8, fits_u8);
 define_fits!(usize, fits_usize);
 impl Fits64 for char {
+    #[inline]
     unsafe fn from_u64(x: u64) -> Self {
         std::char::from_u32(x as u32).unwrap()
     }
+    #[inline]
     fn to_u64(self) -> u64 { self as u64 }
 }
 // The following constant allows me to check whether it is faster to
@@ -71,6 +73,7 @@ const USE_BRANCHES: bool = false;
 macro_rules! define_ifits {
     ($ty: ty, $uty: ty, $test_name: ident) => {
         impl Fits64 for $ty {
+            #[inline]
             unsafe fn from_u64(x: u64) -> Self {
                 let pos_val = (x >> 1) as $ty;
                 let neg_val = !(x >> 1) as $ty;
@@ -85,6 +88,7 @@ macro_rules! define_ifits {
                     (pos_val & pos_mask) | (neg_val & !pos_mask)
                 }
             }
+            #[inline]
             fn to_u64(self) -> u64 {
                 let neg_rep = ((!self as u64) << 1) | 1;
                 let pos_rep = (self as u64) << 1;
