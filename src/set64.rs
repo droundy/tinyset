@@ -327,3 +327,48 @@ impl<'a, 'b, T: Fits64> std::ops::BitOr<&'b Set64<T>> for &'a Set64<T> {
         s
     }
 }
+
+impl<T: Fits64 + Eq + Ord + std::fmt::Debug + std::fmt::Display> crate::copyset::CopySet for Set64<T> {
+    type Item = T;
+    type Iter = IntoIter<T>;
+    fn ins(&mut self, e: Self::Item) -> bool {
+        self.insert(e)
+    }
+    fn rem(&mut self, e: Self::Item) -> bool {
+        self.remove(&e)
+    }
+    fn con(&self, e: Self::Item) -> bool {
+        self.contains(&e)
+    }
+    fn vec(&self) -> Vec<Self::Item> {
+        self.iter().collect()
+    }
+    fn ln(&self) -> usize {
+        self.len()
+    }
+    fn it(self) -> Self::Iter {
+        self.into_iter()
+    }
+}
+
+#[cfg(test)]
+use proptest::prelude::*;
+#[cfg(test)]
+proptest!{
+    #[test]
+    fn copycheck_random_sets(slice in prop::collection::vec(1u64..5, 1usize..10)) {
+        crate::copyset::check_set::<Set64<u64>>(&slice);
+    }
+    #[test]
+    fn copycheck_medium_sets(slice in prop::collection::vec(1u64..255, 1usize..100)) {
+        crate::copyset::check_set::<Set64<u64>>(&slice);
+    }
+    #[test]
+    fn copycheck_big_sets(slice: Vec<u64>) {
+        crate::copyset::check_set::<Set64<u64>>(&slice);
+    }
+    #[test]
+    fn copycheck_u8_sets(slice: Vec<u8>) {
+        crate::copyset::check_set::<Set64<u8>>(&slice);
+    }
+}
