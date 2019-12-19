@@ -734,6 +734,19 @@ fn bench_scaling(density: f64, min: usize) {
 }
 
 fn main() {
+    use tinyset::Fits64;
+    println!("i64<->u64: {}",
+             bench_gen_env(|| rand::random::<i64>(),
+                           |x| unsafe { i64::from_u64(x.to_u64()) }).ns_per_iter);
+    println!("i32<->u64: {}",
+             bench_gen_env(|| rand::random::<i8>(),
+                           |x| unsafe { i32::from_u64(x.to_u64()) }).ns_per_iter);
+    println!("i16<->u64: {}",
+             bench_gen_env(|| rand::random::<i8>(),
+                           |x| unsafe { i16::from_u64(x.to_u64()) }).ns_per_iter);
+    println!(" i8<->u64: {}",
+             bench_gen_env(|| rand::random::<i8>(),
+                           |x| unsafe { i8::from_u64(x.to_u64()) }).ns_per_iter);
 
     bench_max(0.001);
     bench_max(0.05);

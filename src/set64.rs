@@ -9,6 +9,8 @@
 
 use std;
 use std::marker::PhantomData;
+#[cfg(test)]
+use proptest::prelude::*;
 
 /// This describes a type which can be stored in 64 bits without loss.
 /// It is defined for all signed and unsigned integer types, as well
@@ -25,50 +27,94 @@ pub trait Fits64 : Copy {
     #[inline]
     fn to_u64(self) -> u64;
 }
+/// A utility function that is useful for testing your Fits64
+/// implentation.
+pub fn test_fits64<T: Fits64+Eq+std::fmt::Debug>(x: T) {
+    let x64 = x.to_u64();
+    let y = unsafe { T::from_u64(x64) };
+    let y64 = y.to_u64();
+    assert_eq!(x, y);
+    assert_eq!(x64, y64);
+}
+
 
 macro_rules! define_fits {
-    ($ty: ty) => {
+    ($ty: ty, $test_name: ident) => {
         impl Fits64 for $ty {
             unsafe fn from_u64(x: u64) -> Self { x as $ty }
             fn to_u64(self) -> u64 { self as u64 }
         }
+        #[cfg(test)]
+        proptest!{
+            #[test]
+            fn $test_name(x: $ty) {
+                test_fits64(x);
+            }
+        }
     };
 }
-define_fits!(u64);
-define_fits!(u32);
-define_fits!(u16);
-define_fits!(u8);
-define_fits!(usize);
+define_fits!(u64, fits_u64);
+define_fits!(u32, fits_u32);
+define_fits!(u16, fits_u16);
+define_fits!(u8, fits_u8);
+define_fits!(usize, fits_usize);
 impl Fits64 for char {
     unsafe fn from_u64(x: u64) -> Self {
         std::char::from_u32(x as u32).unwrap()
     }
     fn to_u64(self) -> u64 { self as u64 }
 }
+// The following constant allows me to check whether it is faster to
+// handle negative numbers with an if expression or by doing bit
+// manipulation more directly.
+const USE_BRANCHES: bool = false;
 macro_rules! define_ifits {
-    ($ty: ty, $uty: ty) => {
+    ($ty: ty, $uty: ty, $test_name: ident) => {
         impl Fits64 for $ty {
             unsafe fn from_u64(x: u64) -> Self {
-                let abs = (x >> 1) as $ty;
-                let neg = (x & 1) as $ty;
-                // println!("x {} (abs is {} neg is {}) -> {}",
-                //          x, abs, neg, abs*(neg*(-2)+1));
-                abs*(neg*(-2)+1)
+                let pos_val = (x >> 1) as $ty;
+                let neg_val = !(x >> 1) as $ty;
+                if USE_BRANCHES {
+                    if x & 1 == 1 {
+                        neg_val
+                    } else {
+                        pos_val
+                    }
+                } else {
+                    let pos_mask = (x & 1) as $ty - 1;
+                    (pos_val & pos_mask) | (neg_val & !pos_mask)
+                }
             }
             fn to_u64(self) -> u64 {
-                let a = (self.abs() as u64) << 1;
-                let b = (self as $uty >> (8*std::mem::size_of::<Self>()-1)) as u64;
-                // println!("self {} (a {} b {}) -> {}", self, a, b, a+b);
-                a + b
+                let neg_rep = ((!self as u64) << 1) | 1;
+                let pos_rep = (self as u64) << 1;
+                if USE_BRANCHES {
+                    if self < 0 {
+                        neg_rep
+                    } else {
+                        pos_rep
+                    }
+                } else {
+                    let neg_mask = ((self >= 0) as i64 - 1) as u64;
+                    (neg_rep & neg_mask) | (pos_rep & !neg_mask)
+                }
+            }
+        }
+        #[cfg(test)]
+        proptest!{
+            #[test]
+            fn $test_name(x: $ty) {
+                println!("\ntesting {}", x);
+                test_fits64(x);
             }
         }
     };
 }
-define_ifits!(i8, u8);
-define_ifits!(i16, u16);
-define_ifits!(i32, u32);
-define_ifits!(i64, u64);
-define_ifits!(isize, usize);
+define_ifits!(i8, u8, fits_i8);
+define_ifits!(i16, u16, fits_i16);
+define_ifits!(i32, u32, fits_i32);
+define_ifits!(i64, u64, fits_i64);
+define_ifits!(isize, usize, fits_isize);
 
 /// A set type that can store any type that fits in a `u64`.  This set
 /// type is very space-efficient in storing small or closely spaced
@@ -351,8 +397,6 @@ impl<T: Fits64 + Eq + Ord + std::fmt::Debug + std::fmt::Display> crate::copyset:
     }
 }
 
-#[cfg(test)]
-use proptest::prelude::*;
 #[cfg(test)]
 proptest!{
     #[test]
