@@ -63,6 +63,8 @@ pub use setu64::SetU64;
 pub mod set64;
 pub use crate::set64::{Set64, Fits64};
 
-pub mod map64;
+#[doc(hidden)]
+mod map64;
 
 mod copyset;
+mod anymap;

@@ -7,11 +7,18 @@
 
 //! A map from [Fits64] types to any other type.
 
-/// A map from a [Fits64] key to 
+/// A map from a [Fits64] key to another type.
+#[derive(Clone)]
 pub struct Map64<K,V> {
     map: Map64U,
     elems: Vec<V>,
     phantom: std::marker::PhantomData<K>,
+}
+
+impl<K: crate::Fits64, V> Default for Map64<K,V> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<K: crate::Fits64, V> Map64<K,V> {
@@ -22,6 +29,10 @@ impl<K: crate::Fits64, V> Map64<K,V> {
             elems: Vec::new(),
             phantom: std::marker::PhantomData
         }
+    }
+    /// How many elements
+    pub fn len(&self) -> usize {
+        self.elems.len()
     }
     /// Insert a value.
     pub fn insert(&mut self, k: K, v: V) -> Option<V> {
@@ -36,6 +47,15 @@ impl<K: crate::Fits64, V> Map64<K,V> {
     pub fn get(&self, k: K) -> Option<&V> {
         self.map.get(k.to_u64()).map(|i| &self.elems[i])
     }
+    /// Does key exist
+    pub fn contains_key(&self, k: K) -> bool {
+        self.map.get(k.to_u64()).is_some()
+    }
+    /// remove element
+    pub fn remove(&mut self, k: K) -> Option<V> {
+        self.map.remove(k.to_u64(), self.elems.len()-1)
+            .map(|oldi| self.elems.swap_remove(oldi))
+    }
 }
 
 #[test]
@@ -45,6 +65,7 @@ fn map64() {
     assert!(x.insert(b'X', "X is awesome".to_string()).is_none());
 }
 
+#[derive(Clone)]
 struct Lay {
     elem_bits: u8,
     key_bits: u8,
@@ -72,6 +93,7 @@ impl Lay {
     }
 }
 
+#[derive(Clone)]
 struct Map64U {
     lay: Lay,
     data: Box<[u64]>,
@@ -148,6 +170,32 @@ impl Map64U {
             unimplemented!()
         }
     }
+    // remove the element with key u64, and put the value of k in
+    // whatever element has value sz, then return the old value of
+    // k.
+    fn remove(&mut self, k: u64, sz: usize) -> Option<usize> {
+        if self.lay.key_bits + self.lay.elem_bits <= 63 {
+            let mut oldval = None;
+            for x in self.data.iter_mut() {
+                if *x != 0 && *x & self.lay.keymask() == k {
+                    oldval = Some(self.lay.getvalue(*x));
+                    *x = 0;
+                    break;
+                }
+            }
+            if let Some(oldval) = oldval {
+                for x in self.data.iter_mut() {
+                    if *x != 0 && self.lay.getvalue(*x) == sz {
+                        *x = (*x & self.lay.keymask()) | self.lay.putvalue(oldval);
+                        return None;
+                    }
+                }
+            }
+            oldval
+        } else {
+            unimplemented!()
+        }
+    }
 }
 
 fn log_2(x: u64) -> u8 {
@@ -157,3 +205,45 @@ fn log_2(x: u64) -> u8 {
         64 - x.leading_zeros() as u8
     }
 }
+
+impl<K: Copy + Eq + Ord + std::fmt::Display + std::fmt::Debug + crate::Fits64,
+     V: Clone + Eq + Ord + std::fmt::Display + std::fmt::Debug> crate::anymap::AnyMap for Map64<K, V> {
+    type Key = K;
+    type Elem = V;
+    fn ins(&mut self, k: Self::Key, v: Self::Elem) -> Option<Self::Elem> {
+        self.insert(k, v)
+    }
+    fn rem(&mut self, k: Self::Key) -> Option<Self::Elem> {
+        self.remove(k)
+    }
+    fn ge(&self, k: Self::Key) -> Option<&Self::Elem> {
+        self.get(k)
+    }
+    fn con(&self, k: Self::Key) -> bool {
+        self.contains_key(k)
+    }
+    fn vec(&self) -> Vec<(Self::Key, Self::Elem)> {
+        unimplemented!()
+    }
+    fn ln(&self) -> usize {
+        self.len()
+    }
+}
+
+// #[cfg(test)]
+// use proptest::prelude::*;
+// #[cfg(test)]
+// proptest!{
+//     #[test]
+//     fn check_string_maps(slice: Vec<(u64,String)>) {
+//         crate::anymap::check_map::<Map64<u64,String>>(&slice);
+//     }
+//     #[test]
+//     fn check_u8_maps(slice: Vec<(u8,i8)>) {
+//         crate::anymap::check_map::<Map64<u8,i8>>(&slice);
+//     }
+//     #[test]
+//     fn check_i8_maps(slice: Vec<(i8,u8)>) {
+//         crate::anymap::check_map::<Map64<i8,u8>>(&slice);
+//     }
+// }
