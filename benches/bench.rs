@@ -35,11 +35,23 @@ fn bench_sets(density: f64, num_elements: usize) {
         set.remove(x); // ensure there is room for one more
         (rng.gen_range(0, mx), set)
     };
-    let gen32b = move || {
+    // let gen32b = move || {
+    //     let mut rng = rand::thread_rng();
+    //     let mx = (num_elements as f64/density) as u32 + 1;
+    //     let mut set = tinyset::setu32b::SetU32::new();
+    //     while set.len() < num_elements {
+    //         set.insert(rng.gen_range(0, mx));
+    //     }
+    //     let x = rng.gen_range(0, mx);
+    //     set.insert(x);
+    //     set.remove(x); // ensure there is room for one more
+    //     (rng.gen_range(0, mx), set)
+    // };
+    let genroaring = move || {
         let mut rng = rand::thread_rng();
         let mx = (num_elements as f64/density) as u32 + 1;
-        let mut set = tinyset::setu32b::SetU32::new();
-        while set.len() < num_elements {
+        let mut set = roaring::RoaringBitmap::new();
+        while set.len() < num_elements as u64 {
             set.insert(rng.gen_range(0, mx));
         }
         let x = rng.gen_range(0, mx);
@@ -95,30 +107,43 @@ fn bench_sets(density: f64, num_elements: usize) {
         set.remove(&x); // ensure there is room for one more
         (rng.gen_range(0, mx), set)
     };
+    let gen_idset = move || {
+        let mut rng = rand::thread_rng();
+        let mx = (num_elements as f64/density) as usize + 1;
+        let mut set = id_set::IdSet::new();
+        while set.len() < num_elements {
+            set.insert(rng.gen_range(0, mx));
+        }
+        let x = rng.gen_range(0, mx);
+        set.insert(x);
+        set.remove(x); // ensure there is room for one more
+        (rng.gen_range(0, mx), set)
+    };
 
-    println!("\n{:5}, {:3}:        {:>7} {:>7} {:>7} {:>7} {:>7} {:>7}",
+    println!("\n{:5}, {:3}:        {:>7} {:>7} {:>7} {:>7} {:>7} {:>7} {:>7}",
              density, num_elements,
-             "u32", "u32b", "std32", "u64", "old64", "std");
+             "u32", "roaring", "std32", "u64", "old64", "std", "id-set");
 
     // ensure that we've used the random number generator at least
     // once, so we won't be confused by any memory that it allocates.
     gen32();
-    println!("{:>17}: {:6.0}b {:6.0}b {:6.0}b {:6.0}b {:6.0}b {:6.0}b",
+    println!("{:>17}: {:6.0}b {:6.0}b {:6.0}b {:6.0}b {:6.0}b {:6.0}b {:6.0}b",
              "size",
              (0..100).map(|_| mem_used(|| gen32().1).1).sum::<usize>() as f64/100.0,
-             (0..100).map(|_| mem_used(|| gen32b().1).1).sum::<usize>() as f64/100.0,
+             (0..100).map(|_| mem_used(|| genroaring().1).1).sum::<usize>() as f64/100.0,
              (0..100).map(|_| mem_used(|| genstd32().1).1).sum::<usize>() as f64/100.0,
              (0..100).map(|_| mem_used(|| gen().1).1).sum::<usize>() as f64/100.0,
              (0..100).map(|_| mem_used(|| gen_tiny().1).1).sum::<usize>() as f64/100.0,
              (0..100).map(|_| mem_used(|| gen_hashset().1).1).sum::<usize>() as f64/100.0,
+             (0..100).map(|_| mem_used(|| gen_idset().1).1).sum::<usize>() as f64/100.0,
     );
 
-    println!("{:>17}: {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns",
+    println!("{:>17}: {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns",
              ".contains(ran)",
              bench_gen_env(gen32, |(idx,set)| {
                  set.contains(*idx)
              }).ns_per_iter,
-             bench_gen_env(gen32b, |(idx,set)| {
+             bench_gen_env(genroaring, |(idx,set)| {
                  set.contains(*idx)
              }).ns_per_iter,
              bench_gen_env(genstd32, |(idx,set)| {
@@ -133,13 +158,16 @@ fn bench_sets(density: f64, num_elements: usize) {
              bench_gen_env(gen_hashset, |(idx,set)| {
                  set.contains(idx)
              }).ns_per_iter,
+             bench_gen_env(gen_idset, |(idx,set)| {
+                 set.contains(*idx)
+             }).ns_per_iter,
     );
-    println!("{:>17}: {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns",
+    println!("{:>17}: {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns",
              ".remove(ran)",
              bench_gen_env(gen32, |(idx,set)| {
                  set.remove(*idx)
              }).ns_per_iter,
-             bench_gen_env(gen32b, |(idx,set)| {
+             bench_gen_env(genroaring, |(idx,set)| {
                  set.remove(*idx)
              }).ns_per_iter,
              bench_gen_env(genstd32, |(idx,set)| {
@@ -154,13 +182,16 @@ fn bench_sets(density: f64, num_elements: usize) {
              bench_gen_env(gen_hashset, |(idx,set)| {
                  set.remove(idx)
              }).ns_per_iter,
+             bench_gen_env(gen_idset, |(idx,set)| {
+                 set.remove(*idx)
+             }).ns_per_iter,
     );
-    println!("{:>17}: {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns",
+    println!("{:>17}: {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns {:5.0}ns",
              ".insert(ran)",
              bench_gen_env(gen32, |(idx,set)| {
                  set.insert(*idx)
              }).ns_per_iter,
-             bench_gen_env(gen32b, |(idx,set)| {
+             bench_gen_env(genroaring, |(idx,set)| {
                  set.insert(*idx)
              }).ns_per_iter,
              bench_gen_env(genstd32, |(idx,set)| {
@@ -173,6 +204,9 @@ fn bench_sets(density: f64, num_elements: usize) {
                  set.insert(*idx)
              }).ns_per_iter,
              bench_gen_env(gen_hashset, |(idx,set)| {
+                 set.insert(*idx)
+             }).ns_per_iter,
+             bench_gen_env(gen_idset, |(idx,set)| {
                  set.insert(*idx)
              }).ns_per_iter,
     );
@@ -181,7 +215,7 @@ fn bench_sets(density: f64, num_elements: usize) {
 fn bench_collect(density: f64) {
     assert!(density <= 1.0);
     println!("\ncollect {:5}:{:>12} {:>13} {:>13} {:>13} {:>13} {:>13}", density,
-             "setu32", "setu32b", "std32", "setu64", "set64", "std");
+             "setu32", "seturoaring", "std32", "setu64", "set64", "std");
     for &sz in SIZES.iter() {
         let mut gen = move || {
             let mut rng = rand::thread_rng();
@@ -207,7 +241,7 @@ fn bench_collect(density: f64) {
                 v.iter().cloned().collect::<tinyset::SetU32>().len()
             }).ns_per_iter,
             bench_gen_env(&mut gen32, |v| {
-                v.iter().cloned().collect::<tinyset::setu32b::SetU32>().len()
+                v.iter().cloned().collect::<roaring::RoaringBitmap>().len()
             }).ns_per_iter,
             bench_gen_env(&mut gen32, |v| {
                 v.iter().cloned().collect::<std::collections::HashSet<_>>().len()
@@ -311,8 +345,8 @@ fn print_times(n: usize, times: &[f64]) {
 
 fn bench_fill_with_inserts(density: f64) {
     assert!(density <= 1.0);
-    println!("\ninserts {:5}:{:>12} {:>13} {:>13} {:>13} {:>13} {:>13}", density,
-             "setu32", "setu32b", "std32", "setu64", "set64", "std");
+    println!("\ninserts {:5}:{:>12} {:>13} {:>13} {:>13} {:>13} {:>13} {:>13}", density,
+             "setu32", "roaring", "std32", "setu64", "set64", "std", "id-set");
     for &sz in SIZES.iter() {
         let mut gen = move || {
             let mut rng = rand::thread_rng();
@@ -332,6 +366,15 @@ fn bench_fill_with_inserts(density: f64) {
             }
             vec
         };
+        let mut genusize = move || {
+            let mut rng = rand::thread_rng();
+            let mx = (sz as f64/density) as usize + 1;
+            let mut vec = Vec::new();
+            while vec.iter().cloned().collect::<tinyset::SetUsize>().len() < sz {
+                vec.push(rng.gen_range(0, mx));
+            }
+            vec
+        };
         let nsize = 10;
         print_times(sz, &[
             bench_gen_env(&mut gen32, |v| {
@@ -342,7 +385,8 @@ fn bench_fill_with_inserts(density: f64) {
                 s.len()
             }).ns_per_iter,
             bench_gen_env(&mut gen32, |v| {
-                let mut s = tinyset::setu32b::SetU32::new();
+                // let mut s = tinyset::setu32b::SetU32::new();
+                let mut s = roaring::RoaringBitmap::new();
                 for x in v.iter().cloned() {
                     s.insert(x);
                 }
@@ -376,6 +420,13 @@ fn bench_fill_with_inserts(density: f64) {
                 }
                 s.len()
             }).ns_per_iter,
+            bench_gen_env(&mut genusize, |v| {
+                let mut s = id_set::IdSet::new();
+                for x in v.iter().cloned() {
+                    s.insert(x);
+                }
+                s.len()
+            }).ns_per_iter,
         ]);
         print_sizes(sz, &[
             (0..nsize).map(|_| {
@@ -391,7 +442,8 @@ fn bench_fill_with_inserts(density: f64) {
             (0..nsize).map(|_| {
                 let v = gen32();
                 mem_used(|| {
-                    let mut s = tinyset::setu32b::SetU32::new();
+                    // let mut s = tinyset::setu32b::SetU32::new();
+                    let mut s = roaring::RoaringBitmap::new();
                     for x in v.iter().cloned() {
                         s.insert(x);
                     }
@@ -439,6 +491,16 @@ fn bench_fill_with_inserts(density: f64) {
                     s
                 }).1
             }).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_| {
+                let v = genusize();
+                mem_used(|| {
+                    let mut s = id_set::IdSet::new();
+                    for x in v.iter().cloned() {
+                        s.insert(x);
+                    }
+                    s
+                }).1
+            }).sum::<usize>() as f64/nsize as f64,
         ]);
     }
     let mut gen = move |sz| {
@@ -459,7 +521,16 @@ fn bench_fill_with_inserts(density: f64) {
             }
         vec
     };
-    println!("{:>11}: {:8.0} {:8.0} {:8.0} {:8.0} {:8.0} {:8.0}", "inserts",
+    let mut genusize = move |sz| {
+        let mut rng = rand::thread_rng();
+        let mx = (sz as f64/density) as usize + 1;
+        let mut vec = Vec::new();
+        while vec.iter().cloned().collect::<tinyset::SetUsize>().len() < sz {
+            vec.push(rng.gen_range(0, mx));
+            }
+        vec
+    };
+    println!("{:>11}: {:8.0} {:8.0} {:8.0} {:8.0} {:8.0} {:8.0} {:8.0}", "inserts",
              bench_power_scaling(&mut gen32, |v| {
                  let mut s = tinyset::SetU32::new();
                  for x in v.iter().cloned() {
@@ -468,7 +539,8 @@ fn bench_fill_with_inserts(density: f64) {
                  s.len()
              }, 20).scaling,
              bench_power_scaling(&mut gen32, |v| {
-                 let mut s = tinyset::setu32b::SetU32::new();
+                 // let mut s = tinyset::setu32b::SetU32::new();
+                 let mut s = roaring::RoaringBitmap::new();
                  for x in v.iter().cloned() {
                      s.insert(x);
                  }
@@ -502,6 +574,13 @@ fn bench_fill_with_inserts(density: f64) {
                  }
                  s.len()
              }, 20).scaling,
+             bench_power_scaling(&mut genusize, |v| {
+                 let mut s = id_set::IdSet::new();
+                 for x in v.iter().cloned() {
+                     s.insert(x);
+                 }
+                 s.len()
+             }, 20).scaling,
     );
 }
 
@@ -516,14 +595,16 @@ fn format_sz(sz: f64) -> String {
 fn bench_funcs<O>(name: &str,
                   density: f64,
                   func32: impl Copy + Fn(&mut tinyset::SetU32) -> O,
-                  func32b: impl Copy + Fn(&mut tinyset::setu32b::SetU32) -> O,
+                  _func32b: impl Copy + Fn(&mut tinyset::setu32b::SetU32) -> O,
+                  funcroaring: impl Copy + Fn(&mut roaring::RoaringBitmap) -> O,
                   funchash32: impl Copy + Fn(&mut std::collections::HashSet<u32>) -> O,
                   func64: impl Copy + Fn(&mut tinyset::SetU64) -> O,
                   oldtiny: impl Copy + Fn(&mut tinyset::Set64<u64>) -> O,
-                  funchash: impl Copy + Fn(&mut std::collections::HashSet<u64>) -> O) {
+                  funchash: impl Copy + Fn(&mut std::collections::HashSet<u64>) -> O,
+                  idset: impl Copy + Fn(&mut id_set::IdSet) -> O) {
     assert!(density <= 1.0);
-    println!("\n{:<5}{:5}:{:>11} {:>13} {:>13} {:>13} {:>13} {:>13}", name, density,
-             "setu32", "setu32b", "std32", "setu64", "set64", "std64");
+    println!("\n{:<5}{:5}:{:>11} {:>13} {:>13} {:>13} {:>13} {:>13} {:>13}", name, density,
+             "setu32", "roaring", "std32", "setu64", "set64", "std64", "id-set");
     for &sz in SIZES.iter() {
         let gen = move || {
             let mut rng = rand::thread_rng();
@@ -534,7 +615,7 @@ fn bench_funcs<O>(name: &str,
             }
             vec
         };
-        println!("{:>9}:{:7.0}ns/{:<4} {:6.0}ns/{:<4} {:7.0}ns/{:<4} {:6.0}ns/{:<4} {:6.0}ns/{:<4} {:6.0}ns/{:<4}",
+        println!("{:>9}:{:7.0}ns/{:<4} {:6.0}ns/{:<4} {:7.0}ns/{:<4} {:6.0}ns/{:<4} {:6.0}ns/{:<4} {:6.0}ns/{:<4} {:6.0}ns/{:<4}",
                  sz,
                  bench_gen_env(|| { gen().iter().cloned()
                                     .map(|x| x as u32).collect::<tinyset::SetU32>() },
@@ -544,11 +625,11 @@ fn bench_funcs<O>(name: &str,
                                                      .collect::<tinyset::SetU32>()).1)
                            .sum::<usize>() as f64/100.0),
                  bench_gen_env(|| { gen().iter().cloned()
-                                    .map(|x| x as u32).collect::<tinyset::setu32b::SetU32>() },
-                               func32b).ns_per_iter,
+                                    .map(|x| x as u32).collect::<roaring::RoaringBitmap>() },
+                               funcroaring).ns_per_iter,
                  format_sz((0..100).map(|_| mem_used(|| gen().iter().cloned()
                                                      .map(|x| x as u32)
-                                                     .collect::<tinyset::setu32b::SetU32>()).1)
+                                                     .collect::<std::collections::HashSet<_>>()).1)
                            .sum::<usize>() as f64/100.0),
                  bench_gen_env(|| { gen().iter().cloned()
                                     .map(|x| x as u32)
@@ -573,6 +654,14 @@ fn bench_funcs<O>(name: &str,
                  format_sz((0..100).map(|_| mem_used(|| gen().iter().cloned()
                                                      .collect::<std::collections::HashSet<_>>()).1)
                            .sum::<usize>() as f64/100.0),
+                 bench_gen_env(|| { gen().iter().cloned()
+                                    .map(|x| x as usize)
+                                    .collect::<id_set::IdSet>() },
+                               idset).ns_per_iter,
+                 format_sz((0..100).map(|_| mem_used(|| gen().iter().cloned()
+                                                     .map(|x| x as usize)
+                                                     .collect::<id_set::IdSet>()).1)
+                           .sum::<usize>() as f64/100.0),
         );
     }
     let gen = move |sz| {
@@ -591,8 +680,8 @@ fn bench_funcs<O>(name: &str,
                  }, func32, 10).scaling,
              bench_power_scaling(
                  |sz| {
-                     gen(sz).iter().cloned().map(|x| x as u32).collect::<tinyset::setu32b::SetU32>()
-                 }, func32b, 10).scaling,
+                     gen(sz).iter().cloned().map(|x| x as u32).collect::<roaring::RoaringBitmap>()
+                 }, funcroaring, 10).scaling,
              bench_power_scaling(
                  |sz| {
                      gen(sz).iter().map(|&x| x as u32).collect::<std::collections::HashSet<_>>()
@@ -616,30 +705,36 @@ fn bench_min(density: f64) {
     bench_funcs("min", density,
                 |s| { s.iter().min().map(|x| x as u64) },
                 |s| { s.iter().min().map(|x| x as u64) },
+                |s| { s.iter().min().map(|x| x as u64) },
                 |s| { s.iter().min().map(|x| *x as u64) },
                 |s| { s.iter().min() },
                 |s| { s.iter().min() },
                 |s| { s.iter().cloned().min() },
+                |s| { s.iter().min().map(|x| x as u64) },
     );
 }
 fn bench_max(density: f64) {
     bench_funcs("max", density,
                 |s| { s.iter().max().map(|x| x as u64) },
                 |s| { s.iter().max().map(|x| x as u64) },
+                |s| { s.iter().max().map(|x| x as u64) },
                 |s| { s.iter().max().map(|x| *x as u64) },
                 |s| { s.iter().max() },
                 |s| { s.iter().max() },
                 |s| { s.iter().cloned().max() },
+                |s| { s.iter().max().map(|x| x as u64) },
     );
 }
 fn bench_last(density: f64) {
     bench_funcs("last", density,
                 |s| { s.iter().last().map(|x| x as u64) },
                 |s| { s.iter().last().map(|x| x as u64) },
+                |s| { s.iter().last().map(|x| x as u64) },
                 |s| { s.iter().last().map(|x| *x as u64) },
                 |s| { s.iter().last() },
                 |s| { s.iter().last() },
                 |s| { s.iter().cloned().last() },
+                |s| { s.iter().last().map(|x| x as u64) },
     );
 }
 
@@ -648,9 +743,11 @@ fn bench_sum(density: f64) {
                 |s| { s.iter().sum::<u32>() as u64 },
                 |s| { s.iter().sum::<u32>() as u64 },
                 |s| { s.iter().sum::<u32>() as u64 },
+                |s| { s.iter().sum::<u32>() as u64 },
                 |s| { s.iter().sum::<u64>() },
                 |s| { s.iter().sum::<u64>() },
                 |s| { s.iter().cloned().sum::<u64>() },
+                |s| { s.iter().sum::<usize>() as u64 },
     );
 }
 
@@ -734,32 +831,6 @@ fn bench_scaling(density: f64, min: usize) {
 }
 
 fn main() {
-    use tinyset::Fits64;
-    println!("i64<->u64: {}",
-             bench_gen_env(|| rand::random::<i64>(),
-                           |x| unsafe { i64::from_u64(x.to_u64()) }).ns_per_iter);
-    println!("i32<->u64: {}",
-             bench_gen_env(|| rand::random::<i8>(),
-                           |x| unsafe { i32::from_u64(x.to_u64()) }).ns_per_iter);
-    println!("i16<->u64: {}",
-             bench_gen_env(|| rand::random::<i8>(),
-                           |x| unsafe { i16::from_u64(x.to_u64()) }).ns_per_iter);
-    println!(" i8<->u64: {}",
-             bench_gen_env(|| rand::random::<i8>(),
-                           |x| unsafe { i8::from_u64(x.to_u64()) }).ns_per_iter);
-
-    bench_max(0.001);
-    bench_max(0.05);
-    bench_max(0.8);
-
-    bench_min(0.001);
-    bench_min(0.05);
-    bench_min(0.8);
-
-    bench_sum(0.001);
-    bench_sum(0.05);
-    bench_sum(0.8);
-
     // let mut s = tinyset::SetU32::new();
     // while s.len() < 10000 {
     //     s.insert(rand::random::<u32>() % 15000);
@@ -784,6 +855,18 @@ fn main() {
         bench_sets(0.5, sz);
     }
 
+    bench_max(0.001);
+    bench_max(0.05);
+    bench_max(0.8);
+
+    bench_min(0.001);
+    bench_min(0.05);
+    bench_min(0.8);
+
+    bench_sum(0.001);
+    bench_sum(0.05);
+    bench_sum(0.8);
+
     bench_last(0.001);
     bench_last(0.05);
     bench_last(0.8);
@@ -791,4 +874,19 @@ fn main() {
     bench_scaling(0.05, 8);
     bench_scaling(0.5, 8);
     bench_scaling(0.8, 8);
+
+    use tinyset::Fits64;
+    println!("i64<->u64: {}",
+             bench_gen_env(|| rand::random::<i64>(),
+                           |x| unsafe { i64::from_u64(x.to_u64()) }).ns_per_iter);
+    println!("i32<->u64: {}",
+             bench_gen_env(|| rand::random::<i8>(),
+                           |x| unsafe { i32::from_u64(x.to_u64()) }).ns_per_iter);
+    println!("i16<->u64: {}",
+             bench_gen_env(|| rand::random::<i8>(),
+                           |x| unsafe { i16::from_u64(x.to_u64()) }).ns_per_iter);
+    println!(" i8<->u64: {}",
+             bench_gen_env(|| rand::random::<i8>(),
+                           |x| unsafe { i8::from_u64(x.to_u64()) }).ns_per_iter);
+
 }
