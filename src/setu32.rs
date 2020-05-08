@@ -53,6 +53,9 @@ fn unsplit_u32(k: u32, offset: u32, bits: u32) -> u32 {
 /// A set of u32
 pub struct SetU32(*mut S);
 
+unsafe impl Send for SetU32 {}
+unsafe impl Sync for SetU32 {}
+
 impl std::fmt::Debug for SetU32 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "SetU32 {:?}", self.iter().collect::<Vec<_>>())?;
