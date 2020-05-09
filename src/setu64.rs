@@ -53,6 +53,9 @@ fn unsplit_u64(k: u64, offset: u64, bits: u64) -> u64 {
 /// A set of u64
 pub struct SetU64(*mut S);
 
+unsafe impl Send for SetU64 {}
+unsafe impl Sync for SetU64 {}
+
 impl std::fmt::Debug for SetU64 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "SetU64 {:?}", self.iter().collect::<Vec<_>>())?;
