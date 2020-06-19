@@ -8,29 +8,22 @@
 
 `tinyset` contains a few collections that are optimized to scale
 in size well for small numbers of elements, while still scaling
-well in time (and size) for numbers of elements.  We have three set types:
+well in time (and size) for numbers of elements.  We now have
+just a few types that you might care for.
 
-1. `Set` is basically interchangeable with
-   `HashSet`, although it does require that its elements implement
-   the `Copy` trait, since otherwise I would have to learn to
-   write correct `unsafe` code, which would be scary.  It uses FNV
-   hashing when there are large numbers of elements.
+1. [`Set64`] is a set for types that are 64 bits in size or less
+and are `Copy`, intended for essentially integer types.  This is
+our most efficient type, since it can store small sets with just
+the size of one pointer, with no heap storage.
 
-2. `TinySet` is places a stronger
-    requirement on its elements, which must have trait
-    `HasInvalid`.  This is intended for elements that are `Copy`,
-    are `Hash`, and have an "invalid" value.  For the unsigned
-    integer types, we take their maximum value to mean invalid.
-    This constraint allows us to save a bit more space.
+2. [`SetU64`] just holds `u64` items, and is the internal storage
+of [`Set64`].
 
-3. `Set64` is a set for types that are
-   64 bits in size or less and are `Copy`, intended for
-   essentially integer types.  This is our most efficient type,
-   since it can store values in less space than
-   `std::mem::size_of::<T>()`, in the common case that they are
-   small numbers.  It is also essentially as fast as any of the
-   other set types (faster than many), and can avoid heap
-   allocations entirely for small sets.
+3. [`SetU32`] just holds `u32` items, and uses a bit less memory
+than [`SetU64`].
+
+4. [`SetUsize`] holds `usize` items, and uses either [SetU64] or
+[SetU32] internally.
 
 All of these set types will do no heap allocation for small sets of
 small elements.  `TinySet` will store up to 16 bytes of elements
@@ -39,73 +32,16 @@ without allocation.  `Set64` will store up to 22 bytes of elements,
 and if all your elements are small (e.g. `0..22 as u64` it will store
 them in as few bytes as possible.
 
-All these sets are similar in speed to `fnv::HashSet`.  `Set64` is
-usually faster than `fnv::HashSet`, sometimes by as much as a factor
-of 2.
-
-# Examples
-
-```
-use tinyset::Set;
-let mut s: Set<usize> = Set::new();
-s.insert(1);
-assert!(s.contains(&1));
-```
-
-```
-use tinyset::TinySet;
-let mut s: TinySet<usize> = TinySet::new();
-s.insert(1);
-assert!(s.contains(&1));
-```
-
-```
-use tinyset::Set64;
-let mut s: Set64<usize> = Set64::new();
-s.insert(1);
-assert!(s.contains(&1));
-```
-
-# Hash maps
-
-In addition to the sets that `tinyset` is named for, we export a
-couple of space-efficient hash map implentations, which are
-closely related to `Set64` described above.  These are
-
-1. `Map64` is a map from types that are
-   64 bits in size or less and are `Copy`, intended for
-   essentially integer types.  The value can be of any type, and
-   the memory use (especially for small or empty maps) is far
-   lower than that of a standard `HashMap`.
-1. `Map6464` is a map from types
-   that are 64 bits in size or less and are `Copy`, to values that
-   are also small and `Copy`.  This is an incredibly
-   space-efficient data type with no heap storage when you have
-   just a few small keys and values.  On a 64-bit system, the size
-   of a `Map6464` is 48 bytes, and if your keys and values both
-   fit in 8 bits, you can hold 23 items without using the heap.
-   If the keys fit in 16 bits and the values in 8 bits, you can
-   hold 15 itmes without resorting to the heap, and so on.  You
-   can even hold a whopping 4 64-bit keys with 8-bit values
-   without resorting to the heap, making this very efficent.
-
+These sets all differ from the standard sets in that they iterate
+over items rather than references to items, because they do not
+store values directly in a way that can be referenced.  All of the
+type-specific sets further differ in that `remove` and `contains`
+accept values rather than references.
 # Benchmarks
 
-To run the benchmark suite, `cd` into `bench` and then run
+To run the benchmark suite, run
 
-    cargo run --bin sets --release
+    cargo bench
 
 This will give you loads of timings and storage requirements for a
 wide variety of set types.
-
-You can alternatively run
-
-    cargo run --bin maps --release
-
-This will give you loads of timings and storage requirements for a
-variety of map types.
-
-Unfortunately, I don't know an easy way to check the actual memory use
-for a hashmap, so the benchmarks don't check heap usage.  (I used to
-do this in a fragile way, but cut it.) If you have any suggestions for
-tracking heap use in a nice way, please let me know!
