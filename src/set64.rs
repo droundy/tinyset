@@ -16,7 +16,6 @@ use proptest::prelude::*;
 /// It is defined for all signed and unsigned integer types, as well
 /// as `char`.  In each case, we store sets consisting exclusively of
 /// "small" integers efficiently.
-/// ```
 pub trait Fits64 : Copy {
     /// Convert back *from* a u64.  This is unsafe, since it is only
     /// infallible (and lossless) if the `u64` originally came from

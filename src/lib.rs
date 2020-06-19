@@ -49,6 +49,7 @@
 #![deny(missing_docs)]
 
 mod rand;
+mod sets;
 
 #[doc(hidden)]
 pub mod setu32b;
