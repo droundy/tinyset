@@ -26,8 +26,12 @@ travis-ci = { repository = "droundy/tinyset" }
 appveyor = { repository = "droundy/tinyset" }
 
 [dependencies]
-rand = "0.7.2"
+rand = { version = "0.7.2", optional = true }
 itertools = "0.8.1"
+
+[features]
+
+default = ["rand"]
 
 [[bench]]
 name = "bench"

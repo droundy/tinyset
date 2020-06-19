@@ -48,6 +48,8 @@
 
 #![deny(missing_docs)]
 
+mod rand;
+
 #[doc(hidden)]
 pub mod setu32b;
 
