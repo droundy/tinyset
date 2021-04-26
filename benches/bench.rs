@@ -1,4 +1,4 @@
-use easybench::{bench_gen_env, bench_power_scaling};
+use scaling::{bench_gen_env, bench_power_scaling};
 use rand::Rng;
 
 use stats_alloc::{Region, StatsAlloc, INSTRUMENTED_SYSTEM};
