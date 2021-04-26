@@ -135,13 +135,13 @@ impl Tiny {
 fn check_tiny_insert() {
     let mut t = Tiny::from_singleton(0).unwrap();
     println!("starting with {:?}", t.clone().collect::<Vec<_>>());
-    for v in [0,1,1,2,29,30].into_iter().cloned() {
+    for v in [0,1,1,2,29,30].iter().cloned() {
         assert_eq!(Some(t.contains(v)), t.insert(v));
         println!(" after inserting {}: {:?}", v, t.clone().collect::<Vec<_>>());
         assert!(t.contains(v));
     }
 
-    for v in [0,30,2,29,1].into_iter().cloned() {
+    for v in [0,30,2,29,1].iter().cloned() {
         assert!(t.contains(v));
         assert!(t.remove(v));
         assert!(!t.remove(v));
@@ -151,12 +151,12 @@ fn check_tiny_insert() {
 
     let mut t = Tiny::from_singleton(50).unwrap();
     println!("starting with {:?}", t.clone().collect::<Vec<_>>());
-    for v in [49,40,30,21].into_iter().cloned() {
+    for v in [49,40,30,21].iter().cloned() {
         assert_eq!(Some(t.contains(v)), t.insert(v));
         println!(" after inserting {}: {:?}", v, t.clone().collect::<Vec<_>>());
         assert!(t.contains(v));
     }
-    for v in [49,40,30,21].into_iter().cloned() {
+    for v in [49,40,30,21].iter().cloned() {
         println!("removing {} from {:?}", v, t.clone().collect::<Vec<_>>());
         assert!(t.contains(v));
         assert!(t.remove(v));
