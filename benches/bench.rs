@@ -1,4 +1,4 @@
-use scaling::{bench_gen_env, bench_power_scaling};
+use scaling::{bench_gen_env, bench_scaling_gen};
 use rand::Rng;
 
 use stats_alloc::{Region, StatsAlloc, INSTRUMENTED_SYSTEM};
@@ -303,22 +303,22 @@ fn bench_collect(density: f64) {
         vec
     };
     println!("{:>11}: {:8.0} {:8.0} {:8.0} {:8.0} {:8.0} {:8.0}", ".collect()",
-             bench_power_scaling(&mut gen32, |v| {
+             bench_scaling_gen(&mut gen32, |v| {
                  v.iter().cloned().collect::<tinyset::SetU32>().len()
              }, 20).scaling,
-             bench_power_scaling(&mut gen32, |v| {
+             bench_scaling_gen(&mut gen32, |v| {
                  v.iter().cloned().collect::<tinyset::setu32b::SetU32>().len()
              }, 20).scaling,
-             bench_power_scaling(&mut gen32, |v| {
+             bench_scaling_gen(&mut gen32, |v| {
                  v.iter().cloned().collect::<std::collections::HashSet<_>>().len()
              }, 20).scaling,
-             bench_power_scaling(&mut gen, |v| {
+             bench_scaling_gen(&mut gen, |v| {
                  v.iter().cloned().collect::<tinyset::SetU64>().len()
              }, 20).scaling,
-             bench_power_scaling(&mut gen, |v| {
+             bench_scaling_gen(&mut gen, |v| {
                  v.iter().cloned().collect::<tinyset::Set64<_>>().len()
              }, 20).scaling,
-             bench_power_scaling(&mut gen, |v| {
+             bench_scaling_gen(&mut gen, |v| {
                  v.iter().cloned().collect::<std::collections::HashSet<_>>().len()
              }, 20).scaling,
     );
@@ -531,14 +531,14 @@ fn bench_fill_with_inserts(density: f64) {
         vec
     };
     println!("{:>11}: {:8.0} {:8.0} {:8.0} {:8.0} {:8.0} {:8.0} {:8.0}", "inserts",
-             bench_power_scaling(&mut gen32, |v| {
+             bench_scaling_gen(&mut gen32, |v| {
                  let mut s = tinyset::SetU32::new();
                  for x in v.iter().cloned() {
                      s.insert(x);
                  }
                  s.len()
              }, 20).scaling,
-             bench_power_scaling(&mut gen32, |v| {
+             bench_scaling_gen(&mut gen32, |v| {
                  // let mut s = tinyset::setu32b::SetU32::new();
                  let mut s = roaring::RoaringBitmap::new();
                  for x in v.iter().cloned() {
@@ -546,35 +546,35 @@ fn bench_fill_with_inserts(density: f64) {
                  }
                  s.len()
              }, 20).scaling,
-             bench_power_scaling(&mut gen32, |v| {
+             bench_scaling_gen(&mut gen32, |v| {
                  let mut s = std::collections::HashSet::new();
                  for x in v.iter().cloned() {
                      s.insert(x);
                  }
                  s.len()
              }, 20).scaling,
-             bench_power_scaling(&mut gen, |v| {
+             bench_scaling_gen(&mut gen, |v| {
                  let mut s = tinyset::SetU64::new();
                  for x in v.iter().cloned() {
                      s.insert(x);
                  }
                  s.len()
              }, 20).scaling,
-             bench_power_scaling(&mut gen, |v| {
+             bench_scaling_gen(&mut gen, |v| {
                  let mut s = tinyset::Set64::new();
                  for x in v.iter().cloned() {
                      s.insert(x);
                  }
                  s.len()
              }, 20).scaling,
-             bench_power_scaling(&mut gen, |v| {
+             bench_scaling_gen(&mut gen, |v| {
                  let mut s = std::collections::HashSet::new();
                  for x in v.iter().cloned() {
                      s.insert(x);
                  }
                  s.len()
              }, 20).scaling,
-             bench_power_scaling(&mut genusize, |v| {
+             bench_scaling_gen(&mut genusize, |v| {
                  let mut s = id_set::IdSet::new();
                  for x in v.iter().cloned() {
                      s.insert(x);
@@ -674,27 +674,27 @@ fn bench_funcs<O>(name: &str,
         vec
     };
     println!("{:>10}: {:8.0} {:8.0} {:8.0} {:8.0} {:8.0} {:8.0}", "scaling",
-             bench_power_scaling(
+             bench_scaling_gen(
                  |sz| {
                      gen(sz).iter().cloned().map(|x| x as u32).collect::<tinyset::SetU32>()
                  }, func32, 10).scaling,
-             bench_power_scaling(
+             bench_scaling_gen(
                  |sz| {
                      gen(sz).iter().cloned().map(|x| x as u32).collect::<roaring::RoaringBitmap>()
                  }, funcroaring, 10).scaling,
-             bench_power_scaling(
+             bench_scaling_gen(
                  |sz| {
                      gen(sz).iter().map(|&x| x as u32).collect::<std::collections::HashSet<_>>()
                  }, funchash32, 10).scaling,
-             bench_power_scaling(
+             bench_scaling_gen(
                  |sz| {
                      gen(sz).iter().cloned().collect::<tinyset::SetU64>()
                  }, func64, 10).scaling,
-             bench_power_scaling(
+             bench_scaling_gen(
                  |sz| {
                      gen(sz).iter().cloned().collect::<tinyset::Set64<u64>>()
                  }, oldtiny, 10).scaling,
-             bench_power_scaling(
+             bench_scaling_gen(
                  |sz| {
                      gen(sz).iter().cloned().collect::<std::collections::HashSet<_>>()
                  }, funchash, 10).scaling,
@@ -785,46 +785,46 @@ fn bench_scaling(density: f64, min: usize) {
     println!("\n{},      {:5}-: {:>13} {:>13} {:>13}", density, min,
              "this", "set64", "std");
     println!("{:>18}: {:5.0} {:5.0} {:5.0}", ".len()",
-             bench_power_scaling(&mut gen, |(_,set)| {
+             bench_scaling_gen(&mut gen, |(_,set)| {
                  set.len()
              }, min).scaling,
-             bench_power_scaling(&mut gen_tiny, |(_,set)| {
+             bench_scaling_gen(&mut gen_tiny, |(_,set)| {
                  set.len()
              }, min).scaling,
-             bench_power_scaling(&mut gen_hashset, |(_,set)| {
+             bench_scaling_gen(&mut gen_hashset, |(_,set)| {
                  set.len()
              }, min).scaling,
     );
     println!("{:>18}: {:5.0} {:5.0} {:5.0}", ".contains(ran)",
-             bench_power_scaling(gen, |(idx,set)| {
+             bench_scaling_gen(gen, |(idx,set)| {
                  set.contains(*idx)
              }, min).scaling,
-             bench_power_scaling(gen_tiny, |(idx,set)| {
+             bench_scaling_gen(gen_tiny, |(idx,set)| {
                  set.contains(*idx)
              }, min).scaling,
-             bench_power_scaling(gen_hashset, |(idx,set)| {
+             bench_scaling_gen(gen_hashset, |(idx,set)| {
                  set.contains(idx)
              }, min).scaling,
     );
     println!("{:>18}: {:5.0} {:5.0} {:5.0}", ".remove(ran)",
-             bench_power_scaling(gen, |(idx,set)| {
+             bench_scaling_gen(gen, |(idx,set)| {
                  set.remove(*idx)
              }, min).scaling,
-             bench_power_scaling(gen_tiny, |(idx,set)| {
+             bench_scaling_gen(gen_tiny, |(idx,set)| {
                  set.remove(idx)
              }, min).scaling,
-             bench_power_scaling(gen_hashset, |(idx,set)| {
+             bench_scaling_gen(gen_hashset, |(idx,set)| {
                  set.remove(idx)
              }, min).scaling,
     );
     println!("{:>18}: {:5.0} {:5.0} {:5.0}", ".insert(ran)",
-             bench_power_scaling(gen, |(idx,set)| {
+             bench_scaling_gen(gen, |(idx,set)| {
                  set.insert(*idx)
              }, min).scaling,
-             bench_power_scaling(gen_tiny, |(idx,set)| {
+             bench_scaling_gen(gen_tiny, |(idx,set)| {
                  set.insert(*idx)
              }, min).scaling,
-             bench_power_scaling(gen_hashset, |(idx,set)| {
+             bench_scaling_gen(gen_hashset, |(idx,set)| {
                  set.insert(*idx)
              }, min).scaling,
     );
