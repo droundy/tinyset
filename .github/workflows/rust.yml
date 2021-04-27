@@ -22,7 +22,6 @@ jobs:
       run: cargo test --verbose
 
   check:
-    name: Check
     runs-on: ubuntu-latest
     strategy:
       matrix:
