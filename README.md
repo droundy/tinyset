@@ -1,4 +1,4 @@
-[![Build Status](https://github.com/droundy/tinysef/actions/workflows/rust.yml/badge.svg)](https://github.com/droundy/tinyset/actions)
+[![Build Status](https://github.com/droundy/tinyset/actions/workflows/rust.yml/badge.svg)](https://github.com/droundy/tinyset/actions)
 [![Build status](https://ci.appveyor.com/api/projects/status/h0rn4amvlwce10pl?svg=true)](https://ci.appveyor.com/project/droundy/tinyset)
 [![Crates.io version](https://img.shields.io/crates/v/tinyset.svg)](https://crates.io/crates/tinyset)
 
