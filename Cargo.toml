@@ -21,10 +21,6 @@ stats_alloc = "0.1.8"
 roaring = "0.6.0"
 id-set = "0.2.2"
 
-[badges]
-travis-ci = { repository = "droundy/tinyset" }
-appveyor = { repository = "droundy/tinyset" }
-
 [dependencies]
 rand = { version = "0.7.2", optional = true }
 itertools = "0.9"
