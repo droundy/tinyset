@@ -20,3 +20,22 @@ jobs:
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
+
+  MSRV:
+    name: MSRV
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - 1.44.1
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+    - name: check
+      run: cargo check --verbose
+    - name: confirm-version
+      run: cargo --version
