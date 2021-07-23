@@ -1151,7 +1151,7 @@ impl Inserted {
         match self {
             Inserted::EmptySpot(i) => i,
             Inserted::Present(i) => i,
-            Inserted::NoRoom => panic!(msg),
+            Inserted::NoRoom => panic!("{}", msg),
         }
     }
 }
