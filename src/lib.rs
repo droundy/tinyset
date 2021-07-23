@@ -26,9 +26,11 @@
 //!
 //! All of these set types will do no heap allocation for small sets of
 //! small elements.  Small sets occupy the same space as a single
-//! pointer, typically 64 bits.  In these 64 bits, you can store up to
-//! 61 elements if the elements are sufficiently small (29 elements on
-//! 32-bit architectures).  For larger numbers, you can store progressively
+//! pointer, typically 64 bits.  In these 64 bits (or 32 bits), you can
+//! store up to
+//! seven elements if the elements are sufficiently small and not too
+//! widely spaced.  For larger numbers and more widely spaced numbers,
+//! you can store progressively
 //! fewer elements without doing a heap allocation.  When it does require
 //! a heap allocation, tinyset is still far more compact than a `HashSet`,
 //! particularly when the elements themselves are small.
