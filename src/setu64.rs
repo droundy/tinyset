@@ -1578,6 +1578,13 @@ mod tests {
         collect_size_is(&[255,260,265,270,275,280,285], 8);
         collect_size_is(&[1000,1002,1004,1006,1008,1009,1010], 8);
 
+        incremental_size_le(& (0..7).collect::<Vec<_>>(), 8);
+        incremental_size_le(& (10..10+7).collect::<Vec<_>>(), 8);
+        incremental_size_le(& (100..100+7).collect::<Vec<_>>(), 8);
+        incremental_size_le(& (1000..1000+7).collect::<Vec<_>>(), 8);
+        incremental_size_le(& (10000..10000+7).collect::<Vec<_>>(), 8);
+        incremental_size_le(& (100000..100000+7).collect::<Vec<_>>(), 8);
+
         incremental_size_le(& (1..30).collect::<Vec<_>>(), 40);
         incremental_size_le(& (1..60).collect::<Vec<_>>(), 40);
 

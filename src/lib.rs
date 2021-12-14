@@ -25,11 +25,15 @@
 //! [SetU32] internally.
 //!
 //! All of these set types will do no heap allocation for small sets of
-//! small elements.  `TinySet` will store up to 16 bytes of elements
-//! before doing any heap allocation, while `Set` stores sets up to size 8
-//! without allocation.  `Set64` will store up to 22 bytes of elements,
-//! and if all your elements are small (e.g. `0..22 as u64` it will store
-//! them in as few bytes as possible.
+//! small elements.  Small sets occupy the same space as a single
+//! pointer, typically 64 bits.  In these 64 bits (or 32 bits), you can
+//! store up to
+//! seven elements if the elements are sufficiently small and not too
+//! widely spaced.  For larger numbers and more widely spaced numbers,
+//! you can store progressively
+//! fewer elements without doing a heap allocation.  When it does require
+//! a heap allocation, tinyset is still far more compact than a `HashSet`,
+//! particularly when the elements themselves are small.
 //!
 //! These sets all differ from the standard sets in that they iterate
 //! over items rather than references to items, because they do not
