@@ -9,6 +9,26 @@ pub trait CopySet : Default + Clone {
     fn it(self) -> Self::Iter;
 }
 
+macro_rules! impl_eq {
+    ($ty: ty) => {
+impl PartialEq for $ty {
+    fn eq(&self, other: &Self) -> bool {
+        if self.len() != other.len() {
+            return false;
+        }
+        for i in self.iter() {
+            if !other.contains(i) {
+                return false;
+            }
+        }
+        true
+    }
+}
+impl Eq for $ty {}
+}
+}
+pub(crate) use impl_eq;
+
 impl CopySet for std::collections::HashSet<u64> {
     type Item = u64;
     type Iter = std::collections::hash_set::IntoIter<u64>;

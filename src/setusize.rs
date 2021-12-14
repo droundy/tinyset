@@ -28,6 +28,9 @@ impl Default for SetUsize {
     }
 }
 
+use crate::copyset::impl_eq;
+impl_eq!(SetUsize);
+
 impl SetUsize {
     /// Creates an empty set..
     pub fn new() -> Self {
