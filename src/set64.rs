@@ -217,8 +217,8 @@ impl<T: Fits64> PartialEq for Set64<T> {
         if self.len() != other.len() {
             return false;
         }
-        for k in other.iter() {
-            if !self.contains(k) {
+        for k in other.0.iter() {
+            if !self.0.contains(k) {
                 return false;
             }
         }
