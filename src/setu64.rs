@@ -473,6 +473,39 @@ impl Clone for SetU64 {
     }
 }
 
+impl SetU64 {
+    /// Create an empty set with capacity to hold the provided set.
+    /// 
+    /// ```
+    /// let a: tinyset::SetU64 = (1..300).collect();
+    /// let mut b = tinyset::SetU64::with_capacity_of(&a);
+    ///
+    /// assert_eq!(a.capacity(), b.capacity());
+    /// assert_eq!(b.len(), 0);
+    /// for i in a.iter() {
+    ///   b.insert(i);
+    /// }
+    /// assert_eq!(a.capacity(), b.capacity());
+    /// assert_eq!(b.len(), a.len());
+    /// ```
+    pub fn with_capacity_of(other: &Self) -> Self {
+        if other.0 as usize & 7 == 0 && other.0 != std::ptr::null_mut() {
+            let c = other.capacity();
+            unsafe {
+                let ptr = std::alloc::alloc_zeroed(layout_for_capacity(c)) as *mut S;
+                if ptr == std::ptr::null_mut() {
+                    std::alloc::handle_alloc_error(layout_for_capacity(c));
+                }
+                (*ptr).cap = (*other.0).cap;
+                (*ptr).bits = (*other.0).bits;
+                SetU64(ptr)
+            }
+        } else {
+            SetU64::new()
+        }
+    }
+}
+
 #[test]
 fn just_clone() {
     let mut x = SetU64::with_capacity_and_max(100, 1000000);

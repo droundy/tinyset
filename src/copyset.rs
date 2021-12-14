@@ -25,6 +25,43 @@ impl PartialEq for $ty {
     }
 }
 impl Eq for $ty {}
+
+impl<'a, 'b> std::ops::Sub<&'b $ty> for &'a $ty {
+    type Output = $ty;
+
+    /// Returns the difference of `self` and `rhs` as a new set.
+    fn sub(self, rhs: &$ty) -> $ty {
+        let mut s = <$ty>::with_capacity_of(&self);
+        for v in self.iter() {
+            if !rhs.contains(v) {
+                s.insert(v);
+            }
+        }
+        s
+    }
+}
+
+impl<'a, 'b> std::ops::BitOr<&'b $ty> for &'a $ty {
+    type Output = $ty;
+
+    /// Returns the union of `self` and `rhs` as a new `$ty`.
+    fn bitor(self, rhs: & $ty) -> $ty {
+        let mut s: $ty = if self.len() > rhs.len() {
+            <$ty>::with_capacity_of(&self)
+        } else {
+            <$ty>::with_capacity_of(&rhs)
+        };
+        for x in self.iter() {
+            s.insert(x);
+        }
+        for x in rhs.iter() {
+            s.insert(x);
+        }
+        s
+    }
+}
+
+
 }
 }
 pub(crate) use impl_eq;

@@ -702,6 +702,41 @@ impl Clone for SetU32 {
 }
 
 impl SetU32 {
+    /// Create an empty set with capacity to hold the provided set.
+    /// 
+    /// ```
+    /// use tinyset::SetU32;
+    ///
+    /// let a: SetU32 = (1..300).collect();
+    /// let mut b = SetU32::with_capacity_of(&a);
+    ///
+    /// assert_eq!(a.capacity(), b.capacity());
+    /// assert_eq!(b.len(), 0);
+    /// for i in a.iter() {
+    ///   b.insert(i);
+    /// }
+    /// assert_eq!(a.capacity(), b.capacity());
+    /// assert_eq!(b.len(), a.len());
+    /// ```
+    pub fn with_capacity_of(other: &Self) -> Self {
+        if other.0 as usize & 7 == 0 && other.0 != std::ptr::null_mut() {
+            let c = other.capacity();
+            unsafe {
+                let ptr = std::alloc::alloc_zeroed(layout_for_capacity(c)) as *mut S;
+                if ptr == std::ptr::null_mut() {
+                    std::alloc::handle_alloc_error(layout_for_capacity(c));
+                }
+                (*ptr).cap = (*other.0).cap;
+                (*ptr).bits = (*other.0).bits;
+                SetU32(ptr)
+            }
+        } else {
+            SetU32::new()
+        }
+    }
+}
+
+impl SetU32 {
     /// The number of elements in the set
     #[inline]
     pub fn len(&self) -> usize {
