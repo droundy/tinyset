@@ -28,84 +28,84 @@ fn bench_sets(density: f64, num_elements: usize) {
         let mx = (num_elements as f64/density) as u32 + 1;
         let mut set = tinyset::SetU32::new();
         while set.len() < num_elements {
-            set.insert(rng.gen_range(0, mx));
+            set.insert(rng.gen_range(0..mx));
         }
-        let x = rng.gen_range(0, mx);
+        let x = rng.gen_range(0..mx);
         set.insert(x);
         set.remove(x); // ensure there is room for one more
-        (rng.gen_range(0, mx), set)
+        (rng.gen_range(0..mx), set)
     };
     let genroaring = move || {
         let mut rng = rand::thread_rng();
         let mx = (num_elements as f64/density) as u32 + 1;
         let mut set = roaring::RoaringBitmap::new();
         while set.len() < num_elements as u64 {
-            set.insert(rng.gen_range(0, mx));
+            set.insert(rng.gen_range(0..mx));
         }
-        let x = rng.gen_range(0, mx);
+        let x = rng.gen_range(0..mx);
         set.insert(x);
         set.remove(x); // ensure there is room for one more
-        (rng.gen_range(0, mx), set)
+        (rng.gen_range(0..mx), set)
     };
     let genstd32 = move || {
         let mut rng = rand::thread_rng();
         let mx = (num_elements as f64/density) as u32 + 1;
         let mut set = std::collections::HashSet::new();
         while set.len() < num_elements {
-            set.insert(rng.gen_range(0, mx));
+            set.insert(rng.gen_range(0..mx));
         }
-        let x = rng.gen_range(0, mx);
+        let x = rng.gen_range(0..mx);
         set.insert(x);
         set.remove(&x); // ensure there is room for one more
-        (rng.gen_range(0, mx), set)
+        (rng.gen_range(0..mx), set)
     };
     let gen = move || {
         let mut rng = rand::thread_rng();
         let mx = (num_elements as f64/density) as u64 + 1;
         let mut set = tinyset::SetU64::new();
         while set.len() < num_elements {
-            set.insert(rng.gen_range(0, mx));
+            set.insert(rng.gen_range(0..mx));
         }
-        let x = rng.gen_range(0, mx);
+        let x = rng.gen_range(0..mx);
         set.insert(x);
         set.remove(x); // ensure there is room for one more
-        (rng.gen_range(0, mx), set)
+        (rng.gen_range(0..mx), set)
     };
     let gen_hashset = move || {
         let mut rng = rand::thread_rng();
         let mx = (num_elements as f64/density) as u64 + 1;
         let mut set = std::collections::HashSet::new();
         while set.len() < num_elements {
-            set.insert(rng.gen_range(0, mx));
+            set.insert(rng.gen_range(0..mx));
         }
-        let x = rng.gen_range(0, mx);
+        let x = rng.gen_range(0..mx);
         set.insert(x);
         set.remove(&x); // ensure there is room for one more
-        (rng.gen_range(0, mx), set)
+        (rng.gen_range(0..mx), set)
     };
     let gen_tiny = move || {
         let mut rng = rand::thread_rng();
         let mx = (num_elements as f64/density) as u64 + 1;
         let mut set = tinyset::Set64::new();
         while set.len() < num_elements {
-            set.insert(rng.gen_range(0, mx));
+            set.insert(rng.gen_range(0..mx));
         }
-        let x = rng.gen_range(0, mx);
+        let x = rng.gen_range(0..mx);
         set.insert(x);
         set.remove(&x); // ensure there is room for one more
-        (rng.gen_range(0, mx), set)
+        (rng.gen_range(0..mx), set)
     };
     let gen_idset = move || {
         let mut rng = rand::thread_rng();
         let mx = (num_elements as f64/density) as usize + 1;
         let mut set = id_set::IdSet::new();
         while set.len() < num_elements {
-            set.insert(rng.gen_range(0, mx));
+            set.insert(rng.gen_range(0..mx));
         }
-        let x = rng.gen_range(0, mx);
+        let x = rng.gen_range(0..mx);
         set.insert(x);
         set.remove(x); // ensure there is room for one more
-        (rng.gen_range(0, mx), set)
+        (rng.gen_range(0..mx), set)
     };
 
     println!("\n{:5}, {:3}:        {:>7} {:>7} {:>7} {:>7} {:>7} {:>7} {:>7}",
@@ -210,7 +210,7 @@ fn bench_collect(density: f64) {
             let mx = (sz as f64/density) as u64 + 1;
             let mut vec = Vec::new();
             while vec.iter().cloned().collect::<tinyset::SetU64>().len() < sz {
-                vec.push(rng.gen_range(0, mx));
+                vec.push(rng.gen_range(0..mx));
             }
             vec
         };
@@ -219,7 +219,7 @@ fn bench_collect(density: f64) {
             let mx = (sz as f64/density) as u32 + 1;
             let mut vec = Vec::new();
             while vec.iter().cloned().collect::<tinyset::SetU32>().len() < sz {
-                vec.push(rng.gen_range(0, mx));
+                vec.push(rng.gen_range(0..mx));
             }
             vec
         };
@@ -273,7 +273,7 @@ fn bench_collect(density: f64) {
         let mx = (sz as f64/density) as u64 + 1;
         let mut vec = Vec::new();
         while vec.iter().cloned().collect::<tinyset::SetU64>().len() < sz {
-            vec.push(rng.gen_range(0, mx));
+            vec.push(rng.gen_range(0..mx));
             }
         vec
     };
@@ -282,7 +282,7 @@ fn bench_collect(density: f64) {
         let mx = (sz as f64/density) as u32 + 1;
         let mut vec = Vec::new();
         while vec.iter().cloned().collect::<tinyset::SetU32>().len() < sz {
-            vec.push(rng.gen_range(0, mx));
+            vec.push(rng.gen_range(0..mx));
             }
         vec
     };
@@ -334,7 +334,7 @@ fn bench_fill_with_inserts(density: f64) {
             let mx = (sz as f64/density) as u64 + 1;
             let mut vec = Vec::new();
             while vec.iter().cloned().collect::<tinyset::SetU64>().len() < sz {
-                vec.push(rng.gen_range(0, mx));
+                vec.push(rng.gen_range(0..mx));
             }
             vec
         };
@@ -343,7 +343,7 @@ fn bench_fill_with_inserts(density: f64) {
             let mx = (sz as f64/density) as u32 + 1;
             let mut vec = Vec::new();
             while vec.iter().cloned().collect::<tinyset::SetU32>().len() < sz {
-                vec.push(rng.gen_range(0, mx));
+                vec.push(rng.gen_range(0..mx));
             }
             vec
         };
@@ -352,7 +352,7 @@ fn bench_fill_with_inserts(density: f64) {
             let mx = (sz as f64/density) as usize + 1;
             let mut vec = Vec::new();
             while vec.iter().cloned().collect::<tinyset::SetUsize>().len() < sz {
-                vec.push(rng.gen_range(0, mx));
+                vec.push(rng.gen_range(0..mx));
             }
             vec
         };
@@ -487,7 +487,7 @@ fn bench_fill_with_inserts(density: f64) {
         let mx = (sz as f64/density) as u64 + 1;
         let mut vec = Vec::new();
         while vec.iter().cloned().collect::<tinyset::SetU64>().len() < sz {
-            vec.push(rng.gen_range(0, mx));
+            vec.push(rng.gen_range(0..mx));
             }
         vec
     };
@@ -496,7 +496,7 @@ fn bench_fill_with_inserts(density: f64) {
         let mx = (sz as f64/density) as u32 + 1;
         let mut vec = Vec::new();
         while vec.iter().cloned().collect::<tinyset::SetU32>().len() < sz {
-            vec.push(rng.gen_range(0, mx));
+            vec.push(rng.gen_range(0..mx));
             }
         vec
     };
@@ -505,7 +505,7 @@ fn bench_fill_with_inserts(density: f64) {
         let mx = (sz as f64/density) as usize + 1;
         let mut vec = Vec::new();
         while vec.iter().cloned().collect::<tinyset::SetUsize>().len() < sz {
-            vec.push(rng.gen_range(0, mx));
+            vec.push(rng.gen_range(0..mx));
             }
         vec
     };
@@ -588,7 +588,7 @@ fn bench_funcs<O>(name: &str,
             let mx = (sz as f64/density) as u64 + 1;
             let mut vec = Vec::new();
             while vec.iter().cloned().collect::<tinyset::SetU64>().len() < sz {
-                vec.push(rng.gen_range(0, mx));
+                vec.push(rng.gen_range(0..mx));
             }
             vec
         };
@@ -646,7 +646,7 @@ fn bench_funcs<O>(name: &str,
         let mx = (sz as f64/density) as u64 + 1;
         let mut vec = Vec::new();
         while vec.iter().cloned().collect::<tinyset::SetU64>().len() < sz {
-            vec.push(rng.gen_range(0, mx));
+            vec.push(rng.gen_range(0..mx));
         }
         vec
     };
@@ -732,27 +732,27 @@ fn bench_scaling(density: f64, min: usize) {
         let mx = (num_elements as f64/density) as u64 + 1;
         let mut set = tinyset::SetU64::new();
         while set.len() < num_elements {
-            set.insert(rng.gen_range(0, mx));
+            set.insert(rng.gen_range(0..mx));
         }
-        (rng.gen_range(0, mx), set)
+        (rng.gen_range(0..mx), set)
     };
     let mut gen_hashset = move |num_elements| {
         let mut rng = rand::thread_rng();
         let mx = (num_elements as f64/density) as u64 + 1;
         let mut set = std::collections::HashSet::new();
         while set.len() < num_elements {
-            set.insert(rng.gen_range(0, mx));
+            set.insert(rng.gen_range(0..mx));
         }
-        (rng.gen_range(0, mx), set)
+        (rng.gen_range(0..mx), set)
     };
     let mut gen_tiny = move |num_elements| {
         let mut rng = rand::thread_rng();
         let mx = (num_elements as f64/density) as u64 + 1;
         let mut set = tinyset::Set64::new();
         while set.len() < num_elements {
-            set.insert(rng.gen_range(0, mx));
+            set.insert(rng.gen_range(0..mx));
         }
-        (rng.gen_range(0, mx), set)
+        (rng.gen_range(0..mx), set)
     };
 
     println!("\n{},      {:5}-: {:>13} {:>13} {:>13}", density, min,
