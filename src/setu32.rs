@@ -1,8 +1,6 @@
 #![deny(missing_docs)]
 //! This is a crate for the tiniest sets ever.
 
-use itertools::Itertools;
-
 const fn num_bits<T>() -> u32 { std::mem::size_of::<T>() as u32 * 8 }
 
 fn log_2(x: u32) -> u32 {
@@ -107,6 +105,13 @@ impl Iterator for Tiny {
     }
     fn min(mut self) -> Option<u32> {
         self.next()
+    }
+    fn max(mut self) -> Option<u32> {
+        let mut mx = None;
+        while let Some(x) = self.next() {
+            mx = Some(x);
+        }
+        mx
     }
 }
 
@@ -307,15 +312,31 @@ fn test_tiny() {
 
 enum Internal<'a> {
     Empty,
+    /// This is the case where we store up to seven values in the pointer
+    /// itself.  The `Tiny` data structure is a copy of that information, which
+    /// also functions as an `Iterator`.
     Stack(Tiny),
+    /// This is the normal storage for tiny sets.  We use effectively a hash
+    /// table.  Each u32 element stores two things, a bitmap (in the least
+    /// significant bits) giving the elements in the set, and in the most
+    /// significant bits a value representing the offset of the bitmap.
     Heap {
         s: &'a S,
         a: &'a [u32],
     },
+    /// This is for the case where the maximum number in our set is so large
+    /// that we can't use the bitmap approach above.  Intead we store a single
+    /// value to represent any zero element.  We use zeros to represent empty
+    /// bins, and actual values to represent numbers, except in the case where
+    /// an actual zero is present in the set, in which case we store a chosen
+    /// unique value (which we change if that unique value gets added to the
+    /// set).
     Big {
         s: &'a S,
         a: &'a [u32],
     },
+    // The data is stored as a bitmap.  This is used when the number of elements
+    // in the set is getting close enough to the maximum value of the set.
     Dense {
         sz: u32,
         a: &'a [u32],
@@ -897,8 +918,9 @@ impl SetU32 {
                     *self = SetU32(newt.to_usize() as *mut S);
                     return newt.sz != t.sz;
                 }
-                *self = Self::with_capacity_and_max(t.sz as usize + 1,
-                                                    t.merge(Some(e).into_iter()).max().unwrap());
+                let mx = t.max().unwrap();
+                let mx = if e > mx { e } else { mx };
+                *self = Self::with_capacity_and_max(t.sz as usize + 1, mx);
                 // self.debug_me("empty array");
                 for x in t {
                     self.insert(x);

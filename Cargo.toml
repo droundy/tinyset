@@ -23,7 +23,6 @@ id-set = "0.2.2"
 
 [dependencies]
 rand = { version = "0.8.4", optional = true }
-itertools = "0.9"
 
 [features]
 
