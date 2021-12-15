@@ -59,13 +59,6 @@ unsafe impl Sync for SetU64 {}
 use crate::copyset::impl_set_methods;
 impl_set_methods!(SetU64);
 
-impl std::fmt::Debug for SetU64 {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        write!(f, "SetU64 {:?}", self.iter().collect::<Vec<_>>())?;
-        Ok(())
-    }
-}
-
 #[repr(C)]
 #[derive(Debug)]
 struct S {

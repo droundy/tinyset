@@ -59,13 +59,6 @@ unsafe impl Sync for SetU32 {}
 use crate::copyset::impl_set_methods;
 impl_set_methods!(SetU32);
 
-impl std::fmt::Debug for SetU32 {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        write!(f, "SetU32 {:?}", self.iter().collect::<Vec<_>>())?;
-        Ok(())
-    }
-}
-
 #[repr(C)]
 #[derive(Debug)]
 struct S {

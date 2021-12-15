@@ -9,7 +9,6 @@ pub trait CopySet : Default + Clone {
     fn it(self) -> Self::Iter;
 }
 
-#[macropol::macropol]
 macro_rules! impl_set_methods {
     ($ty: ty) => {
 impl PartialEq for $ty {
@@ -27,28 +26,28 @@ impl PartialEq for $ty {
 }
 impl Eq for $ty {}
 
+impl std::fmt::Debug for $ty {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, concat!(stringify!($ty), " {:?}"), self.iter().collect::<Vec<_>>())?;
+        Ok(())
+    }
+}
+
 impl<'a, 'b> std::ops::Sub<&'b $ty> for &'a $ty {
     type Output = $ty;
-    /// Returns the difference of `self` and `rhs` as a new `$&ty`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tinyset::$&ty;
-    ///
-    /// let a: $&ty = vec![1, 2, 3].into_iter().collect();
-    /// let b: $&ty = vec![3, 4, 5].into_iter().collect();
-    ///
-    /// let set = &a - &b;
-    ///
-    /// let mut i = 0;
-    /// let expected = [1, 2];
-    /// for x in set {
-    ///     assert!(expected.contains(&x));
-    ///     i += 1;
-    /// }
-    /// assert_eq!(i, expected.len());
-    /// ```
+    #[doc = concat!(
+        "Returns the difference of `self` and `rhs` as a new `", stringify!($ty), "`.
+
+# Examples
+
+```
+let a: tinyset::",  stringify!($ty), " = (1..4).collect();
+let b: tinyset::",  stringify!($ty), " = (3..6).into_iter().collect();
+
+assert_eq!(&a - &b, (1..3).collect());
+```
+"
+    )]
     fn sub(self, rhs: &$ty) -> $ty {
         let mut s = <$ty>::with_capacity_of(&self);
         for v in self.iter() {
@@ -62,26 +61,19 @@ impl<'a, 'b> std::ops::Sub<&'b $ty> for &'a $ty {
 
 impl<'b> std::ops::Sub<&'b $ty> for $ty {
     type Output = $ty;
-    /// Returns the difference of `self` and `rhs` as a new `$&ty`, consuming `self`.  Should not allocate.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tinyset::$&ty;
-    ///
-    /// let a: $&ty = vec![1, 2, 3].into_iter().collect();
-    /// let b: $&ty = vec![3, 4, 5].into_iter().collect();
-    ///
-    /// let set = &a - &b;
-    ///
-    /// let mut i = 0;
-    /// let expected = [1, 2];
-    /// for x in set {
-    ///     assert!(expected.contains(&x));
-    ///     i += 1;
-    /// }
-    /// assert_eq!(i, expected.len());
-    /// ```
+    #[doc = concat!(
+        "Returns the difference of `self` and `rhs` as a new `", stringify!($ty), "` consuming `self`.  Should not allocate.
+
+# Examples
+
+```
+let a: tinyset::",  stringify!($ty), " = (1..4).collect();
+let b: tinyset::",  stringify!($ty), " = (3..6).into_iter().collect();
+
+assert_eq!(a - &b, (1..3).collect());
+```
+"
+    )]
     fn sub(mut self, rhs: &$ty) -> $ty {
         for v in rhs.iter() {
             self.remove(v);
@@ -92,27 +84,19 @@ impl<'b> std::ops::Sub<&'b $ty> for $ty {
 
 impl<'a, 'b> std::ops::BitOr<&'b $ty> for &'a $ty {
     type Output = $ty;
+    #[doc = concat!(
+        "Returns the union of `self` and `rhs` as a new `", stringify!($ty), "`.
 
-    /// Returns the union of `self` and `rhs` as a new `$&ty`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tinyset::$&ty;
-    ///
-    /// let a: $&ty = vec![1, 2, 3].into_iter().collect();
-    /// let b: $&ty = vec![3, 4, 5].into_iter().collect();
-    ///
-    /// let set = &a | &b;
-    ///
-    /// let mut i = 0;
-    /// let expected = [1, 2, 3, 4, 5];
-    /// for x in set {
-    ///     assert!(expected.contains(&x));
-    ///     i += 1;
-    /// }
-    /// assert_eq!(i, expected.len());
-    /// ```
+# Examples
+
+```
+let a: tinyset::",  stringify!($ty), " = (1..4).collect();
+let b: tinyset::",  stringify!($ty), " = (3..6).collect();
+
+assert_eq!(&a | &b, (1..6).collect());
+```
+"
+    )]
     fn bitor(self, rhs: & $ty) -> $ty {
         let mut s: $ty = if self.len() > rhs.len() {
             <$ty>::with_capacity_of(&self)
@@ -131,27 +115,19 @@ impl<'a, 'b> std::ops::BitOr<&'b $ty> for &'a $ty {
 
 impl<'b> std::ops::BitOr<&'b $ty> for $ty {
     type Output = $ty;
+    #[doc = concat!(
+        "Returns the union of `self` and `rhs` as a new `", stringify!($ty), "`, consuming `self`.
 
-    /// Returns the union of `self` and `rhs` as a new `$&ty`, consuming `self`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tinyset::$&ty;
-    ///
-    /// let a: $&ty = vec![1, 2, 3].into_iter().collect();
-    /// let b: $&ty = vec![3, 4, 5].into_iter().collect();
-    ///
-    /// let set = a | &b;
-    ///
-    /// let mut i = 0;
-    /// let expected = [1, 2, 3, 4, 5];
-    /// for x in set {
-    ///     assert!(expected.contains(&x));
-    ///     i += 1;
-    /// }
-    /// assert_eq!(i, expected.len());
-    /// ```
+# Examples
+
+```
+let a: tinyset::",  stringify!($ty), " = (1..4).collect();
+let b: tinyset::",  stringify!($ty), " = (3..6).collect();
+
+assert_eq!(a | &b, (1..6).collect());
+```
+"
+    )]
     fn bitor(mut self, rhs: & $ty) -> $ty {
         for x in rhs.iter() {
             self.insert(x);
@@ -162,6 +138,7 @@ impl<'b> std::ops::BitOr<&'b $ty> for $ty {
 
 }
 }
+
 pub(crate) use impl_set_methods;
 
 impl CopySet for std::collections::HashSet<u64> {

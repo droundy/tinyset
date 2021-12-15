@@ -24,7 +24,6 @@ id-set = "0.2.2"
 [dependencies]
 rand = { version = "0.7.2", optional = true }
 itertools = "0.9"
-macropol = "0.1.2"
 
 [features]
 

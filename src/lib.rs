@@ -55,9 +55,6 @@
 mod rand;
 mod sets;
 
-#[doc(hidden)]
-pub mod setu32b;
-
 pub mod setusize;
 pub use setusize::SetUsize;
 
@@ -70,8 +67,4 @@ pub use setu64::SetU64;
 pub mod set64;
 pub use crate::set64::{Set64, Fits64};
 
-#[doc(hidden)]
-mod map64;
-
 mod copyset;
-mod anymap;
