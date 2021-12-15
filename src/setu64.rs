@@ -427,7 +427,7 @@ impl<'a> Iterator for Iter<'a> {
 #[derive(Debug)]
 pub struct IntoIter {
     iter: Iter<'static>,
-    set: SetU64,
+    _set: SetU64,
 }
 impl IntoIterator for SetU64 {
     type Item = u64;
@@ -437,7 +437,7 @@ impl IntoIterator for SetU64 {
         let iter = unsafe { std::mem::transmute(self.private_iter()) };
         IntoIter {
             iter,
-            set: self,
+            _set: self,
         }
     }
 }
@@ -997,12 +997,7 @@ impl SetU64 {
     /// Clears the set, returning all elements in an iterator.
     #[inline]
     pub fn drain<'a>(&'a mut self) -> impl Iterator<Item=u64> + 'a {
-        let set: SetU64 = std::mem::replace(self, SetU64::new());
-        let iter = unsafe { std::mem::transmute(set.private_iter()) };
-        IntoIter {
-            iter,
-            set,
-        }
+        std::mem::replace(self, SetU64::new()).into_iter()
     }
 
     fn internal<'a>(&'a self) -> Internal<'a> {
