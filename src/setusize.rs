@@ -51,8 +51,8 @@ impl Default for SetUsize {
     }
 }
 
-use crate::copyset::impl_eq;
-impl_eq!(SetUsize);
+use crate::copyset::impl_set_methods;
+impl_set_methods!(SetUsize);
 
 impl SetUsize {
     /// Creates an empty set..
