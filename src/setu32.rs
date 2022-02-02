@@ -1,8 +1,6 @@
 #![deny(missing_docs)]
 //! This is a crate for the tiniest sets ever.
 
-use itertools::Itertools;
-
 const fn num_bits<T>() -> u32 { std::mem::size_of::<T>() as u32 * 8 }
 
 fn log_2(x: u32) -> u32 {
@@ -56,12 +54,8 @@ pub struct SetU32(*mut S);
 unsafe impl Send for SetU32 {}
 unsafe impl Sync for SetU32 {}
 
-impl std::fmt::Debug for SetU32 {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        write!(f, "SetU32 {:?}", self.iter().collect::<Vec<_>>())?;
-        Ok(())
-    }
-}
+use crate::copyset::impl_set_methods;
+impl_set_methods!(SetU32);
 
 #[repr(C)]
 #[derive(Debug)]
@@ -111,6 +105,13 @@ impl Iterator for Tiny {
     }
     fn min(mut self) -> Option<u32> {
         self.next()
+    }
+    fn max(mut self) -> Option<u32> {
+        let mut mx = None;
+        while let Some(x) = self.next() {
+            mx = Some(x);
+        }
+        mx
     }
 }
 
@@ -311,15 +312,31 @@ fn test_tiny() {
 
 enum Internal<'a> {
     Empty,
+    /// This is the case where we store up to seven values in the pointer
+    /// itself.  The `Tiny` data structure is a copy of that information, which
+    /// also functions as an `Iterator`.
     Stack(Tiny),
+    /// This is the normal storage for tiny sets.  We use effectively a hash
+    /// table.  Each u32 element stores two things, a bitmap (in the least
+    /// significant bits) giving the elements in the set, and in the most
+    /// significant bits a value representing the offset of the bitmap.
     Heap {
         s: &'a S,
         a: &'a [u32],
     },
+    /// This is for the case where the maximum number in our set is so large
+    /// that we can't use the bitmap approach above.  Intead we store a single
+    /// value to represent any zero element.  We use zeros to represent empty
+    /// bins, and actual values to represent numbers, except in the case where
+    /// an actual zero is present in the set, in which case we store a chosen
+    /// unique value (which we change if that unique value gets added to the
+    /// set).
     Big {
         s: &'a S,
         a: &'a [u32],
     },
+    // The data is stored as a bitmap.  This is used when the number of elements
+    // in the set is getting close enough to the maximum value of the set.
     Dense {
         sz: u32,
         a: &'a [u32],
@@ -637,7 +654,7 @@ impl crate::copyset::CopySet for SetU32 {
 #[derive(Debug)]
 pub struct IntoIter {
     iter: Iter<'static>,
-    set: SetU32,
+    _set: SetU32,
 }
 impl IntoIterator for SetU32 {
     type Item = u32;
@@ -647,7 +664,7 @@ impl IntoIterator for SetU32 {
         let iter = unsafe { std::mem::transmute(self.private_iter()) };
         IntoIter {
             iter,
-            set: self,
+            _set: self,
         }
     }
 }
@@ -694,6 +711,41 @@ impl Clone for SetU32 {
             }
         } else {
             SetU32(self.0)
+        }
+    }
+}
+
+impl SetU32 {
+    /// Create an empty set with capacity to hold the provided set.
+    /// 
+    /// ```
+    /// use tinyset::SetU32;
+    ///
+    /// let a: SetU32 = (1..300).collect();
+    /// let mut b = SetU32::with_capacity_of(&a);
+    ///
+    /// assert_eq!(a.capacity(), b.capacity());
+    /// assert_eq!(b.len(), 0);
+    /// for i in a.iter() {
+    ///   b.insert(i);
+    /// }
+    /// assert_eq!(a.capacity(), b.capacity());
+    /// assert_eq!(b.len(), a.len());
+    /// ```
+    pub fn with_capacity_of(other: &Self) -> Self {
+        if other.0 as usize & 7 == 0 && other.0 != std::ptr::null_mut() {
+            let c = other.capacity();
+            unsafe {
+                let ptr = std::alloc::alloc_zeroed(layout_for_capacity(c)) as *mut S;
+                if ptr == std::ptr::null_mut() {
+                    std::alloc::handle_alloc_error(layout_for_capacity(c));
+                }
+                (*ptr).cap = (*other.0).cap;
+                (*ptr).bits = (*other.0).bits;
+                SetU32(ptr)
+            }
+        } else {
+            SetU32::new()
         }
     }
 }
@@ -866,8 +918,9 @@ impl SetU32 {
                     *self = SetU32(newt.to_usize() as *mut S);
                     return newt.sz != t.sz;
                 }
-                *self = Self::with_capacity_and_max(t.sz as usize + 1,
-                                                    t.merge(Some(e).into_iter()).max().unwrap());
+                let mx = t.max().unwrap();
+                let mx = if e > mx { e } else { mx };
+                *self = Self::with_capacity_and_max(t.sz as usize + 1, mx);
                 // self.debug_me("empty array");
                 for x in t {
                     self.insert(x);
@@ -1196,12 +1249,7 @@ impl SetU32 {
     /// Clears the set, returning all elements in an iterator.
     #[inline]
     pub fn drain<'a>(&'a mut self) -> impl Iterator<Item=u32> + 'a {
-        let set: SetU32 = std::mem::replace(self, SetU32::new());
-        let iter = unsafe { std::mem::transmute(set.private_iter()) };
-        IntoIter {
-            iter,
-            set,
-        }
+        std::mem::replace(self, SetU32::new()).into_iter()
     }
 
     fn internal<'a>(&'a self) -> Internal<'a> {

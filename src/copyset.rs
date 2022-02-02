@@ -9,6 +9,138 @@ pub trait CopySet : Default + Clone {
     fn it(self) -> Self::Iter;
 }
 
+macro_rules! impl_set_methods {
+    ($ty: ty) => {
+impl PartialEq for $ty {
+    fn eq(&self, other: &Self) -> bool {
+        if self.len() != other.len() {
+            return false;
+        }
+        for i in self.iter() {
+            if !other.contains(i) {
+                return false;
+            }
+        }
+        true
+    }
+}
+impl Eq for $ty {}
+
+impl std::fmt::Debug for $ty {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, concat!(stringify!($ty), " {:?}"), self.iter().collect::<Vec<_>>())?;
+        Ok(())
+    }
+}
+
+impl<'a, 'b> std::ops::Sub<&'b $ty> for &'a $ty {
+    type Output = $ty;
+    #[doc = concat!(
+        "Returns the difference of `self` and `rhs` as a new `", stringify!($ty), "`.
+
+# Examples
+
+```
+let a: tinyset::",  stringify!($ty), " = (1..4).collect();
+let b: tinyset::",  stringify!($ty), " = (3..6).into_iter().collect();
+
+assert_eq!(&a - &b, (1..3).collect());
+```
+"
+    )]
+    fn sub(self, rhs: &$ty) -> $ty {
+        let mut s = <$ty>::with_capacity_of(&self);
+        for v in self.iter() {
+            if !rhs.contains(v) {
+                s.insert(v);
+            }
+        }
+        s
+    }
+}
+
+impl<'b> std::ops::Sub<&'b $ty> for $ty {
+    type Output = $ty;
+    #[doc = concat!(
+        "Returns the difference of `self` and `rhs` as a new `", stringify!($ty), "` consuming `self`.  Should not allocate.
+
+# Examples
+
+```
+let a: tinyset::",  stringify!($ty), " = (1..4).collect();
+let b: tinyset::",  stringify!($ty), " = (3..6).into_iter().collect();
+
+assert_eq!(a - &b, (1..3).collect());
+```
+"
+    )]
+    fn sub(mut self, rhs: &$ty) -> $ty {
+        for v in rhs.iter() {
+            self.remove(v);
+        }
+        self
+    }
+}
+
+impl<'a, 'b> std::ops::BitOr<&'b $ty> for &'a $ty {
+    type Output = $ty;
+    #[doc = concat!(
+        "Returns the union of `self` and `rhs` as a new `", stringify!($ty), "`.
+
+# Examples
+
+```
+let a: tinyset::",  stringify!($ty), " = (1..4).collect();
+let b: tinyset::",  stringify!($ty), " = (3..6).collect();
+
+assert_eq!(&a | &b, (1..6).collect());
+```
+"
+    )]
+    fn bitor(self, rhs: & $ty) -> $ty {
+        let mut s: $ty = if self.len() > rhs.len() {
+            <$ty>::with_capacity_of(&self)
+        } else {
+            <$ty>::with_capacity_of(&rhs)
+        };
+        for x in self.iter() {
+            s.insert(x);
+        }
+        for x in rhs.iter() {
+            s.insert(x);
+        }
+        s
+    }
+}
+
+impl<'b> std::ops::BitOr<&'b $ty> for $ty {
+    type Output = $ty;
+    #[doc = concat!(
+        "Returns the union of `self` and `rhs` as a new `", stringify!($ty), "`, consuming `self`.
+
+# Examples
+
+```
+let a: tinyset::",  stringify!($ty), " = (1..4).collect();
+let b: tinyset::",  stringify!($ty), " = (3..6).collect();
+
+assert_eq!(a | &b, (1..6).collect());
+```
+"
+    )]
+    fn bitor(mut self, rhs: & $ty) -> $ty {
+        for x in rhs.iter() {
+            self.insert(x);
+        }
+        self
+    }
+}
+
+}
+}
+
+pub(crate) use impl_set_methods;
+
 impl CopySet for std::collections::HashSet<u64> {
     type Item = u64;
     type Iter = std::collections::hash_set::IntoIter<u64>;

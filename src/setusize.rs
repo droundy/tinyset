@@ -21,6 +21,29 @@ type Item = u32;
 #[derive(Clone)]
 pub struct SetUsize(Internal);
 
+impl SetUsize {
+    /// Create an empty set with capacity to hold the provided set.
+    /// 
+    /// ```
+    /// use tinyset::SetUsize;
+    ///
+    /// let a: SetUsize = (1..300).collect();
+    /// let mut b = SetUsize::with_capacity_of(&a);
+    ///
+    /// assert_eq!(a.capacity(), b.capacity());
+    /// assert_eq!(b.len(), 0);
+    /// for i in a.iter() {
+    ///   b.insert(i);
+    /// }
+    /// assert_eq!(a.capacity(), b.capacity());
+    /// assert_eq!(b.len(), a.len());
+    /// ```
+    /// Create an empty set with capacity to hold the provided set.
+    pub fn with_capacity_of(other: &Self) -> Self {
+        SetUsize(Internal::with_capacity_of(&other.0))
+    }
+}
+
 impl Default for SetUsize {
     /// Creates an empty set..
     fn default() -> Self {
@@ -28,40 +51,51 @@ impl Default for SetUsize {
     }
 }
 
+use crate::copyset::impl_set_methods;
+impl_set_methods!(SetUsize);
+
 impl SetUsize {
     /// Creates an empty set..
+    #[inline]
     pub fn new() -> Self {
         Self::default()
-    }
-    /// Creates an empty set with the specified capacity.
-    pub fn with_capacity(_cap: usize) -> Self {
-        Self::new()
     }
     /// Adds a value to the set.
     ///
     /// If the set did not have this value present, `true` is returned.
     ///
     /// If the set did have this value present, `false` is returned.
+    #[inline]
     pub fn insert(&mut self, elem: usize) -> bool {
         self.0.insert(elem as Item)
     }
     /// Returns the number of elements in the set.
+    #[inline]
     pub fn len(&self) -> usize {
         self.0.len()
     }
+    /// Returns the capacity of the set.
+    #[inline]
+    pub fn capacity(&self) -> usize {
+        self.0.capacity()
+    }
     /// Returns true if the set contains a value.
+    #[inline]
     pub fn contains(&self, value: usize) -> bool {
         self.0.contains(value as Item)
     }
     /// Removes an element, and returns true if that element was present.
+    #[inline]
     pub fn remove(&mut self, value: usize) -> bool {
         self.0.remove(value as Item)
     }
     /// Iterate
+    #[inline]
     pub fn iter<'a>(&'a self) -> impl Iterator<Item=usize> + 'a {
         self.0.iter().map(|x| x as usize)
     }
     /// Drain
+    #[inline]
     pub fn drain<'a>(&'a mut self) -> impl Iterator<Item=usize> + 'a {
         self.0.drain().map(|x| x as usize)
     }
@@ -70,8 +104,9 @@ impl SetUsize {
 impl std::iter::FromIterator<usize> for SetUsize {
     fn from_iter<I: IntoIterator<Item=usize>>(iter: I) -> Self {
         let iter = iter.into_iter();
-        let (sz,_) = iter.size_hint();
-        let mut c = SetUsize::with_capacity(sz);
+        // FIXME: It would be nice to cleverly allocate with the right capacity.
+        // let (sz,_) = iter.size_hint();
+        let mut c = SetUsize::new();
         for i in iter {
             c.insert(i);
         }

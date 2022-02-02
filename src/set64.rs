@@ -155,7 +155,7 @@ define_ifits!(isize, usize, fits_isize);
 ///
 /// # Storage details
 ///
-/// Internally a `Set64` is identical to a [SetU64], so read there for
+/// Internally a `Set64` is identical to a [SetU64](crate::SetU64), so read there for
 /// details.  In short, small sets are the size of a pointer with no
 /// heap storage.  Densely packed sets are around a bit per member.
 /// Intermediate sets have intermediate storage.  The worst case
@@ -217,8 +217,8 @@ impl<T: Fits64> PartialEq for Set64<T> {
         if self.len() != other.len() {
             return false;
         }
-        for k in other.iter() {
-            if !self.contains(k) {
+        for k in other.0.iter() {
+            if !self.0.contains(k) {
                 return false;
             }
         }
