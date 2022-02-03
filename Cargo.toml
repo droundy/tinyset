@@ -1,10 +1,12 @@
 [package]
 name = "tinyset"
-version = "0.4.8"
+version = "0.4.9"
 authors = ["David Roundy <daveroundy@gmail.com>"]
+categories = ["data-structures"]
+keywords = ["set", "small", "compact"]
 
 description = "Size-optimized sets"
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/droundy/tinyset"
 edition = "2018"
 
