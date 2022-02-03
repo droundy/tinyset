@@ -60,10 +60,16 @@ impl_set_methods!(SetU64);
 #[repr(C)]
 #[derive(Debug)]
 struct S {
+    b: Sbeginning,
+    array: u64,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+struct Sbeginning {
     sz: usize,
     cap: usize,
     bits: u64,
-    array: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -323,7 +329,7 @@ enum Internal<'a> {
     /// significant bits) giving the elements in the set, and in the most
     /// significant bits a value representing the offset of the bitmap.
     Heap {
-        s: &'a S,
+        s: &'a Sbeginning,
         a: &'a [u64],
     },
     /// This is for the case where the maximum number in our set is so large
@@ -334,7 +340,7 @@ enum Internal<'a> {
     /// unique value (which we change if that unique value gets added to the
     /// set).
     Big {
-        s: &'a S,
+        s: &'a Sbeginning,
         a: &'a [u64],
     },
     // The data is stored as a bitmap.  This is used when the number of elements
@@ -348,11 +354,11 @@ enum InternalMut<'a> {
     Empty,
     Stack(Tiny),
     Heap {
-        s: &'a mut S,
+        s: &'a mut Sbeginning,
         a: &'a mut [u64],
     },
     Big {
-        s: &'a mut S,
+        s: &'a mut Sbeginning,
         a: &'a mut [u64],
     },
     Dense {
@@ -511,8 +517,8 @@ impl SetU64 {
                 if ptr == std::ptr::null_mut() {
                     std::alloc::handle_alloc_error(layout_for_capacity(c));
                 }
-                (*ptr).cap = (*other.0).cap;
-                (*ptr).bits = (*other.0).bits;
+                (*ptr).b.cap = (*other.0).b.cap;
+                (*ptr).b.bits = (*other.0).b.bits;
                 SetU64(ptr)
             }
         } else {
@@ -613,8 +619,8 @@ impl SetU64 {
         unsafe {
             let x = SetU64(std::alloc::alloc_zeroed(layout_for_capacity(cap as usize))
                            as *mut S);
-            (*x.0).cap = cap as usize;
-            (*x.0).bits = 64;
+            (*x.0).b.cap = cap as usize;
+            (*x.0).b.bits = 64;
             x
         }
     }
@@ -632,8 +638,8 @@ impl SetU64 {
         if cap > 0 {
             unsafe {
                 let x = SetU64(std::alloc::alloc_zeroed(layout_for_capacity(cap)) as *mut S);
-                (*x.0).cap = cap;
-                (*x.0).bits = if bits == 0 {
+                (*x.0).b.cap = cap;
+                (*x.0).b.bits = if bits == 0 {
                     let mut b = 0;
                     while b <= 64 {
                         b = crate::rand::rand64();
@@ -1007,13 +1013,14 @@ impl SetU64 {
             Internal::Stack(Tiny::from_usize(self.0 as usize))
         } else {
             let s = unsafe { &*self.0 };
-            let a = unsafe { std::slice::from_raw_parts(&s.array as *const u64, s.cap) };
-            if s.bits == 0 || s.bits > 64 {
-                Internal::Big { s, a }
-            } else if s.bits == 64 {
-                Internal::Dense { sz: s.sz, a }
+            let b = &s.b;
+            let a = unsafe { std::slice::from_raw_parts(&s.array as *const u64, b.cap) };
+            if b.bits == 0 || b.bits > 64 {
+                Internal::Big { s: b, a }
+            } else if b.bits == 64 {
+                Internal::Dense { sz: b.sz, a }
             } else {
-                Internal::Heap { s, a }
+                Internal::Heap { s: b, a }
             }
         }
     }
@@ -1025,13 +1032,14 @@ impl SetU64 {
             InternalMut::Stack(Tiny::from_usize(self.0 as usize))
         } else {
             let s = unsafe { &mut *self.0 };
-            let a = unsafe { std::slice::from_raw_parts_mut(&mut s.array as *mut u64, s.cap) };
-            if s.bits == 0 || s.bits > 64 {
-                InternalMut::Big { s, a }
-            } else if s.bits == 64 {
-                InternalMut::Dense { sz: &mut s.sz, a }
+            let b = &mut s.b;
+            let a = unsafe { std::slice::from_raw_parts_mut(&mut s.array as *mut u64, b.cap) };
+            if b.bits == 0 || b.bits > 64 {
+                InternalMut::Big { s: b, a }
+            } else if b.bits == 64 {
+                InternalMut::Dense { sz: &mut b.sz, a }
             } else {
-                InternalMut::Heap { s, a }
+                InternalMut::Heap { s: b, a }
             }
         }
     }
