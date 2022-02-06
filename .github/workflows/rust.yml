@@ -55,7 +55,7 @@ jobs:
       - name: Install miri
         run: rustup component add miri
       - name: miri test
-        run: cargo miri test -Zmiri-disable-isolation
+        run: cargo miri test -- -Zmiri-disable-isolation
 
   windows-test:
 
