@@ -39,7 +39,7 @@ jobs:
         with:
           command: check
 
-  miri-check:
+  miri-test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -55,7 +55,7 @@ jobs:
       - name: Install miri
         run: rustup component add miri
       - name: miri test
-        run: cargo miri test --features arc
+        run: cargo miri test
 
   windows-test:
 
