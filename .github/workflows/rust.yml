@@ -54,8 +54,12 @@ jobs:
           override: true
       - name: Install miri
         run: rustup component add miri
-      - name: miri test
+      - name: miri test check_sets
         run: cargo miri test check_sets
+      - name: miri test check_specific_sets
+        run: cargo miri test check_specific_sets
+      # - name: miri test test_
+      #   run: cargo miri test test_
 
   windows-test:
 
