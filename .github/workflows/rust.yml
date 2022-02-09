@@ -61,6 +61,7 @@ jobs:
       # The following is too slow to complete
       # - name: miri test test_
       #   run: cargo miri test test_
+      # The following test fails because for some reason proptest won't run under miri
       # - name: miri test fits_
       #   run: cargo miri test fits_
 
