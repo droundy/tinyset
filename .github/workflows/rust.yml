@@ -61,8 +61,8 @@ jobs:
       # The following is too slow to complete
       # - name: miri test test_
       #   run: cargo miri test test_
-      - name: miri test fits_
-        run: cargo miri test fits_
+      # - name: miri test fits_
+      #   run: cargo miri test fits_
 
   windows-test:
 
