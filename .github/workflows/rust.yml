@@ -58,8 +58,9 @@ jobs:
         run: cargo miri test check_sets
       - name: miri test check_specific_sets
         run: cargo miri test check_specific_sets
-      - name: miri test test_
-        run: cargo miri test test_
+      # The following is too slow to complete
+      # - name: miri test test_
+      #   run: cargo miri test test_
       - name: miri test fits_
         run: cargo miri test fits_
 
