@@ -26,17 +26,25 @@ than [`SetU64`].
 [SetU32] internally.
 
 All of these set types will do no heap allocation for small sets of
-small elements.  `TinySet` will store up to 16 bytes of elements
-before doing any heap allocation, while `Set` stores sets up to size 8
-without allocation.  `Set64` will store up to 22 bytes of elements,
-and if all your elements are small (e.g. `0..22 as u64` it will store
-them in as few bytes as possible.
+small elements.  On 64-bit systems, each set will store up to seven
+elements with no heap allocation, if the elements are small.  The
+more elements there are, the smaller they need to be.
 
 These sets all differ from the standard sets in that they iterate
 over items rather than references to items, because they do not
 store values directly in a way that can be referenced.  All of the
 type-specific sets further differ in that `remove` and `contains`
 accept values rather than references.
+
+This crate has a single optional dependency (enabled by default), which
+is the `rand` crate, used for randomization to avoid DOS collision attacks.
+You can speed up your compile by disabling this feature with
+```
+tinyset = { version = "0.4", default-features = false }
+```
+which will result in using a very simple pseudorandom number generator
+seeded by the system time.
+
 # Benchmarks
 
 To run the benchmark suite, run

@@ -21,6 +21,17 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
 
+  linux-test-no-rand:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build
+      run: cargo build --verbose --no-default-features
+    - name: Run tests
+      run: cargo test --verbose --no-default-features
+
   linux-check:
     runs-on: ubuntu-latest
     strategy:
