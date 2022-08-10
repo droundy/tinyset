@@ -1162,7 +1162,7 @@ fn p_insert_better(k: u32, a: &mut [(u32,u32)]) -> Inserted {
     let n = a.len();
     let poverty_limit = n;
     for pov in 0..poverty_limit {
-        let ii = ((k + pov as u32) % n as u32) as usize;
+        let ii = ((k as u64 + pov as u64) % n as u64) as usize;
         let ki = a[ii].0;
         let pov_ki = p_poverty(ki, ii, n);
         if a[ii] == (0,0) {
@@ -1261,7 +1261,7 @@ impl LookedUp {
 fn p_lookfor(k: u32, a: &[(u32,u32)]) -> LookedUp {
     let n = a.len();
     for pov in 0..n {
-        let ii = ((k + pov as u32) % n as u32) as usize;
+        let ii = ((k as u64 + pov as u64) % n as u64) as usize;
         if a[ii] == (0,0) {
             // println!("got empty spot at {} for key {}", ii, k);
             return LookedUp::EmptySpot(ii);
@@ -1289,7 +1289,7 @@ fn test_lookfor() {
 fn p_remove(k: u32, a: &mut [(u32,u32)]) -> bool {
     let n = a.len();
     for i in 0..n {
-        let ii = ((k + i as u32) % n as u32) as usize;
+        let ii = ((k as u64 + i as u64) % n as u64) as usize;
         // println!("    looking to remove at distance {} slot {}", i, ii);
         if a[ii] == (0,0) {
             return false;

@@ -1717,7 +1717,10 @@ fn p_poverty(k: u32, idx: usize, n: usize) -> usize {
 fn p_insert(k: u32, a: &mut [u32], offset: u32) -> usize {
     let n = a.len();
     for pov in 0..n {
-        let ii = ((k + pov as u32) % n as u32) as usize;
+        // The cast to u64 below avoids overflow issues when `k` is close
+        // to `u32::MAX`.  It should cost nothing on 64-bit machines, and
+        // shouldn't be much worse than an extra `%` on 32-bit machines.
+        let ii = ((k as u64 + pov as u64) % n as u64) as usize;
         let ki = a[ii] >> offset;
         let pov_ki = p_poverty(ki, ii, n);
         if a[ii] == 0 || ki == k {
@@ -1814,7 +1817,10 @@ impl LookedUp {
 fn p_lookfor(k: u32, a: &[u32], offset: u32) -> LookedUp {
     let n = a.len();
     for pov in 0..n {
-        let ii = ((k + pov as u32) % n as u32) as usize;
+        // The cast to u64 below avoids overflow issues when `k` is close
+        // to `u32::MAX`.  It should cost nothing on 64-bit machines, and
+        // shouldn't be much worse than an extra `%` on 32-bit machines.
+        let ii = ((k as u64 + pov as u64) % n as u64) as usize;
         // println!("looking in spot ii = {} with pov={}", ii, pov);
         if a[ii] == 0 {
             // println!("got empty spot at {} for key {}", ii, k);
@@ -1843,7 +1849,10 @@ fn test_lookfor() {
 fn p_remove(k: u32, a: &mut [u32], offset: u32) -> bool {
     let n = a.len();
     for i in 0..n {
-        let ii = ((k + i as u32) % n as u32) as usize;
+        // The cast to u64 below avoids overflow issues when `k` is close
+        // to `u32::MAX`.  It should cost nothing on 64-bit machines, and
+        // shouldn't be much worse than an extra `%` on 32-bit machines.
+        let ii = ((k as u64 + i as u64) % n as u64) as usize;
         // println!("    looking to remove at distance {} slot {}", i, ii);
         if a[ii] == 0 {
             return false;
