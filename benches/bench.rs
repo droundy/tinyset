@@ -251,6 +251,10 @@ fn bench_collect(density: f64) {
             }).sum::<usize>() as f64/nsize as f64,
             (0..nsize).map(|_| {
                 let v = gen32();
+                mem_used(|| { v.iter().cloned().collect::<roaring::RoaringBitmap>() }).1
+            }).sum::<usize>() as f64/nsize as f64,
+            (0..nsize).map(|_| {
+                let v = gen32();
                 mem_used(|| { v.iter().cloned().collect::<std::collections::HashSet<_>>() }).1
             }).sum::<usize>() as f64/nsize as f64,
 
@@ -286,10 +290,13 @@ fn bench_collect(density: f64) {
             }
         vec
     };
-    println!("{:>11}: {:8.0} {:8.0} {:8.0} {:8.0} {:8.0}", ".collect()",
-             bench_scaling_gen(&mut gen32, |v| {
-                 v.iter().cloned().collect::<tinyset::SetU32>().len()
-             }, 20).scaling,
+    println!("{:>11}: {:13.0} {:13.0} {:13.0} {:13.0} {:13.0} {:13.0}", ".collect()",
+    bench_scaling_gen(&mut gen32, |v| {
+        v.iter().cloned().collect::<tinyset::SetU32>().len()
+    }, 20).scaling,
+    bench_scaling_gen(&mut gen32, |v| {
+        v.iter().cloned().collect::<roaring::RoaringBitmap>().len()
+    }, 20).scaling,
              bench_scaling_gen(&mut gen32, |v| {
                  v.iter().cloned().collect::<std::collections::HashSet<_>>().len()
              }, 20).scaling,
@@ -509,7 +516,7 @@ fn bench_fill_with_inserts(density: f64) {
             }
         vec
     };
-    println!("{:>11}: {:8.0} {:8.0} {:8.0} {:8.0} {:8.0} {:8.0} {:8.0}", "inserts",
+    println!("{:>11}: {:13.0} {:13.0} {:13.0} {:13.0} {:13.0} {:13.0} {:13.0}", "inserts",
              bench_scaling_gen(&mut gen32, |v| {
                  let mut s = tinyset::SetU32::new();
                  for x in v.iter().cloned() {
@@ -650,7 +657,7 @@ fn bench_funcs<O>(name: &str,
         }
         vec
     };
-    println!("{:>10}: {:8.0} {:8.0} {:8.0} {:8.0} {:8.0} {:8.0}", "scaling",
+    println!("{:>10}: {:13.0} {:13.0} {:13.0} {:13.0} {:13.0} {:13.0}", "scaling",
              bench_scaling_gen(
                  |sz| {
                      gen(sz).iter().cloned().map(|x| x as u32).collect::<tinyset::SetU32>()
