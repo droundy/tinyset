@@ -159,6 +159,14 @@ impl IntoIterator for SetUsize {
     }
 }
 
+impl Extend<usize> for SetUsize {
+    fn extend<T: IntoIterator<Item = usize>>(&mut self, iter: T) {
+        for i in iter.into_iter() {
+            self.insert(i);
+        }
+    }
+}
+
 impl crate::copyset::CopySet for SetUsize {
     type Item = usize;
     type Iter = IntoIter;

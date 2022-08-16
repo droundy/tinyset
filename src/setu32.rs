@@ -662,6 +662,15 @@ pub struct IntoIter {
     iter: Iter<'static>,
     _set: SetU32,
 }
+
+impl Extend<u32> for SetU32 {
+    fn extend<T: IntoIterator<Item = u32>>(&mut self, iter: T) {
+        for i in iter.into_iter() {
+            self.insert(i);
+        }
+    }
+}
+
 impl IntoIterator for SetU32 {
     type Item = u32;
     type IntoIter = IntoIter;
