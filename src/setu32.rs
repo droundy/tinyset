@@ -1,7 +1,9 @@
 #![deny(missing_docs)]
 //! This is a crate for the tiniest sets ever.
 
-const fn num_bits<T>() -> u32 { std::mem::size_of::<T>() as u32 * 8 }
+const fn num_bits<T>() -> u32 {
+    std::mem::size_of::<T>() as u32 * 8
+}
 
 fn log_2(x: u32) -> u32 {
     if x == 0 {
@@ -42,7 +44,7 @@ fn split_u32(x: u32, bits: u32) -> (u32, u32) {
 
 fn unsplit_u32(k: u32, offset: u32, bits: u32) -> u32 {
     if bits > 0 {
-        k*bits + offset
+        k * bits + offset
     } else {
         k
     }
@@ -125,10 +127,10 @@ impl Iterator for Tiny {
 static BITSPLITS: [&[u32]; 7] = [
     &[],
     &[31],
-    &[31,30],
-    &[31,15,15],
-    &[25,12,12,12],
-    &[21,10,10,10,10],
+    &[31, 30],
+    &[31, 15, 15],
+    &[25, 12, 12, 12],
+    &[21, 10, 10, 10, 10],
     &[21, 8, 8, 8, 8, 8],
 ];
 
@@ -136,11 +138,11 @@ static BITSPLITS: [&[u32]; 7] = [
 static BITSPLITS: [&[u32]; 7] = [
     &[],
     &[29],
-    &[20,9],
-    &[15,7,7],
+    &[20, 9],
+    &[15, 7, 7],
     &[12, 5, 5, 5],
     &[10, 4, 4, 4, 4],
-    &[ 9, 4, 4, 4, 4, 4],
+    &[9, 4, 4, 4, 4, 4],
 ];
 
 impl Tiny {
@@ -149,12 +151,12 @@ impl Tiny {
         println!("{}: {:?} => {:?}", msg, self, self.collect::<Vec<_>>());
     }
     fn to_usize(self) -> usize {
-        let fourbit = self.sz/4;
-        let szbits = self.sz*(1-fourbit) + fourbit*(self.sz + 1);
+        let fourbit = self.sz / 4;
+        let szbits = self.sz * (1 - fourbit) + fourbit * (self.sz + 1);
         szbits as usize | self.bits << 3
     }
     fn from_usize(x: usize) -> Self {
-        let sz = (x as u8 & 3) + (x as u8 & 4)/4*3;
+        let sz = (x as u8 & 3) + (x as u8 & 4) / 4 * 3;
         Tiny {
             sz,
             bits: x >> 3,
@@ -187,12 +189,8 @@ impl Tiny {
         let mut offset = 0;
         let mut bits: usize = 0;
         let bitsplits = BITSPLITS[sz as usize];
-        for (x,nbits) in v.into_iter().zip(bitsplits.iter().cloned()) {
-            let y = if offset == 0 {
-                x
-            } else {
-                x - last - 1
-            };
+        for (x, nbits) in v.into_iter().zip(bitsplits.iter().cloned()) {
+            let y = if offset == 0 { x } else { x - last - 1 };
             if log_2(y) > nbits {
                 return None;
             }
@@ -200,7 +198,12 @@ impl Tiny {
             offset += nbits;
             last = x;
         }
-        Some (Tiny { sz, bits, sz_spent: 0, last: 0 })
+        Some(Tiny {
+            sz,
+            bits,
+            sz_spent: 0,
+            last: 0,
+        })
     }
     fn insert(mut self, e: u32) -> Option<Self> {
         let mut e = e as usize;
@@ -229,8 +232,12 @@ impl Tiny {
                         self.bits = self.bits >> oldb;
                         for oldb in old_iter {
                             let n = self.bits & mask(oldb as usize) as usize;
-                            if n == e { return Some(backup); }
-                            if e < n { return None; }
+                            if n == e {
+                                return Some(backup);
+                            }
+                            if e < n {
+                                return None;
+                            }
                             e -= n + 1;
                             self.bits = self.bits >> oldb;
                         }
@@ -310,10 +317,10 @@ fn test_tiny() {
     assert_eq!(Tiny::new(vec![]), None);
     test_vec(vec![1]);
     test_vec(vec![1024]);
-    test_vec(vec![1,2]);
-    test_vec(vec![1,2,3]);
-    test_vec(vec![1,2,3,4,5]);
-    test_vec(vec![1,2,3,4,5,6]);
+    test_vec(vec![1, 2]);
+    test_vec(vec![1, 2, 3]);
+    test_vec(vec![1, 2, 3, 4, 5]);
+    test_vec(vec![1, 2, 3, 4, 5, 6]);
 }
 
 enum Internal<'a> {
@@ -464,7 +471,7 @@ impl<'a> Iterator for HeapIter<'a> {
                 self.whichbit = 0;
             }
         } else {
-            if let Some((&first,rest)) = self.array.split_first() {
+            if let Some((&first, rest)) = self.array.split_first() {
                 self.array = rest;
                 self.sz_left -= 1;
                 return Some(first);
@@ -474,10 +481,12 @@ impl<'a> Iterator for HeapIter<'a> {
     }
     #[inline]
     fn last(self) -> Option<u32> {
-        self.array.into_iter().rev().cloned()
+        self.array
+            .into_iter()
+            .rev()
+            .cloned()
             .filter(|&x| x != 0)
-            .map(|x| x >> self.bits
-                 + (x & mask(self.bits as usize)).leading_zeros() - 31)
+            .map(|x| x >> self.bits + (x & mask(self.bits as usize)).leading_zeros() - 31)
             .next()
     }
     #[inline]
@@ -493,9 +502,14 @@ impl<'a> Iterator for HeapIter<'a> {
         if self.sz_left == 0 {
             None
         } else if self.whichbit == 0 {
-            let x = self.array.into_iter().cloned()
-                .filter(|x| *x != 0).min().unwrap();
-            Some((x >> self.bits)*self.bits + x.trailing_zeros() as u32)
+            let x = self
+                .array
+                .into_iter()
+                .cloned()
+                .filter(|x| *x != 0)
+                .min()
+                .unwrap();
+            Some((x >> self.bits) * self.bits + x.trailing_zeros() as u32)
         } else {
             let mut min = self.next().unwrap();
             while let Some(x) = self.next() {
@@ -511,9 +525,14 @@ impl<'a> Iterator for HeapIter<'a> {
         if self.sz_left == 0 {
             None
         } else if self.whichbit == 0 {
-            let x = self.array.into_iter().cloned()
-                .filter(|x| *x != 0).max().unwrap();
-            let reference = (x >> self.bits)*self.bits;
+            let x = self
+                .array
+                .into_iter()
+                .cloned()
+                .filter(|x| *x != 0)
+                .max()
+                .unwrap();
+            let reference = (x >> self.bits) * self.bits;
             let m = mask(self.bits as usize);
             let extra = 31 - (x & m).leading_zeros();
             Some(reference + extra)
@@ -544,14 +563,17 @@ impl<'a> Iterator for BigIter<'a> {
             self.a = rest;
             if x != 0 {
                 self.sz_left -= 1;
-                return Some( if x == self.bits { 0 } else { x });
+                return Some(if x == self.bits { 0 } else { x });
             }
         }
         None
     }
     #[inline]
     fn last(self) -> Option<u32> {
-        self.a.into_iter().rev().cloned()
+        self.a
+            .into_iter()
+            .rev()
+            .cloned()
             .filter(|&x| x != 0)
             .map(|x| if x == self.bits { 0 } else { x })
             .next()
@@ -569,9 +591,12 @@ impl<'a> Iterator for BigIter<'a> {
         if self.sz_left == 0 {
             None
         } else {
-            self.a.into_iter().cloned()
+            self.a
+                .into_iter()
+                .cloned()
                 .filter(|x| *x != 0)
-                .map(|x| if x == self.bits { 0 } else { x }).min()
+                .map(|x| if x == self.bits { 0 } else { x })
+                .min()
         }
     }
 }
@@ -610,10 +635,9 @@ impl<'a> Iterator for DenseIter<'a> {
         if self.sz_left == 0 {
             return None;
         }
-        let zero_words = self.a.iter().rev().cloned()
-            .take_while(|&x| x == 0).count() as u32;
+        let zero_words = self.a.iter().rev().cloned().take_while(|&x| x == 0).count() as u32;
         let zero_bits = self.a[self.a.len() - 1 - zero_words as usize].leading_zeros() as u32;
-        Some(self.a.len() as u32*32 - zero_bits - 1 - zero_words*32)
+        Some(self.a.len() as u32 * 32 - zero_bits - 1 - zero_words * 32)
     }
     #[inline]
     fn max(self) -> Option<u32> {
@@ -677,10 +701,7 @@ impl IntoIterator for SetU32 {
 
     fn into_iter(self) -> IntoIter {
         let iter = unsafe { std::mem::transmute(self.private_iter()) };
-        IntoIter {
-            iter,
-            _set: self,
-        }
+        IntoIter { iter, _set: self }
     }
 }
 impl Iterator for IntoIter {
@@ -720,8 +741,11 @@ impl Clone for SetU32 {
                 if ptr == std::ptr::null_mut() {
                     std::alloc::handle_alloc_error(layout_for_capacity(c));
                 }
-                std::ptr::copy_nonoverlapping(self.0 as *const u8, ptr as *mut u8,
-                                             bytes_for_capacity(c));
+                std::ptr::copy_nonoverlapping(
+                    self.0 as *const u8,
+                    ptr as *mut u8,
+                    bytes_for_capacity(c),
+                );
                 SetU32(ptr)
             }
         } else {
@@ -732,7 +756,7 @@ impl Clone for SetU32 {
 
 impl SetU32 {
     /// Create an empty set with capacity to hold the provided set.
-    /// 
+    ///
     /// ```
     /// use tinyset::SetU32;
     ///
@@ -772,15 +796,9 @@ impl SetU32 {
         match self.internal() {
             Internal::Empty => 0,
             Internal::Stack(t) => t.sz as usize,
-            Internal::Heap { s, .. } => {
-                s.sz as usize
-            }
-            Internal::Big { s, .. } => {
-                s.sz as usize
-            }
-            Internal::Dense { sz, .. } => {
-                sz as usize
-            }
+            Internal::Heap { s, .. } => s.sz as usize,
+            Internal::Big { s, .. } => s.sz as usize,
+            Internal::Dense { sz, .. } => sz as usize,
         }
     }
     /// The capacity of the set
@@ -789,15 +807,9 @@ impl SetU32 {
         match self.internal() {
             Internal::Empty => 0,
             Internal::Stack(_) => 0,
-            Internal::Heap { a, .. } => {
-                a.len()
-            }
-            Internal::Big { a, .. } => {
-                a.len()
-            }
-            Internal::Dense { a, .. } => {
-                a.len()
-            }
+            Internal::Heap { a, .. } => a.len(),
+            Internal::Big { a, .. } => a.len(),
+            Internal::Dense { a, .. } => a.len(),
         }
     }
     /// Print debugging information about this set.
@@ -810,11 +822,15 @@ impl SetU32 {
             }
             Internal::Heap { s, a } => {
                 println!("{}: heap {:?}", msg, s);
-                for (i,x) in a.iter().cloned().enumerate() {
-                    println!("      {} (key {} pov {}): {:0b} ({})",
-                             (x >> s.bits)*s.bits, x >> s.bits,
-                             p_poverty(x >> s.bits, i, a.len()),
-                             x & mask(s.bits as usize), x);
+                for (i, x) in a.iter().cloned().enumerate() {
+                    println!(
+                        "      {} (key {} pov {}): {:0b} ({})",
+                        (x >> s.bits) * s.bits,
+                        x >> s.bits,
+                        p_poverty(x >> s.bits, i, a.len()),
+                        x & mask(s.bits as usize),
+                        x
+                    );
                 }
                 println!("    => {:?}", self.iter().collect::<Vec<_>>());
             }
@@ -824,8 +840,13 @@ impl SetU32 {
                 println!("     >>>{:?}", v);
             }
             Internal::Dense { sz, a } => {
-                println!("{}: dense {:?}\n    {:?}\n    => {:?}",
-                         msg, sz, a, self.iter().collect::<Vec<u32>>());
+                println!(
+                    "{}: dense {:?}\n    {:?}\n    => {:?}",
+                    msg,
+                    sz,
+                    a,
+                    self.iter().collect::<Vec<u32>>()
+                );
                 println!("    foo {:?}", self.iter());
             }
         }
@@ -836,12 +857,9 @@ impl SetU32 {
         match self.internal() {
             Internal::Empty => std::mem::size_of::<Self>(),
             Internal::Stack(_) => std::mem::size_of::<Self>(),
-            Internal::Heap { s, .. } =>
-                std::mem::size_of::<Self>() + s.cap as usize*4-4,
-            Internal::Dense { a, .. } =>
-                std::mem::size_of::<Self>() + a.len()*4-4,
-            Internal::Big { s, .. } =>
-                std::mem::size_of::<Self>() + s.cap as usize*4-4,
+            Internal::Heap { s, .. } => std::mem::size_of::<Self>() + s.cap as usize * 4 - 4,
+            Internal::Dense { a, .. } => std::mem::size_of::<Self>() + a.len() * 4 - 4,
+            Internal::Big { s, .. } => std::mem::size_of::<Self>() + s.cap as usize * 4 - 4,
         }
     }
     /// This requires that we currently be a dense! It also requires
@@ -849,12 +867,14 @@ impl SetU32 {
     /// sz.
     unsafe fn dense_increase_mx(&mut self, mx: u32) -> &mut [u32] {
         let ptr = self.0;
-        let cap = 1 + mx/32 + mx/128;
+        let cap = 1 + mx / 32 + mx / 128;
 
         let oldcap = (*ptr).b.cap;
-        self.0 = std::alloc::realloc(ptr as *mut u8,
-                                     layout_for_capacity(oldcap as usize),
-                                     bytes_for_capacity(cap as usize)) as *mut S;
+        self.0 = std::alloc::realloc(
+            ptr as *mut u8,
+            layout_for_capacity(oldcap as usize),
+            bytes_for_capacity(cap as usize),
+        ) as *mut S;
         if self.0 as usize == 0 {
             std::alloc::handle_alloc_error(layout_for_capacity(cap as usize));
         }
@@ -862,7 +882,7 @@ impl SetU32 {
         (*self.0).b.sz += 1;
         match self.internal_mut() {
             InternalMut::Dense { a, .. } => {
-                for i in oldcap as usize .. a.len() {
+                for i in oldcap as usize..a.len() {
                     a[i] = 0;
                 }
                 a
@@ -872,7 +892,7 @@ impl SetU32 {
     }
 
     fn dense_with_max(mx: u32) -> SetU32 {
-        let cap = 1 + mx/32 + mx/128;
+        let cap = 1 + mx / 32 + mx / 128;
         // This should be stored in a dense bitset.
         unsafe {
             let x = SetU32(std::alloc::alloc_zeroed(layout_for_capacity(cap as usize)) as *mut S);
@@ -962,10 +982,10 @@ impl SetU32 {
                     !present
                 } else {
                     // println!("key is {}", key);
-                    if key > 64*(*sz as usize) {
+                    if key > 64 * (*sz as usize) {
                         // It is getting sparse, so let us switch back
                         // to a non-hash table.
-                        let cap = 1+2*(*sz as usize);
+                        let cap = 1 + 2 * (*sz as usize);
                         let mut new = SetU32::with_capacity_and_bits(cap, 0);
                         for x in self.iter() {
                             new.insert(x);
@@ -982,9 +1002,9 @@ impl SetU32 {
             }
             InternalMut::Heap { s, a } => {
                 if compute_array_bits(e) < s.bits {
-                    let newcap = s.cap+1+(crate::rand::rand32() % s.cap);
-                    let mut new = Self::with_capacity_and_bits(newcap as usize,
-                                                               compute_array_bits(e));
+                    let newcap = s.cap + 1 + (crate::rand::rand32() % s.cap);
+                    let mut new =
+                        Self::with_capacity_and_bits(newcap as usize, compute_array_bits(e));
                     // new.debug_me("\n\nnew set");
                     for d in self.iter() {
                         new.insert(d);
@@ -1007,18 +1027,19 @@ impl SetU32 {
                         }
                     }
                     LookedUp::EmptySpot(idx) => {
-                            a[idx] = key << s.bits | 1 << offset;
-                            s.sz += 1;
-                            return true;
+                        a[idx] = key << s.bits | 1 << offset;
+                        s.sz += 1;
+                        return true;
                     }
-                    LookedUp::NeedInsert => {
-                    },
+                    LookedUp::NeedInsert => {}
                 }
                 // println!("looking for space in sparse... {:?}", a);
-                if a.iter().cloned()
+                if a.iter()
+                    .cloned()
                     .filter(|&x| x == 0) // look for empty spots
                     .enumerate() // count them
-                    .any(|(n,_)| n+1 > a.len() >> 4) // we have more than 1/16 empty?
+                    .any(|(n, _)| n + 1 > a.len() >> 4)
+                // we have more than 1/16 empty?
                 {
                     let idx = p_insert(key, a, s.bits);
                     // println!("about to insert key {} with elem {} at {}",
@@ -1029,7 +1050,12 @@ impl SetU32 {
                 }
                 // println!("no room in the sparse set... {:?}", a);
                 // We'll have to expand the set.
-                let mx = a.iter().cloned().map(|x| (x >> s.bits)*s.bits + s.bits).max().unwrap();
+                let mx = a
+                    .iter()
+                    .cloned()
+                    .map(|x| (x >> s.bits) * s.bits + s.bits)
+                    .max()
+                    .unwrap();
                 let mx = if e > mx { e } else { mx };
                 if s.cap > mx >> 6 {
                     // A dense set will save memory
@@ -1086,10 +1112,12 @@ impl SetU32 {
                     LookedUp::NeedInsert => (),
                 }
                 // println!("looking for space in... {:?}", a);
-                if a.iter().cloned()
+                if a.iter()
+                    .cloned()
                     .filter(|&x| x == 0) // look for empty spots
                     .enumerate() // count them
-                    .any(|(n,_)| n+1 > a.len() >> 4) // we have more than 1/16 empty?
+                    .any(|(n, _)| n + 1 > a.len() >> 4)
+                // we have more than 1/16 empty?
                 {
                     let idx = p_insert(e, a, 0);
                     // println!("about to insert at {}", p_insert(e, a, 0));
@@ -1164,7 +1192,7 @@ impl SetU32 {
                 let (key, offset) = split_u32(e, s.bits);
                 if let LookedUp::KeyFound(idx) = p_lookfor(key, a, s.bits) {
                     if a[idx] & (1 << offset) != 0 {
-                        let newa = a[idx] & !(1<<offset);
+                        let newa = a[idx] & !(1 << offset);
                         s.sz -= 1;
                         if newa == key << s.bits {
                             // We've removed everything with this key,
@@ -1233,37 +1261,35 @@ impl SetU32 {
 
     /// Iterate over
     #[inline]
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item=u32> + 'a + std::fmt::Debug {
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = u32> + 'a + std::fmt::Debug {
         self.private_iter()
     }
     fn private_iter<'a>(&'a self) -> Iter<'a> {
         match self.internal() {
             Internal::Empty => Iter::Empty,
-            Internal::Stack(t) => Iter::Stack( t ),
-            Internal::Heap { s, a } => {
-                Iter::Heap(HeapIter {
-                    sz_left: s.sz as usize,
-                    bits: s.bits,
-                    whichbit: 0,
-                    array: a,
-                })
-            }
-            Internal::Big { s, a } => {
-                Iter::Big(BigIter { sz_left: s.sz as usize, bits: s.bits, a })
-            }
-            Internal::Dense { a, sz } => {
-                Iter::Dense(DenseIter {
-                    sz_left: sz as usize,
-                    whichword: 0,
-                    whichbit: 0,
-                    a
-                })
-            }
+            Internal::Stack(t) => Iter::Stack(t),
+            Internal::Heap { s, a } => Iter::Heap(HeapIter {
+                sz_left: s.sz as usize,
+                bits: s.bits,
+                whichbit: 0,
+                array: a,
+            }),
+            Internal::Big { s, a } => Iter::Big(BigIter {
+                sz_left: s.sz as usize,
+                bits: s.bits,
+                a,
+            }),
+            Internal::Dense { a, sz } => Iter::Dense(DenseIter {
+                sz_left: sz as usize,
+                whichword: 0,
+                whichbit: 0,
+                a,
+            }),
         }
     }
     /// Clears the set, returning all elements in an iterator.
     #[inline]
-    pub fn drain<'a>(&'a mut self) -> impl Iterator<Item=u32> + 'a {
+    pub fn drain<'a>(&'a mut self) -> impl Iterator<Item = u32> + 'a {
         std::mem::replace(self, SetU32::new()).into_iter()
     }
 
@@ -1294,7 +1320,8 @@ impl SetU32 {
         } else {
             let s = unsafe { &mut *self.0 };
             let b = &mut s.b;
-            let a = unsafe { std::slice::from_raw_parts_mut(&mut s.array as *mut u32, b.cap as usize) };
+            let a =
+                unsafe { std::slice::from_raw_parts_mut(&mut s.array as *mut u32, b.cap as usize) };
             if b.bits == 0 || b.bits > 32 {
                 InternalMut::Big { s: b, a }
             } else if b.bits == 32 {
@@ -1314,8 +1341,8 @@ impl Default for SetU32 {
 
 impl std::iter::FromIterator<u32> for SetU32 {
     fn from_iter<T>(iter: T) -> Self
-        where
-        T: IntoIterator<Item = u32>
+    where
+        T: IntoIterator<Item = u32>,
     {
         let v: Vec<_> = iter.into_iter().collect();
         if let Some(mx) = v.iter().cloned().max() {
@@ -1338,10 +1365,10 @@ impl std::iter::FromIterator<u32> for SetU32 {
                     }
                     s
                 } else {
-                    let mut keys: Vec<_> = v.iter().map(|&x| x/bits).collect();
+                    let mut keys: Vec<_> = v.iter().map(|&x| x / bits).collect();
                     keys.sort();
                     keys.dedup();
-                    let sz = (keys.len()+1)*11/10;
+                    let sz = (keys.len() + 1) * 11 / 10;
                     let mut s = SetU32::with_capacity_and_bits(sz, bits);
                     for value in v.into_iter() {
                         s.insert(value);
@@ -1368,18 +1395,16 @@ fn test_a_collect(v: Vec<u32>) {
 fn test_collect() {
     test_a_collect(vec![]);
     test_a_collect(vec![0]);
-    test_a_collect(vec![0,1<<29]);
-    test_a_collect(vec![0,1<<30,1<<30]);
+    test_a_collect(vec![0, 1 << 29]);
+    test_a_collect(vec![0, 1 << 30, 1 << 30]);
     test_a_collect((0..1024).collect());
 }
 
 fn bytes_for_capacity(sz: usize) -> usize {
-    sz*4+std::mem::size_of::<S>()-4
+    sz * 4 + std::mem::size_of::<S>() - 4
 }
 fn layout_for_capacity(sz: usize) -> std::alloc::Layout {
-    unsafe {
-        std::alloc::Layout::from_size_align_unchecked(bytes_for_capacity(sz), 4)
-    }
+    unsafe { std::alloc::Layout::from_size_align_unchecked(bytes_for_capacity(sz), 4) }
 }
 
 impl Drop for SetU32 {
@@ -1403,15 +1428,9 @@ impl heapsize::HeapSizeOf for SetU32 {
         match self.internal() {
             Internal::Empty => 0,
             Internal::Stack(_) => 0,
-            Internal::Heap { a, .. } => {
-                std::mem::size_of::<S>() - 4 + a.len()*4
-            }
-            Internal::Big { a, .. } => {
-                std::mem::size_of::<S>() - 4 + a.len()*4
-            }
-            Internal::Dense { a, .. } => {
-                std::mem::size_of::<S>() - 4 + a.len()*4
-            }
+            Internal::Heap { a, .. } => std::mem::size_of::<S>() - 4 + a.len() * 4,
+            Internal::Big { a, .. } => std::mem::size_of::<S>() - 4 + a.len() * 4,
+            Internal::Dense { a, .. } => std::mem::size_of::<S>() - 4 + a.len() * 4,
         }
     }
 }
@@ -1443,8 +1462,7 @@ mod tests {
             assert_eq!(s.iter().count(), count);
         }
         assert!(elems.len() >= s.len());
-        assert_eq!(elems.iter().cloned().min(),
-                   s.iter().min());
+        assert_eq!(elems.iter().cloned().min(), s.iter().min());
         println!("set {:?} with length {}", elems, s.len());
         for x in s.iter() {
             println!("    {}", x);
@@ -1479,7 +1497,7 @@ mod tests {
 
     #[test]
     fn check_sets() {
-        check_set(&[0, 1, 2, 3, 4, 5, 6, 7<<27, 8, 9, 10]);
+        check_set(&[0, 1, 2, 3, 4, 5, 6, 7 << 27, 8, 9, 10]);
         check_set(&[]);
         check_set(&[10]);
         check_set(&[1024]);
@@ -1492,7 +1510,7 @@ mod tests {
 
         check_set(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 
-        check_set(&[0, 1, 2, 3, 4, 5, 6, 7<<30, 8, 9, 10]);
+        check_set(&[0, 1, 2, 3, 4, 5, 6, 7 << 30, 8, 9, 10]);
 
         check_set(&[0, 1024]);
         check_set(&[0, 1024, 1 << 31]);
@@ -1538,16 +1556,16 @@ mod tests {
     }
     #[test]
     fn check_specific_tinies() {
-        check_tiny_from_vec(vec![49,50,1]);
+        check_tiny_from_vec(vec![49, 50, 1]);
         check_tiny_from_vec(vec![1]);
-        check_tiny_from_vec(vec![1,2]);
+        check_tiny_from_vec(vec![1, 2]);
         check_tiny_from_vec(vec![1000000, 1000030]);
-        check_tiny_from_vec(vec![2,3,143,251,1,130,251]);
-        check_tiny_from_vec(vec![1,130,131,132,133,251]);
+        check_tiny_from_vec(vec![2, 3, 143, 251, 1, 130, 251]);
+        check_tiny_from_vec(vec![1, 130, 131, 132, 133, 251]);
     }
 
     use proptest::prelude::*;
-    proptest!{
+    proptest! {
         #[test]
         fn copycheck_random_sets(slice in prop::collection::vec(1u32..5, 1usize..10)) {
             crate::copyset::check_set::<SetU32>(&slice);
@@ -1593,7 +1611,6 @@ mod tests {
         // assert!(total_size_of(&s) < total_size_of(&bs));
     }
 
-
     #[cfg(test)]
     fn collect_size_is(v: &[u32], sz: usize) {
         let s: SetU32 = v.iter().cloned().collect();
@@ -1635,19 +1652,19 @@ mod tests {
         collect_size_is(&[], 8);
         incremental_size_le(&[], 8);
         collect_size_is(&[3000], 8);
-        collect_size_is(&[1,2,3,4,5,6], 8);
-        incremental_size_le(&[1,2,3,4,5,6], 8);
-        collect_size_is(&[1000,1002,1004,1006,1008], 8);
-        incremental_size_le(&[1000,1002,1004,1006,1008], 8);
-        collect_size_is(&[255,260,265,270,275,280], 8);
-        collect_size_is(&[1000,1002,1004,1006,1008,1009], 8);
+        collect_size_is(&[1, 2, 3, 4, 5, 6], 8);
+        incremental_size_le(&[1, 2, 3, 4, 5, 6], 8);
+        collect_size_is(&[1000, 1002, 1004, 1006, 1008], 8);
+        incremental_size_le(&[1000, 1002, 1004, 1006, 1008], 8);
+        collect_size_is(&[255, 260, 265, 270, 275, 280], 8);
+        collect_size_is(&[1000, 1002, 1004, 1006, 1008, 1009], 8);
 
-        incremental_size_le(& (1..30).collect::<Vec<_>>(), 40);
-        incremental_size_le(& (1..60).collect::<Vec<_>>(), 40);
+        incremental_size_le(&(1..30).collect::<Vec<_>>(), 40);
+        incremental_size_le(&(1..60).collect::<Vec<_>>(), 40);
 
-        incremental_size_le(& (1..160).collect::<Vec<_>>(), 80);
+        incremental_size_le(&(1..160).collect::<Vec<_>>(), 80);
 
-        incremental_size_le(& (0..100).map(|x| x*10).collect::<Vec<_>>(), 400);
+        incremental_size_le(&(0..100).map(|x| x * 10).collect::<Vec<_>>(), 400);
     }
 
     #[cfg(target_pointer_width = "32")]
@@ -1659,20 +1676,20 @@ mod tests {
         collect_size_is(&[], 4);
         incremental_size_le(&[], 4);
         collect_size_is(&[3000], 4);
-        collect_size_is(&[1,2,3,4,5,6], 4);
-        incremental_size_le(&[1,2,3,4,5,6], 4);
-        collect_size_is(&[1000,1002,1004,1006,1008], 4);
-        incremental_size_le(&[1000,1002,1004,1006,1008], 4);
+        collect_size_is(&[1, 2, 3, 4, 5, 6], 4);
+        incremental_size_le(&[1, 2, 3, 4, 5, 6], 4);
+        collect_size_is(&[1000, 1002, 1004, 1006, 1008], 4);
+        incremental_size_le(&[1000, 1002, 1004, 1006, 1008], 4);
 
-        collect_size_is(&[255,260,265,270,275,280], 4);
-        collect_size_is(&[255,260,265,270,275,280,285], 28);
+        collect_size_is(&[255, 260, 265, 270, 275, 280], 4);
+        collect_size_is(&[255, 260, 265, 270, 275, 280, 285], 28);
 
-        incremental_size_le(& (1..30).collect::<Vec<_>>(), 32);
-        incremental_size_le(& (1..60).collect::<Vec<_>>(), 32);
+        incremental_size_le(&(1..30).collect::<Vec<_>>(), 32);
+        incremental_size_le(&(1..60).collect::<Vec<_>>(), 32);
 
-        incremental_size_le(& (1..160).collect::<Vec<_>>(), 84);
+        incremental_size_le(&(1..160).collect::<Vec<_>>(), 84);
 
-        incremental_size_le(& (0..100).map(|x| x*10).collect::<Vec<_>>(), 400);
+        incremental_size_le(&(0..100).map(|x| x * 10).collect::<Vec<_>>(), 400);
     }
 
     fn check_set_primitives(elems: &[u32]) {
@@ -1708,13 +1725,12 @@ mod tests {
         }
     }
 
-    proptest!{
+    proptest! {
         #[test]
         fn check_random_primitives(slice in prop::collection::vec(1u32..50, 1usize..100)) {
             check_set_primitives(&slice);
         }
     }
-
 }
 
 fn p_poverty(k: u32, idx: usize, n: usize) -> usize {
@@ -1769,29 +1785,29 @@ fn p_insert(k: u32, a: &mut [u32], offset: u32) -> usize {
 
 #[test]
 fn test_insert() {
-    let mut a = [0,0,0,0];
+    let mut a = [0, 0, 0, 0];
     assert_eq!(2, p_insert(2, &mut a, 0));
-    assert_eq!(&a, &[0,0,0,0]);
+    assert_eq!(&a, &[0, 0, 0, 0]);
     for i in 0..10 {
         assert_eq!(0, a[p_insert(i, &mut a, 0)]);
     }
 
-    let mut a = [0,0,6,0];
+    let mut a = [0, 0, 6, 0];
     assert_eq!(3, p_insert(2, &mut a, 0));
-    assert_eq!(&a, &[0,0,6,0]);
+    assert_eq!(&a, &[0, 0, 6, 0]);
     for i in 0..10 {
-        assert!([0,i].contains(&a[p_insert(i, &mut a, 0)]));
+        assert!([0, i].contains(&a[p_insert(i, &mut a, 0)]));
     }
 
-    let mut a = [0,0,6,3];
+    let mut a = [0, 0, 6, 3];
     assert_eq!(3, p_insert(2, &mut a, 0));
-    assert_eq!(&a, &[3,0,6,0]);
+    assert_eq!(&a, &[3, 0, 6, 0]);
     for i in 0..10 {
-        assert!([0,i].contains(&a[p_insert(i, &mut a, 0)]));
+        assert!([0, i].contains(&a[p_insert(i, &mut a, 0)]));
     }
 }
 
-#[derive(Debug,Eq,PartialEq,Clone,Copy)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 enum LookedUp {
     EmptySpot(usize),
     KeyFound(usize),
@@ -1850,9 +1866,9 @@ fn p_lookfor(k: u32, a: &[u32], offset: u32) -> LookedUp {
 
 #[test]
 fn test_lookfor() {
-    assert_eq!(LookedUp::NeedInsert, p_lookfor(5, &[3,1,2], 0));
-    assert_eq!(LookedUp::NeedInsert, p_lookfor(5, &[3,0,2], 0));
-    assert_eq!(LookedUp::KeyFound(3), p_lookfor(7, &[0,0,0,7], 0));
+    assert_eq!(LookedUp::NeedInsert, p_lookfor(5, &[3, 1, 2], 0));
+    assert_eq!(LookedUp::NeedInsert, p_lookfor(5, &[3, 0, 2], 0));
+    assert_eq!(LookedUp::KeyFound(3), p_lookfor(7, &[0, 0, 0, 7], 0));
 }
 
 fn p_remove(k: u32, a: &mut [u32], offset: u32) -> bool {
@@ -1917,17 +1933,17 @@ fn test_insert_remove(x: u32, a: &mut [u32]) {
 
 #[test]
 fn test_remove() {
-    let mut a = [0,0,2];
-    a[p_insert(5,&mut a,0)] = 5;
-    assert_eq!(&[5,0,2], &a);
-    p_remove(2,&mut a, 0);
+    let mut a = [0, 0, 2];
+    a[p_insert(5, &mut a, 0)] = 5;
+    assert_eq!(&[5, 0, 2], &a);
+    p_remove(2, &mut a, 0);
     println!("after removal {:?}", a);
     assert!(p_lookfor(5, &a, 0).key_found());
-    assert_eq!(&[0,0,5], &a);
+    assert_eq!(&[0, 0, 5], &a);
 
-    test_insert_remove(7,&mut [0,0,0,0]);
+    test_insert_remove(7, &mut [0, 0, 0, 0]);
 
-    test_insert_remove(2,&mut [0,1,5,0]);
+    test_insert_remove(2, &mut [0, 1, 5, 0]);
 
-    test_insert_remove(5,&mut [0,0,2]);
+    test_insert_remove(5, &mut [0, 0, 2]);
 }

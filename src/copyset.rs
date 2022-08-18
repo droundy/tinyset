@@ -1,6 +1,6 @@
-pub trait CopySet : Default + Clone {
+pub trait CopySet: Default + Clone {
     type Item: Copy + Eq + Ord + std::fmt::Display + std::fmt::Debug;
-    type Iter: Iterator<Item=Self::Item>;
+    type Iter: Iterator<Item = Self::Item>;
     fn ins(&mut self, e: Self::Item) -> bool;
     fn rem(&mut self, e: Self::Item) -> bool;
     fn con(&self, e: Self::Item) -> bool;
@@ -190,7 +190,7 @@ impl CopySet for std::collections::HashSet<u32> {
 #[cfg(test)]
 use proptest::prelude::*;
 #[cfg(test)]
-proptest!{
+proptest! {
     #[test]
     fn check_random_sets(slice in prop::collection::vec(1u64..5, 1usize..10)) {
         check_set::<std::collections::HashSet<u64>>(&slice);
@@ -221,12 +221,10 @@ pub fn check_set<T: CopySet>(elems: &[T::Item]) {
         println!("what is this? count {} does it have {}?", count, x);
         assert!(s.con(x));
         assert_eq!(s.ln(), count);
-        assert_eq!(s.vec().into_iter()
-.count(), count);
+        assert_eq!(s.vec().into_iter().count(), count);
     }
     assert!(elems.len() >= s.ln());
-    assert_eq!(elems.iter().cloned().min(),
-               s.vec().into_iter().min());
+    assert_eq!(elems.iter().cloned().min(), s.vec().into_iter().min());
     println!("set {:?} with length {}", elems, s.ln());
     for x in s.vec().into_iter() {
         println!("    {}", x);
@@ -262,4 +260,3 @@ pub fn check_set<T: CopySet>(elems: &[T::Item]) {
     }
     assert_eq!(s.ln(), 0);
 }
-

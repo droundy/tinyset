@@ -23,7 +23,7 @@ pub struct SetUsize(Internal);
 
 impl SetUsize {
     /// Create an empty set with capacity to hold the provided set.
-    /// 
+    ///
     /// ```
     /// use tinyset::SetUsize;
     ///
@@ -91,18 +91,18 @@ impl SetUsize {
     }
     /// Iterate
     #[inline]
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item=usize> + 'a {
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = usize> + 'a {
         self.0.iter().map(|x| x as usize)
     }
     /// Drain
     #[inline]
-    pub fn drain<'a>(&'a mut self) -> impl Iterator<Item=usize> + 'a {
+    pub fn drain<'a>(&'a mut self) -> impl Iterator<Item = usize> + 'a {
         self.0.drain().map(|x| x as usize)
     }
 }
 
 impl std::iter::FromIterator<usize> for SetUsize {
-    fn from_iter<I: IntoIterator<Item=usize>>(iter: I) -> Self {
+    fn from_iter<I: IntoIterator<Item = usize>>(iter: I) -> Self {
         let iter = iter.into_iter();
         // FIXME: It would be nice to cleverly allocate with the right capacity.
         // let (sz,_) = iter.size_hint();
@@ -120,7 +120,7 @@ type InternalIter = crate::setu64::IntoIter;
 type InternalIter = crate::setu32::IntoIter;
 
 /// An iterator.
-pub struct IntoIter( InternalIter );
+pub struct IntoIter(InternalIter);
 
 impl Iterator for IntoIter {
     type Item = usize;
@@ -166,6 +166,105 @@ impl Extend<usize> for SetUsize {
         }
     }
 }
+#[cfg(feature = "serde")]
+mod serde {
+    use crate::SetUsize;
+    use serde::de::{Deserialize, Deserializer, SeqAccess, Visitor};
+    use serde::ser::{Serialize, SerializeSeq, Serializer};
+
+    impl Serialize for SetUsize {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            let mut seq = serializer.serialize_seq(Some(self.len()))?;
+            for e in self.iter() {
+                seq.serialize_element(&e)?;
+            }
+            seq.end()
+        }
+    }
+
+    // A Visitor is a type that holds methods that a Deserializer can drive
+    // depending on what is contained in the input data.
+    //
+    // In the case of a map we need generic type parameters K and V to be
+    // able to set the output type correctly, but don't require any state.
+    // This is an example of a "zero sized type" in Rust. The PhantomData
+    // keeps the compiler from complaining about unused generic type
+    // parameters.
+    struct SetVisitor;
+
+    impl SetVisitor {
+        fn new() -> Self {
+            SetVisitor
+        }
+    }
+
+    // This is the trait that Deserializers are going to be driving. There
+    // is one method for each type of data that our type knows how to
+    // deserialize from. There are many other methods that are not
+    // implemented here, for example deserializing from integers or strings.
+    // By default those methods will return an error, which makes sense
+    // because we cannot deserialize a MyMap from an integer or string.
+    impl<'de> Visitor<'de> for SetVisitor {
+        // The type that our Visitor is going to produce.
+        type Value = SetUsize;
+
+        // Format a message stating what data this Visitor expects to receive.
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a set of usize")
+        }
+
+        fn visit_seq<M>(self, mut access: M) -> Result<Self::Value, M::Error>
+        where
+            M: SeqAccess<'de>,
+        {
+            let mut set = SetUsize::new();
+
+            // While there are entries remaining in the input, add them
+            // into our map.
+            while let Some(elem) = access.next_element()? {
+                set.insert(elem);
+            }
+
+            Ok(set)
+        }
+    }
+
+    // This is the trait that informs Serde how to deserialize MyMap.
+    impl<'de> Deserialize<'de> for SetUsize {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            // Instantiate our Visitor and ask the Deserializer to drive
+            // it over the input data, resulting in an instance of MyMap.
+            deserializer.deserialize_seq(SetVisitor::new())
+        }
+    }
+
+    #[test]
+    fn serialize_deserialize() {
+        use std::iter::FromIterator;
+
+        let set = SetUsize::from_iter([0]);
+        let s = serde_json::to_string(&set).unwrap();
+        assert_eq!(set, serde_json::from_str(&s).unwrap());
+
+        let set = SetUsize::from_iter([]);
+        let s = serde_json::to_string(&set).unwrap();
+        assert_eq!(set, serde_json::from_str(&s).unwrap());
+
+        let set = SetUsize::from_iter([usize::MAX, usize::MAX - 100]);
+        let s = serde_json::to_string(&set).unwrap();
+        assert_eq!(set, serde_json::from_str(&s).unwrap());
+
+        let set = SetUsize::from_iter(0..10000);
+        let s = serde_json::to_string(&set).unwrap();
+        assert_eq!(set, serde_json::from_str(&s).unwrap());
+    }
+}
 
 impl crate::copyset::CopySet for SetUsize {
     type Item = usize;
@@ -193,7 +292,7 @@ impl crate::copyset::CopySet for SetUsize {
 #[cfg(test)]
 use proptest::prelude::*;
 #[cfg(test)]
-proptest!{
+proptest! {
     #[test]
     fn copycheck_random_sets(slice in prop::collection::vec(1usize..5, 1usize..10)) {
         crate::copyset::check_set::<SetUsize>(&slice);

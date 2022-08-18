@@ -1,7 +1,9 @@
 #![deny(missing_docs)]
 //! This is a crate for the tiniest sets ever.
 
-const fn num_bits<T>() -> u64 { std::mem::size_of::<T>() as u64 * 8 }
+const fn num_bits<T>() -> u64 {
+    std::mem::size_of::<T>() as u64 * 8
+}
 
 fn log_2(x: u64) -> u64 {
     if x == 0 {
@@ -42,7 +44,7 @@ fn split_u64(x: u64, bits: u64) -> (u64, u64) {
 
 fn unsplit_u64(k: u64, offset: u64, bits: u64) -> u64 {
     if bits > 0 {
-        k*bits + offset
+        k * bits + offset
     } else {
         k
     }
@@ -119,17 +121,16 @@ impl Iterator for Tiny {
         }
         mx
     }
-
 }
 
 #[cfg(target_pointer_width = "64")]
 static BITSPLITS: [&[u64]; 8] = [
     &[],
     &[61],
-    &[40,21],
-    &[31,15,15],
-    &[25,12,12,12],
-    &[21,10,10,10,10],
+    &[40, 21],
+    &[31, 15, 15],
+    &[25, 12, 12, 12],
+    &[21, 10, 10, 10, 10],
     &[21, 8, 8, 8, 8, 8],
     &[19, 7, 7, 7, 7, 7, 7],
 ];
@@ -138,12 +139,12 @@ static BITSPLITS: [&[u64]; 8] = [
 static BITSPLITS: [&[u64]; 8] = [
     &[],
     &[29],
-    &[20,9],
-    &[15,7,7],
+    &[20, 9],
+    &[15, 7, 7],
     &[12, 5, 5, 5],
     &[10, 4, 4, 4, 4],
-    &[ 9, 4, 4, 4, 4, 4],
-    &[ 8, 3, 3, 3, 3, 3, 3],
+    &[9, 4, 4, 4, 4, 4],
+    &[8, 3, 3, 3, 3, 3, 3],
 ];
 
 impl Tiny {
@@ -185,12 +186,8 @@ impl Tiny {
         let mut offset = 0;
         let mut bits: usize = 0;
         let bitsplits = BITSPLITS[sz as usize];
-        for (x,nbits) in v.iter().cloned().zip(bitsplits.iter().cloned()) {
-            let y = if offset == 0 {
-                x
-            } else {
-                x - last - 1
-            };
+        for (x, nbits) in v.iter().cloned().zip(bitsplits.iter().cloned()) {
+            let y = if offset == 0 { x } else { x - last - 1 };
             if log_2(y) > nbits {
                 return None;
             }
@@ -198,7 +195,12 @@ impl Tiny {
             offset += nbits;
             last = x;
         }
-        Some (Tiny { sz, bits, sz_spent: 0, last: 0 })
+        Some(Tiny {
+            sz,
+            bits,
+            sz_spent: 0,
+            last: 0,
+        })
     }
     fn insert(mut self, e: u64) -> Option<Self> {
         if e > std::usize::MAX as u64 {
@@ -230,8 +232,12 @@ impl Tiny {
                         self.bits = self.bits >> oldb;
                         for oldb in old_iter {
                             let n = self.bits & mask(oldb as usize) as usize;
-                            if n == e { return Some(backup); }
-                            if e < n { return None; }
+                            if n == e {
+                                return Some(backup);
+                            }
+                            if e < n {
+                                return None;
+                            }
                             e -= n + 1;
                             self.bits = self.bits >> oldb;
                         }
@@ -311,11 +317,11 @@ fn test_tiny() {
     assert_eq!(Tiny::new_sorted_deduped(&[]), None);
     test_vec(vec![1]);
     test_vec(vec![1024]);
-    test_vec(vec![1,2]);
-    test_vec(vec![1,2,3]);
-    test_vec(vec![1,2,3,4,5]);
-    test_vec(vec![1,2,3,4,5,6]);
-    test_vec(vec![1,2,3,4,5,6,7]);
+    test_vec(vec![1, 2]);
+    test_vec(vec![1, 2, 3]);
+    test_vec(vec![1, 2, 3, 4, 5]);
+    test_vec(vec![1, 2, 3, 4, 5, 6]);
+    test_vec(vec![1, 2, 3, 4, 5, 6, 7]);
 }
 
 enum Internal<'a> {
@@ -450,10 +456,7 @@ impl IntoIterator for SetU64 {
 
     fn into_iter(self) -> IntoIter {
         let iter = unsafe { std::mem::transmute(self.private_iter()) };
-        IntoIter {
-            iter,
-            _set: self,
-        }
+        IntoIter { iter, _set: self }
     }
 }
 impl Iterator for IntoIter {
@@ -493,8 +496,11 @@ impl Clone for SetU64 {
                 if ptr == std::ptr::null_mut() {
                     std::alloc::handle_alloc_error(layout_for_capacity(c));
                 }
-                std::ptr::copy_nonoverlapping(self.0 as *const u8, ptr as *mut u8,
-                                              bytes_for_capacity(c));
+                std::ptr::copy_nonoverlapping(
+                    self.0 as *const u8,
+                    ptr as *mut u8,
+                    bytes_for_capacity(c),
+                );
                 SetU64(ptr)
             }
         } else {
@@ -505,7 +511,7 @@ impl Clone for SetU64 {
 
 impl SetU64 {
     /// Create an empty set with capacity to hold the provided set.
-    /// 
+    ///
     /// ```
     /// let a: tinyset::SetU64 = (1..300).collect();
     /// let mut b = tinyset::SetU64::with_capacity_of(&a);
@@ -539,7 +545,8 @@ impl SetU64 {
 #[test]
 fn just_clone() {
     let mut x = SetU64::with_capacity_and_max(100, 1000000);
-    x.insert(100); x.insert(1000);
+    x.insert(100);
+    x.insert(1000);
     let y = x.clone();
     assert_eq!(x.len(), y.len());
     assert_eq!(x.len(), x.into_iter().count());
@@ -553,15 +560,9 @@ impl SetU64 {
         match self.internal() {
             Internal::Empty => 0,
             Internal::Stack(t) => t.sz as usize,
-            Internal::Heap { s, .. } => {
-                s.sz
-            }
-            Internal::Big { s, .. } => {
-                s.sz
-            }
-            Internal::Dense { sz, .. } => {
-                sz
-            }
+            Internal::Heap { s, .. } => s.sz,
+            Internal::Big { s, .. } => s.sz,
+            Internal::Dense { sz, .. } => sz,
         }
     }
     /// The capacity of the set
@@ -570,15 +571,9 @@ impl SetU64 {
         match self.internal() {
             Internal::Empty => 0,
             Internal::Stack(_) => 0,
-            Internal::Heap { a, .. } => {
-                a.len()
-            }
-            Internal::Big { a, .. } => {
-                a.len()
-            }
-            Internal::Dense { a, .. } => {
-                a.len()
-            }
+            Internal::Heap { a, .. } => a.len(),
+            Internal::Big { a, .. } => a.len(),
+            Internal::Dense { a, .. } => a.len(),
         }
     }
     /// Print debugging information about this set.
@@ -588,11 +583,15 @@ impl SetU64 {
             Internal::Stack(t) => println!("{}: stack {:?} => {:?}", msg, t, t.collect::<Vec<_>>()),
             Internal::Heap { s, a } => {
                 println!("{}: heap {:?}", msg, s);
-                for (i,x) in a.iter().cloned().enumerate() {
-                    println!("      {} (key {} pov {}): {:0b} ({})",
-                             (x >> s.bits)*s.bits, x >> s.bits,
-                             p_poverty(x >> s.bits, i, a.len()),
-                             x & mask(s.bits as usize), x);
+                for (i, x) in a.iter().cloned().enumerate() {
+                    println!(
+                        "      {} (key {} pov {}): {:0b} ({})",
+                        (x >> s.bits) * s.bits,
+                        x >> s.bits,
+                        p_poverty(x >> s.bits, i, a.len()),
+                        x & mask(s.bits as usize),
+                        x
+                    );
                 }
                 println!("    => {:?}", self.iter().collect::<Vec<_>>());
             }
@@ -602,8 +601,13 @@ impl SetU64 {
                 println!("     >>>{:?}", v);
             }
             Internal::Dense { sz, a } => {
-                println!("{}: dense {:?}\n    {:?}\n    => {:?}",
-                         msg, sz, a, self.iter().collect::<Vec<u64>>());
+                println!(
+                    "{}: dense {:?}\n    {:?}\n    => {:?}",
+                    msg,
+                    sz,
+                    a,
+                    self.iter().collect::<Vec<u64>>()
+                );
                 println!("    foo {:?}", self.iter());
             }
         }
@@ -614,20 +618,16 @@ impl SetU64 {
         match self.internal() {
             Internal::Empty => std::mem::size_of::<Self>(),
             Internal::Stack(_) => std::mem::size_of::<Self>(),
-            Internal::Heap { s, .. } =>
-                std::mem::size_of::<Self>() + s.cap*8-8,
-            Internal::Dense { a, .. } =>
-                std::mem::size_of::<Self>() + a.len()*8-8,
-            Internal::Big { s, .. } =>
-                std::mem::size_of::<Self>() + s.cap*8-8,
+            Internal::Heap { s, .. } => std::mem::size_of::<Self>() + s.cap * 8 - 8,
+            Internal::Dense { a, .. } => std::mem::size_of::<Self>() + a.len() * 8 - 8,
+            Internal::Big { s, .. } => std::mem::size_of::<Self>() + s.cap * 8 - 8,
         }
     }
     fn dense_with_max(mx: u64) -> SetU64 {
-        let cap = 1 + mx/64 + mx/256;
+        let cap = 1 + mx / 64 + mx / 256;
         // This should be stored in a dense bitset.
         unsafe {
-            let x = SetU64(std::alloc::alloc_zeroed(layout_for_capacity(cap as usize))
-                           as *mut S);
+            let x = SetU64(std::alloc::alloc_zeroed(layout_for_capacity(cap as usize)) as *mut S);
             (*x.0).b.cap = cap as usize;
             (*x.0).b.bits = 64;
             x
@@ -713,10 +713,10 @@ impl SetU64 {
                     !present
                 } else {
                     // println!("key is {}", key);
-                    if key > 128*(*sz as usize) {
+                    if key > 128 * (*sz as usize) {
                         // It is getting sparse, so let us switch back
                         // to a non-hash table.
-                        let cap = 2*(*sz + 1);
+                        let cap = 2 * (*sz + 1);
                         let mut new = SetU64::with_capacity_and_bits(cap as usize, 0);
                         for x in self.iter() {
                             new.insert(x);
@@ -724,14 +724,14 @@ impl SetU64 {
                         new.insert(e);
                         *self = new;
                     } else {
-                        let mut new = SetU64::with_capacity_and_bits(1 + key + key/4, 64);
+                        let mut new = SetU64::with_capacity_and_bits(1 + key + key / 4, 64);
                         match new.internal_mut() {
                             InternalMut::Empty => unreachable!(),
                             InternalMut::Stack(_) => unreachable!(),
                             InternalMut::Big { .. } => unreachable!(),
                             InternalMut::Heap { .. } => unreachable!(),
                             InternalMut::Dense { sz: newsz, a: na } => {
-                                for (i,v) in a.iter().cloned().enumerate() {
+                                for (i, v) in a.iter().cloned().enumerate() {
                                     na[i] = v;
                                 }
                                 na[key] = 1 << (e & 63);
@@ -745,8 +745,10 @@ impl SetU64 {
             }
             InternalMut::Heap { s, a } => {
                 if compute_array_bits(e) < s.bits {
-                    let mut new = Self::with_capacity_and_bits(s.cap+1+2*(crate::rand::rand_usize() % s.cap),
-                                                               compute_array_bits(e));
+                    let mut new = Self::with_capacity_and_bits(
+                        s.cap + 1 + 2 * (crate::rand::rand_usize() % s.cap),
+                        compute_array_bits(e),
+                    );
                     // new.debug_me("\n\nnew set");
                     for d in self.iter() {
                         new.insert(d);
@@ -769,12 +771,11 @@ impl SetU64 {
                         }
                     }
                     LookedUp::EmptySpot(idx) => {
-                            a[idx] = key << s.bits | 1 << offset;
-                            s.sz += 1;
-                            return true;
+                        a[idx] = key << s.bits | 1 << offset;
+                        s.sz += 1;
+                        return true;
                     }
-                    LookedUp::NeedInsert => {
-                    },
+                    LookedUp::NeedInsert => {}
                 }
                 // println!("looking for space in sparse... {:?}", a);
                 if a.iter().cloned().any(|x| x == 0) {
@@ -787,7 +788,12 @@ impl SetU64 {
                 }
                 // println!("no room in the sparse set... {:?}", a);
                 // We'll have to expand the set.
-                let mx = a.iter().cloned().map(|x| (x >> s.bits)*s.bits + s.bits).max().unwrap();
+                let mx = a
+                    .iter()
+                    .cloned()
+                    .map(|x| (x >> s.bits) * s.bits + s.bits)
+                    .max()
+                    .unwrap();
                 let mx = if e > mx { e } else { mx };
                 if s.cap as u64 > mx >> 6 {
                     // A dense set will save memory
@@ -851,7 +857,7 @@ impl SetU64 {
                     return true;
                 }
                 // println!("no room in the set... {:?}", a);
-                let newcap: usize = s.cap + 1 + (crate::rand::rand_usize() % (2*s.cap));
+                let newcap: usize = s.cap + 1 + (crate::rand::rand_usize() % (2 * s.cap));
                 let mut new = Self::with_capacity_and_bits(newcap, s.bits);
                 // new.debug_me("initial new");
                 match new.internal_mut() {
@@ -917,7 +923,7 @@ impl SetU64 {
                 let (key, offset) = split_u64(e, s.bits);
                 if let LookedUp::KeyFound(idx) = p_lookfor(key, a, s.bits) {
                     if a[idx] & (1 << offset) != 0 {
-                        let newa = a[idx] & !(1<<offset);
+                        let newa = a[idx] & !(1 << offset);
                         s.sz -= 1;
                         if newa == key << s.bits {
                             // We've removed everything with this key,
@@ -986,32 +992,35 @@ impl SetU64 {
 
     /// Iterate over
     #[inline]
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item=u64> + 'a + std::fmt::Debug {
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = u64> + 'a + std::fmt::Debug {
         self.private_iter()
     }
     fn private_iter<'a>(&'a self) -> Iter<'a> {
         match self.internal() {
             Internal::Empty => Iter::Empty,
-            Internal::Stack(t) => Iter::Stack( t ),
-            Internal::Heap { s, a } => {
-                Iter::Heap( HeapIter {
-                    sz_left: s.sz,
-                    bits: s.bits,
-                    whichbit: 0,
-                    array: a,
-                })
-            }
-            Internal::Big { s, a } => {
-                Iter::Big(BigIter { sz_left: s.sz, bits: s.bits, a })
-            }
-            Internal::Dense { a, sz } => {
-                Iter::Dense(DenseIter { sz_left: sz, whichword: 0, whichbit: 0, a })
-            }
+            Internal::Stack(t) => Iter::Stack(t),
+            Internal::Heap { s, a } => Iter::Heap(HeapIter {
+                sz_left: s.sz,
+                bits: s.bits,
+                whichbit: 0,
+                array: a,
+            }),
+            Internal::Big { s, a } => Iter::Big(BigIter {
+                sz_left: s.sz,
+                bits: s.bits,
+                a,
+            }),
+            Internal::Dense { a, sz } => Iter::Dense(DenseIter {
+                sz_left: sz,
+                whichword: 0,
+                whichbit: 0,
+                a,
+            }),
         }
     }
     /// Clears the set, returning all elements in an iterator.
     #[inline]
-    pub fn drain<'a>(&'a mut self) -> impl Iterator<Item=u64> + 'a {
+    pub fn drain<'a>(&'a mut self) -> impl Iterator<Item = u64> + 'a {
         std::mem::replace(self, SetU64::new()).into_iter()
     }
 
@@ -1069,14 +1078,17 @@ impl<'a> Iterator for BigIter<'a> {
             self.a = rest;
             if x != 0 {
                 self.sz_left -= 1;
-                return Some( if x == self.bits { 0 } else { x });
+                return Some(if x == self.bits { 0 } else { x });
             }
         }
         None
     }
     #[inline]
     fn last(self) -> Option<u64> {
-        self.a.into_iter().rev().cloned()
+        self.a
+            .into_iter()
+            .rev()
+            .cloned()
             .filter(|&x| x != 0)
             .map(|x| if x == self.bits { 0 } else { x })
             .next()
@@ -1094,9 +1106,12 @@ impl<'a> Iterator for BigIter<'a> {
         if self.sz_left == 0 {
             None
         } else {
-            self.a.into_iter().cloned()
+            self.a
+                .into_iter()
+                .cloned()
                 .filter(|x| *x != 0)
-                .map(|x| if x == self.bits { 0 } else { x }).min()
+                .map(|x| if x == self.bits { 0 } else { x })
+                .min()
         }
     }
 }
@@ -1127,7 +1142,7 @@ impl<'a> Iterator for HeapIter<'a> {
                 self.whichbit = 0;
             }
         } else {
-            if let Some((&first,rest)) = self.array.split_first() {
+            if let Some((&first, rest)) = self.array.split_first() {
                 self.array = rest;
                 self.sz_left -= 1;
                 return Some(first);
@@ -1137,10 +1152,12 @@ impl<'a> Iterator for HeapIter<'a> {
     }
     #[inline]
     fn last(self) -> Option<Self::Item> {
-        self.array.into_iter().rev().cloned()
+        self.array
+            .into_iter()
+            .rev()
+            .cloned()
             .filter(|&x| x != 0)
-            .map(|x| x >> self.bits
-                 + (x & mask(self.bits as usize)).leading_zeros() as u64 - 63)
+            .map(|x| x >> self.bits + (x & mask(self.bits as usize)).leading_zeros() as u64 - 63)
             .next()
     }
     #[inline]
@@ -1156,9 +1173,14 @@ impl<'a> Iterator for HeapIter<'a> {
         if self.sz_left == 0 {
             None
         } else if self.whichbit == 0 {
-            let x = self.array.into_iter().cloned()
-                .filter(|x| *x != 0).min().unwrap();
-            Some((x >> self.bits)*self.bits + x.trailing_zeros() as u64)
+            let x = self
+                .array
+                .into_iter()
+                .cloned()
+                .filter(|x| *x != 0)
+                .min()
+                .unwrap();
+            Some((x >> self.bits) * self.bits + x.trailing_zeros() as u64)
         } else {
             let mut min = self.next().unwrap();
             while let Some(x) = self.next() {
@@ -1174,9 +1196,14 @@ impl<'a> Iterator for HeapIter<'a> {
         if self.sz_left == 0 {
             None
         } else if self.whichbit == 0 {
-            let x = self.array.into_iter().cloned()
-                .filter(|x| *x != 0).max().unwrap();
-            let reference = (x >> self.bits)*self.bits;
+            let x = self
+                .array
+                .into_iter()
+                .cloned()
+                .filter(|x| *x != 0)
+                .max()
+                .unwrap();
+            let reference = (x >> self.bits) * self.bits;
             let m = mask(self.bits as usize);
             let extra = 63 - (x & m).leading_zeros() as u64;
             Some(reference + extra)
@@ -1226,10 +1253,9 @@ impl<'a> Iterator for DenseIter<'a> {
         if self.sz_left == 0 {
             return None;
         }
-        let zero_words = self.a.iter().rev().cloned()
-            .take_while(|&x| x == 0).count() as u64;
+        let zero_words = self.a.iter().rev().cloned().take_while(|&x| x == 0).count() as u64;
         let zero_bits = self.a[self.a.len() - 1 - zero_words as usize].leading_zeros() as u64;
-        Some(self.a.len() as u64*64 - zero_bits - 1 - zero_words*64)
+        Some(self.a.len() as u64 * 64 - zero_bits - 1 - zero_words * 64)
     }
     #[inline]
     fn max(self) -> Option<Self::Item> {
@@ -1280,8 +1306,8 @@ impl Default for SetU64 {
 
 impl std::iter::FromIterator<u64> for SetU64 {
     fn from_iter<T>(iter: T) -> Self
-        where
-        T: IntoIterator<Item = u64>
+    where
+        T: IntoIterator<Item = u64>,
     {
         let mut v: Vec<_> = iter.into_iter().collect();
         v.sort();
@@ -1306,10 +1332,10 @@ impl std::iter::FromIterator<u64> for SetU64 {
                     }
                     s
                 } else {
-                    let mut keys: Vec<_> = v.iter().map(|&x| x/bits).collect();
+                    let mut keys: Vec<_> = v.iter().map(|&x| x / bits).collect();
                     keys.sort();
                     keys.dedup();
-                    let sz = (keys.len()+1)*11/10;
+                    let sz = (keys.len() + 1) * 11 / 10;
                     let mut s = SetU64::with_capacity_and_bits(sz, bits);
                     for value in v.into_iter() {
                         s.insert(value);
@@ -1336,18 +1362,16 @@ fn test_a_collect(v: Vec<u64>) {
 fn test_collect() {
     test_a_collect(vec![]);
     test_a_collect(vec![0]);
-    test_a_collect(vec![0,1<<60]);
-    test_a_collect(vec![0,1<<30,1<<60]);
+    test_a_collect(vec![0, 1 << 60]);
+    test_a_collect(vec![0, 1 << 30, 1 << 60]);
     test_a_collect((0..1024).collect());
 }
 
 fn bytes_for_capacity(sz: usize) -> usize {
-    sz*8+std::mem::size_of::<S>()-8
+    sz * 8 + std::mem::size_of::<S>() - 8
 }
 fn layout_for_capacity(sz: usize) -> std::alloc::Layout {
-    unsafe {
-        std::alloc::Layout::from_size_align_unchecked(bytes_for_capacity(sz), 8)
-    }
+    unsafe { std::alloc::Layout::from_size_align_unchecked(bytes_for_capacity(sz), 8) }
 }
 
 impl Drop for SetU64 {
@@ -1371,15 +1395,9 @@ impl heapsize::HeapSizeOf for SetU64 {
         match self.internal() {
             Internal::Empty => 0,
             Internal::Stack(_) => 0,
-            Internal::Heap { a, .. } => {
-                std::mem::size_of::<S>() - 8 + a.len()*8
-            }
-            Internal::Big { a, .. } => {
-                std::mem::size_of::<S>() - 8 + a.len()*8
-            }
-            Internal::Dense { a, .. } => {
-                std::mem::size_of::<S>() - 8 + a.len()*8
-            }
+            Internal::Heap { a, .. } => std::mem::size_of::<S>() - 8 + a.len() * 8,
+            Internal::Big { a, .. } => std::mem::size_of::<S>() - 8 + a.len() * 8,
+            Internal::Dense { a, .. } => std::mem::size_of::<S>() - 8 + a.len() * 8,
         }
     }
 }
@@ -1411,8 +1429,7 @@ mod tests {
             assert_eq!(s.iter().count(), count);
         }
         assert!(elems.len() >= s.len());
-        assert_eq!(elems.iter().cloned().min(),
-                   s.iter().min());
+        assert_eq!(elems.iter().cloned().min(), s.iter().min());
         println!("set {:?} with length {}", elems, s.len());
         for x in s.iter() {
             println!("    {}", x);
@@ -1447,22 +1464,27 @@ mod tests {
 
     #[test]
     fn check_sets() {
-        check_set(&[2020521336280004635,
-                    17919264261434241137,
-                    2238430514865874295,
-                    6993057942733118921,
-                    151320868361192487]);
+        check_set(&[
+            2020521336280004635,
+            17919264261434241137,
+            2238430514865874295,
+            6993057942733118921,
+            151320868361192487,
+        ]);
 
+        check_set(&[
+            1121917459475225854,
+            2080724155257001326,
+            4615424731220156355,
+            0,
+        ]);
 
-        check_set(&[1121917459475225854,
-                    2080724155257001326,
-                    4615424731220156355,
-                    0]);
-
-        check_set(&[12891372448885225674,
-                    7003397808690412416,
-                    129282323776365774,
-                    9248739364838008708]);
+        check_set(&[
+            12891372448885225674,
+            7003397808690412416,
+            129282323776365774,
+            9248739364838008708,
+        ]);
 
         check_set(&[]);
         check_set(&[10]);
@@ -1477,7 +1499,7 @@ mod tests {
 
         check_set(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 
-        check_set(&[0, 1, 2, 3, 4, 5, 6, 7<<30, 8, 9, 10]);
+        check_set(&[0, 1, 2, 3, 4, 5, 6, 7 << 30, 8, 9, 10]);
 
         check_set(&[0, 2097153, 2, 2305843009213693952]);
 
@@ -1529,19 +1551,19 @@ mod tests {
     }
     #[test]
     fn check_specific_tinies() {
-        check_tiny_from_vec(vec![49,50,1]);
+        check_tiny_from_vec(vec![49, 50, 1]);
         check_tiny_from_vec(vec![1]);
-        check_tiny_from_vec(vec![1,2]);
+        check_tiny_from_vec(vec![1, 2]);
         check_tiny_from_vec(vec![1000000, 1000030]);
         check_tiny_from_vec(vec![3000027656, 3000030504]);
         check_tiny_from_vec(vec![3127827656, 3125730504]);
-        check_tiny_from_vec(vec![3127827656, 3125730504,1]);
-        check_tiny_from_vec(vec![2,3,143,251,1,130,251]);
-        check_tiny_from_vec(vec![1,130,131,132,133,251]);
+        check_tiny_from_vec(vec![3127827656, 3125730504, 1]);
+        check_tiny_from_vec(vec![2, 3, 143, 251, 1, 130, 251]);
+        check_tiny_from_vec(vec![1, 130, 131, 132, 133, 251]);
     }
 
     use proptest::prelude::*;
-    proptest!{
+    proptest! {
         #[test]
         fn copycheck_random_sets(slice in prop::collection::vec(1u64..5, 1usize..10)) {
             crate::copyset::check_set::<SetU64>(&slice);
@@ -1555,7 +1577,7 @@ mod tests {
             crate::copyset::check_set::<SetU64>(&slice);
         }
     }
-    proptest!{
+    proptest! {
         #[test]
         fn check_random_sets(slice in prop::collection::vec(1u64..5, 1usize..10)) {
             check_set(&slice);
@@ -1575,7 +1597,23 @@ mod tests {
     }
     #[test]
     fn check_specific_sets() {
-        check_set(&[2847318633310315892, 63058418965769059, 2042910419467651321, 1999840121589118486, 16041957357413958548, 3644150915196633528, 11391567487966916668, 2789376712080388913, 8889702475440805467, 16888113214698725429, 1249634136756270040, 15461625332902556004, 8159161795026448273, 12009229139422836646, 15912096166435473807]);
+        check_set(&[
+            2847318633310315892,
+            63058418965769059,
+            2042910419467651321,
+            1999840121589118486,
+            16041957357413958548,
+            3644150915196633528,
+            11391567487966916668,
+            2789376712080388913,
+            8889702475440805467,
+            16888113214698725429,
+            1249634136756270040,
+            15461625332902556004,
+            8159161795026448273,
+            12009229139422836646,
+            15912096166435473807,
+        ]);
     }
 
     fn total_size_of<T: HeapSizeOf>(x: &T) -> usize {
@@ -1592,7 +1630,6 @@ mod tests {
         assert!(total_size_of(&s) < total_size_of(&hs));
         // assert!(total_size_of(&s) < total_size_of(&bs));
     }
-
 
     #[cfg(test)]
     fn collect_size_is(v: &[u64], sz: usize) {
@@ -1635,26 +1672,26 @@ mod tests {
         collect_size_is(&[], 8);
         incremental_size_le(&[], 8);
         collect_size_is(&[3000], 8);
-        collect_size_is(&[1,2,3,4,5,6], 8);
-        incremental_size_le(&[1,2,3,4,5,6], 8);
-        collect_size_is(&[1000,1002,1004,1006,1008], 8);
-        incremental_size_le(&[1000,1002,1004,1006,1008], 8);
-        collect_size_is(&[255,260,265,270,275,280,285], 8);
-        collect_size_is(&[1000,1002,1004,1006,1008,1009,1010], 8);
+        collect_size_is(&[1, 2, 3, 4, 5, 6], 8);
+        incremental_size_le(&[1, 2, 3, 4, 5, 6], 8);
+        collect_size_is(&[1000, 1002, 1004, 1006, 1008], 8);
+        incremental_size_le(&[1000, 1002, 1004, 1006, 1008], 8);
+        collect_size_is(&[255, 260, 265, 270, 275, 280, 285], 8);
+        collect_size_is(&[1000, 1002, 1004, 1006, 1008, 1009, 1010], 8);
 
-        incremental_size_le(& (0..7).collect::<Vec<_>>(), 8);
-        incremental_size_le(& (10..10+7).collect::<Vec<_>>(), 8);
-        incremental_size_le(& (100..100+7).collect::<Vec<_>>(), 8);
-        incremental_size_le(& (1000..1000+7).collect::<Vec<_>>(), 8);
-        incremental_size_le(& (10000..10000+7).collect::<Vec<_>>(), 8);
-        incremental_size_le(& (100000..100000+7).collect::<Vec<_>>(), 8);
+        incremental_size_le(&(0..7).collect::<Vec<_>>(), 8);
+        incremental_size_le(&(10..10 + 7).collect::<Vec<_>>(), 8);
+        incremental_size_le(&(100..100 + 7).collect::<Vec<_>>(), 8);
+        incremental_size_le(&(1000..1000 + 7).collect::<Vec<_>>(), 8);
+        incremental_size_le(&(10000..10000 + 7).collect::<Vec<_>>(), 8);
+        incremental_size_le(&(100000..100000 + 7).collect::<Vec<_>>(), 8);
 
-        incremental_size_le(& (1..30).collect::<Vec<_>>(), 40);
-        incremental_size_le(& (1..60).collect::<Vec<_>>(), 40);
+        incremental_size_le(&(1..30).collect::<Vec<_>>(), 40);
+        incremental_size_le(&(1..60).collect::<Vec<_>>(), 40);
 
-        incremental_size_le(& (1..160).collect::<Vec<_>>(), 88);
+        incremental_size_le(&(1..160).collect::<Vec<_>>(), 88);
 
-        incremental_size_le(& (0..100).map(|x| x*10).collect::<Vec<_>>(), 400);
+        incremental_size_le(&(0..100).map(|x| x * 10).collect::<Vec<_>>(), 400);
     }
 
     #[cfg(target_pointer_width = "32")]
@@ -1666,19 +1703,19 @@ mod tests {
         collect_size_is(&[], 4);
         incremental_size_le(&[], 4);
         collect_size_is(&[3000], 4);
-        collect_size_is(&[1,2,3,4,5,6], 4);
-        incremental_size_le(&[1,2,3,4,5,6], 4);
-        collect_size_is(&[1000,1002,1004,1006,1008], 4);
-        incremental_size_le(&[1000,1002,1004,1006,1008], 4);
+        collect_size_is(&[1, 2, 3, 4, 5, 6], 4);
+        incremental_size_le(&[1, 2, 3, 4, 5, 6], 4);
+        collect_size_is(&[1000, 1002, 1004, 1006, 1008], 4);
+        incremental_size_le(&[1000, 1002, 1004, 1006, 1008], 4);
 
-        collect_size_is(&[255,260,265,270,275,280,285], 4);
+        collect_size_is(&[255, 260, 265, 270, 275, 280, 285], 4);
 
-        incremental_size_le(& (1..30).collect::<Vec<_>>(), 32);
-        incremental_size_le(& (1..60).collect::<Vec<_>>(), 32);
+        incremental_size_le(&(1..30).collect::<Vec<_>>(), 32);
+        incremental_size_le(&(1..60).collect::<Vec<_>>(), 32);
 
-        incremental_size_le(& (1..160).collect::<Vec<_>>(), 84);
+        incremental_size_le(&(1..160).collect::<Vec<_>>(), 84);
 
-        incremental_size_le(& (0..100).map(|x| x*10).collect::<Vec<_>>(), 400);
+        incremental_size_le(&(0..100).map(|x| x * 10).collect::<Vec<_>>(), 400);
     }
 
     fn check_set_primitives(elems: &[u64]) {
@@ -1714,13 +1751,12 @@ mod tests {
         }
     }
 
-    proptest!{
+    proptest! {
         #[test]
         fn check_random_primitives(slice in prop::collection::vec(1u64..50, 1usize..100)) {
             check_set_primitives(&slice);
         }
     }
-
 }
 
 fn p_poverty(k: u64, idx: usize, n: usize) -> usize {
@@ -1772,29 +1808,29 @@ fn p_insert(k: u64, a: &mut [u64], offset: u64) -> usize {
 
 #[test]
 fn test_insert() {
-    let mut a = [0,0,0,0];
+    let mut a = [0, 0, 0, 0];
     assert_eq!(2, p_insert(2, &mut a, 0));
-    assert_eq!(&a, &[0,0,0,0]);
+    assert_eq!(&a, &[0, 0, 0, 0]);
     for i in 0..10 {
         assert_eq!(0, a[p_insert(i, &mut a, 0)]);
     }
 
-    let mut a = [0,0,6,0];
+    let mut a = [0, 0, 6, 0];
     assert_eq!(3, p_insert(2, &mut a, 0));
-    assert_eq!(&a, &[0,0,6,0]);
+    assert_eq!(&a, &[0, 0, 6, 0]);
     for i in 0..10 {
-        assert!([0,i].contains(&a[p_insert(i, &mut a, 0)]));
+        assert!([0, i].contains(&a[p_insert(i, &mut a, 0)]));
     }
 
-    let mut a = [0,0,6,3];
+    let mut a = [0, 0, 6, 3];
     assert_eq!(3, p_insert(2, &mut a, 0));
-    assert_eq!(&a, &[3,0,6,0]);
+    assert_eq!(&a, &[3, 0, 6, 0]);
     for i in 0..10 {
-        assert!([0,i].contains(&a[p_insert(i, &mut a, 0)]));
+        assert!([0, i].contains(&a[p_insert(i, &mut a, 0)]));
     }
 }
 
-#[derive(Debug,Eq,PartialEq,Clone,Copy)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 enum LookedUp {
     EmptySpot(usize),
     KeyFound(usize),
@@ -1850,9 +1886,9 @@ fn p_lookfor(k: u64, a: &[u64], offset: u64) -> LookedUp {
 
 #[test]
 fn test_lookfor() {
-    assert_eq!(LookedUp::NeedInsert, p_lookfor(5, &[3,1,2], 0));
-    assert_eq!(LookedUp::NeedInsert, p_lookfor(5, &[3,0,2], 0));
-    assert_eq!(LookedUp::KeyFound(3), p_lookfor(7, &[0,0,0,7], 0));
+    assert_eq!(LookedUp::NeedInsert, p_lookfor(5, &[3, 1, 2], 0));
+    assert_eq!(LookedUp::NeedInsert, p_lookfor(5, &[3, 0, 2], 0));
+    assert_eq!(LookedUp::KeyFound(3), p_lookfor(7, &[0, 0, 0, 7], 0));
 }
 
 fn p_remove(k: u64, a: &mut [u64], offset: u64) -> bool {
@@ -1914,17 +1950,17 @@ fn test_insert_remove(x: u64, a: &mut [u64]) {
 
 #[test]
 fn test_remove() {
-    let mut a = [0,0,2];
-    a[p_insert(5,&mut a,0)] = 5;
-    assert_eq!(&[5,0,2], &a);
-    p_remove(2,&mut a, 0);
+    let mut a = [0, 0, 2];
+    a[p_insert(5, &mut a, 0)] = 5;
+    assert_eq!(&[5, 0, 2], &a);
+    p_remove(2, &mut a, 0);
     println!("after removal {:?}", a);
     assert!(p_lookfor(5, &a, 0).key_found());
-    assert_eq!(&[0,0,5], &a);
+    assert_eq!(&[0, 0, 5], &a);
 
-    test_insert_remove(7,&mut [0,0,0,0]);
+    test_insert_remove(7, &mut [0, 0, 0, 0]);
 
-    test_insert_remove(2,&mut [0,1,5,0]);
+    test_insert_remove(2, &mut [0, 1, 5, 0]);
 
-    test_insert_remove(5,&mut [0,0,2]);
+    test_insert_remove(5, &mut [0, 0, 2]);
 }

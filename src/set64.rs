@@ -7,16 +7,16 @@
 
 //! A set that is compact in size.
 
-use std;
-use std::marker::PhantomData;
 #[cfg(test)]
 use proptest::prelude::*;
+use std;
+use std::marker::PhantomData;
 
 /// This describes a type which can be stored in 64 bits without loss.
 /// It is defined for all signed and unsigned integer types, as well
 /// as `char`.  In each case, we store sets consisting exclusively of
 /// "small" integers efficiently.
-pub trait Fits64 : Copy {
+pub trait Fits64: Copy {
     /// Convert back *from* a u64.  This is unsafe, since it is only
     /// infallible (and lossless) if the `u64` originally came from
     /// type `Self`.
@@ -26,7 +26,7 @@ pub trait Fits64 : Copy {
 }
 /// A utility function that is useful for testing your Fits64
 /// implentation.
-pub fn test_fits64<T: Fits64+Eq+std::fmt::Debug>(x: T) {
+pub fn test_fits64<T: Fits64 + Eq + std::fmt::Debug>(x: T) {
     let x64 = x.to_u64();
     let y = unsafe { T::from_u64(x64) };
     let y64 = y.to_u64();
@@ -34,17 +34,20 @@ pub fn test_fits64<T: Fits64+Eq+std::fmt::Debug>(x: T) {
     assert_eq!(x64, y64);
 }
 
-
 macro_rules! define_fits {
     ($ty: ty, $test_name: ident) => {
         impl Fits64 for $ty {
             #[inline]
-            unsafe fn from_u64(x: u64) -> Self { x as $ty }
+            unsafe fn from_u64(x: u64) -> Self {
+                x as $ty
+            }
             #[inline]
-            fn to_u64(self) -> u64 { self as u64 }
+            fn to_u64(self) -> u64 {
+                self as u64
+            }
         }
         #[cfg(test)]
-        proptest!{
+        proptest! {
             #[test]
             fn $test_name(x: $ty) {
                 test_fits64(x);
@@ -63,7 +66,9 @@ impl Fits64 for char {
         std::char::from_u32(x as u32).unwrap()
     }
     #[inline]
-    fn to_u64(self) -> u64 { self as u64 }
+    fn to_u64(self) -> u64 {
+        self as u64
+    }
 }
 // The following constant allows me to check whether it is faster to
 // handle negative numbers with an if expression or by doing bit
@@ -104,7 +109,7 @@ macro_rules! define_ifits {
             }
         }
         #[cfg(test)]
-        proptest!{
+        proptest! {
             #[test]
             fn $test_name(x: $ty) {
                 println!("\ntesting {}", x);
@@ -203,11 +208,11 @@ impl<T: Fits64> Set64<T> {
         self.0.remove(x)
     }
     /// Iterate
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item=T> + 'a {
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = T> + 'a {
         self.0.iter().map(|x| unsafe { T::from_u64(x) })
     }
     /// Drain
-    pub fn drain<'a>(&'a mut self) -> impl Iterator<Item=T> + 'a {
+    pub fn drain<'a>(&'a mut self) -> impl Iterator<Item = T> + 'a {
         self.0.drain().map(|x| unsafe { T::from_u64(x) })
     }
 }
@@ -238,9 +243,9 @@ impl<T: Fits64> std::hash::Hash for Set64<T> {
 }
 
 impl<T: Fits64> std::iter::FromIterator<T> for Set64<T> {
-    fn from_iter<I: IntoIterator<Item=T>>(iter: I) -> Self {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let iter = iter.into_iter();
-        let (sz,_) = iter.size_hint();
+        let (sz, _) = iter.size_hint();
         let mut c = Set64::with_capacity(sz);
         for i in iter {
             c.insert(i);
@@ -250,7 +255,7 @@ impl<T: Fits64> std::iter::FromIterator<T> for Set64<T> {
 }
 
 /// An iterator.
-pub struct IntoIter<T: Fits64>( crate::setu64::IntoIter, PhantomData<T> );
+pub struct IntoIter<T: Fits64>(crate::setu64::IntoIter, PhantomData<T>);
 
 impl<T: Fits64> Iterator for IntoIter<T> {
     type Item = T;
@@ -377,7 +382,9 @@ impl<'a, 'b, T: Fits64> std::ops::BitOr<&'b Set64<T>> for &'a Set64<T> {
     }
 }
 
-impl<T: Fits64 + Eq + Ord + std::fmt::Debug + std::fmt::Display> crate::copyset::CopySet for Set64<T> {
+impl<T: Fits64 + Eq + Ord + std::fmt::Debug + std::fmt::Display> crate::copyset::CopySet
+    for Set64<T>
+{
     type Item = T;
     type Iter = IntoIter<T>;
     fn ins(&mut self, e: Self::Item) -> bool {
@@ -401,7 +408,7 @@ impl<T: Fits64 + Eq + Ord + std::fmt::Debug + std::fmt::Display> crate::copyset:
 }
 
 #[cfg(test)]
-proptest!{
+proptest! {
     #[test]
     fn copycheck_random_sets(slice in prop::collection::vec(1u64..5, 1usize..10)) {
         crate::copyset::check_set::<Set64<u64>>(&slice);

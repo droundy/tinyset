@@ -65,6 +65,6 @@ pub mod setu64;
 pub use setu64::SetU64;
 
 pub mod set64;
-pub use crate::set64::{Set64, Fits64};
+pub use crate::set64::{Fits64, Set64};
 
 mod copyset;

@@ -4,8 +4,8 @@ macro_rules! generic_set {
         #[inline]
         pub fn is_empty(&self) -> bool {
             self.len() == 0
-        }   
-    }
+        }
+    };
 }
 
 impl crate::SetU64 {
@@ -20,4 +20,3 @@ impl crate::SetUsize {
 impl<T: crate::Fits64> crate::Set64<T> {
     generic_set!();
 }
-
