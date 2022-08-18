@@ -36,14 +36,21 @@ store values directly in a way that can be referenced.  All of the
 type-specific sets further differ in that `remove` and `contains`
 accept values rather than references.
 
-This crate has a single optional dependency (enabled by default), which
-is the `rand` crate, used for randomization to avoid DOS collision attacks.
+This crate has an optional dependency on the `rand` crate (enabled by default),
+used for randomization to avoid DOS collision attacks.
 You can speed up your compile by disabling this feature with
 ```
 tinyset = { version = "0.4", default-features = false }
 ```
 which will result in using a very simple pseudorandom number generator
 seeded by the system time.
+
+There is a second optional dependency on `serde`, which serializes sets in
+non-compressed form.  You can use
+```
+tinyset = { version = "0.4.13", features = ["serde"] }
+```
+to enable this feature.
 
 # Benchmarks
 
