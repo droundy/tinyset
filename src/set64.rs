@@ -347,6 +347,111 @@ impl<T: Fits64> Extend<T> for Set64<T> {
     }
 }
 
+#[cfg(feature = "serde")]
+mod serde {
+    use crate::{Fits64, Set64};
+    use serde::de::{Deserialize, Deserializer, SeqAccess, Visitor};
+    use serde::ser::{Serialize, SerializeSeq, Serializer};
+    use std::marker::PhantomData;
+
+    impl<T: Fits64 + Serialize> Serialize for Set64<T> {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            let mut seq = serializer.serialize_seq(Some(self.len()))?;
+            for e in self.iter() {
+                seq.serialize_element(&e)?;
+            }
+            seq.end()
+        }
+    }
+
+    // A Visitor is a type that holds methods that a Deserializer can drive
+    // depending on what is contained in the input data.
+    //
+    // In the case of a map we need generic type parameters K and V to be
+    // able to set the output type correctly, but don't require any state.
+    // This is an example of a "zero sized type" in Rust. The PhantomData
+    // keeps the compiler from complaining about unused generic type
+    // parameters.
+    struct SetVisitor<T> {
+        phantom: PhantomData<T>,
+    }
+
+    impl<T> SetVisitor<T> {
+        fn new() -> Self {
+            SetVisitor {
+                phantom: PhantomData,
+            }
+        }
+    }
+
+    // This is the trait that Deserializers are going to be driving. There
+    // is one method for each type of data that our type knows how to
+    // deserialize from. There are many other methods that are not
+    // implemented here, for example deserializing from integers or strings.
+    // By default those methods will return an error, which makes sense
+    // because we cannot deserialize a MyMap from an integer or string.
+    impl<'de, T: Fits64 + Deserialize<'de>> Visitor<'de> for SetVisitor<T> {
+        // The type that our Visitor is going to produce.
+        type Value = Set64<T>;
+
+        // Format a message stating what data this Visitor expects to receive.
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a set of usize")
+        }
+
+        fn visit_seq<M>(self, mut access: M) -> Result<Self::Value, M::Error>
+        where
+            M: SeqAccess<'de>,
+        {
+            let mut set = Set64::new();
+
+            // While there are entries remaining in the input, add them
+            // into our map.
+            while let Some(elem) = access.next_element()? {
+                set.insert(elem);
+            }
+
+            Ok(set)
+        }
+    }
+
+    // This is the trait that informs Serde how to deserialize MyMap.
+    impl<'de, T: Fits64 + Deserialize<'de>> Deserialize<'de> for Set64<T> {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            // Instantiate our Visitor and ask the Deserializer to drive
+            // it over the input data, resulting in an instance of MyMap.
+            deserializer.deserialize_seq(SetVisitor::new())
+        }
+    }
+
+    #[test]
+    fn serialize_deserialize() {
+        use std::iter::FromIterator;
+
+        let set = Set64::<usize>::from_iter([0]);
+        let s = serde_json::to_string(&set).unwrap();
+        assert_eq!(set, serde_json::from_str(&s).unwrap());
+
+        let set = Set64::<usize>::from_iter([]);
+        let s = serde_json::to_string(&set).unwrap();
+        assert_eq!(set, serde_json::from_str(&s).unwrap());
+
+        let set = Set64::<usize>::from_iter([usize::MAX, usize::MAX - 100]);
+        let s = serde_json::to_string(&set).unwrap();
+        assert_eq!(set, serde_json::from_str(&s).unwrap());
+
+        let set = Set64::<usize>::from_iter(0..10000);
+        let s = serde_json::to_string(&set).unwrap();
+        assert_eq!(set, serde_json::from_str(&s).unwrap());
+    }
+}
+
 impl<'a, 'b, T: Fits64> std::ops::BitOr<&'b Set64<T>> for &'a Set64<T> {
     type Output = Set64<T>;
 
