@@ -695,6 +695,89 @@ impl Extend<u32> for SetU32 {
     }
 }
 
+#[cfg(feature = "compactserde")]
+impl SetU32 {
+    fn to_array(&self) -> Vec<u32> {
+        let mut out = Vec::new();
+        if self.0 as usize == 0 || self.0 as usize & 7 != 0 {
+            out.push(self.0 as u32);
+        } else {
+            let s = unsafe { &*self.0 };
+            let b = &s.b;
+            let a = unsafe { std::slice::from_raw_parts(&s.array as *const u32, b.cap as usize) };
+            out.push(b.sz as u32);
+            out.push(b.bits as u32);
+            out.extend(a);
+        }
+        out
+    }
+    fn from_array(v: &[u32]) -> SetU32 {
+        if v.len() > 1 {
+            let cap = v.len() - 2;
+            let mut set = SetU32::with_capacity_and_bits(cap, v[1]);
+            match set.internal_mut() {
+                InternalMut::Empty => unreachable!(),
+                InternalMut::Stack(_) => unreachable!(),
+                InternalMut::Dense { sz, a } => {
+                    *sz = v[0];
+                    for (i, o) in v[2..].iter().zip(a.iter_mut()) {
+                        *o = *i;
+                    }
+                }
+                InternalMut::Heap { s, a } => {
+                    s.sz = v[0];
+                    s.bits = v[1];
+                    for (i, o) in v[2..].iter().zip(a.iter_mut()) {
+                        *o = *i;
+                    }
+                }
+                InternalMut::Big { s, a } => {
+                    s.sz = v[0];
+                    s.bits = v[1];
+                    for (i, o) in v[2..].iter().zip(a.iter_mut()) {
+                        *o = *i;
+                    }
+                }
+            }
+            set
+        } else {
+            SetU32(v[0] as *mut S)
+        }
+    }
+}
+
+#[cfg(feature = "compactserde")]
+#[test]
+fn to_from_array() {
+    use std::iter::FromIterator;
+
+    let set = SetU32::from_iter([0]);
+    let s = set.to_array();
+    assert_eq!(set, SetU32::from_array(&s));
+
+    let set = SetU32::from_iter([]);
+    let s = set.to_array();
+    assert_eq!(set, SetU32::from_array(&s));
+
+    let set = SetU32::from_iter([u32::MAX, u32::MAX - 100]);
+    let s = set.to_array();
+    let newset = SetU32::from_array(&s);
+    for n in set.iter() {
+        assert!(set.contains(n));
+    }
+    for n in newset.iter() {
+        assert!(newset.contains(n));
+    }
+    println!("set is {set:?}");
+    println!("newset is {newset:?}");
+    assert_eq!(set.len(), newset.len());
+    assert_eq!(set, SetU32::from_array(&s));
+
+    let set = SetU32::from_iter(0..10000);
+    let s = set.to_array();
+    assert_eq!(set, SetU32::from_array(&s));
+}
+
 #[cfg(feature = "serde")]
 mod serde {
     use crate::SetU32;
@@ -702,6 +785,19 @@ mod serde {
     use serde::ser::{Serialize, SerializeSeq, Serializer};
 
     impl Serialize for SetU32 {
+        #[cfg(feature = "compactserde")]
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            let a = self.to_array();
+            let mut seq = serializer.serialize_seq(Some(a.len()))?;
+            for e in a.into_iter() {
+                seq.serialize_element(&e)?;
+            }
+            seq.end()
+        }
+        #[cfg(not(feature = "compactserde"))]
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: Serializer,
@@ -745,6 +841,24 @@ mod serde {
             formatter.write_str("a set of usize")
         }
 
+        #[cfg(feature = "compactserde")]
+        fn visit_seq<M>(self, mut access: M) -> Result<Self::Value, M::Error>
+        where
+            M: SeqAccess<'de>,
+        {
+            let mut v = if let Some(cap) = access.size_hint() {
+                Vec::with_capacity(cap)
+            } else {
+                Vec::new()
+            };
+            // While there are entries remaining in the input, add them
+            // into our map.
+            while let Some(elem) = access.next_element()? {
+                v.push(elem);
+            }
+            Ok(SetU32::from_array(&v))
+        }
+        #[cfg(not(feature = "compactserde"))]
         fn visit_seq<M>(self, mut access: M) -> Result<Self::Value, M::Error>
         where
             M: SeqAccess<'de>,

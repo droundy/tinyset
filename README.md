@@ -52,6 +52,13 @@ tinyset = { version = "0.4.13", features = ["serde"] }
 ```
 to enable this feature.
 
+There is also an experimental feature `compactserde` which serializes in a compact form
+identical to what is held in memory.  The format used, however, is not stable, so you
+cannot expect your serialized sets to be readable by a different version of `tinyset`.
+If you would like to have a stable and compact serialized format, please file an issue.
+Note also that a corrupt (or malicious) file could easily trigger undefined behavior,
+besides just triggering incorrect and confusing behavior.
+
 # Benchmarks
 
 To run the benchmark suite, run

@@ -8,9 +8,9 @@
 //! A set that is compact in size.
 
 #[cfg(target_pointer_width = "64")]
-type Internal = crate::SetU64;
+pub(crate) type Internal = crate::SetU64;
 #[cfg(target_pointer_width = "32")]
-type Internal = crate::SetU32;
+pub(crate) type Internal = crate::SetU32;
 
 #[cfg(target_pointer_width = "64")]
 type Item = u64;
@@ -19,7 +19,7 @@ type Item = u32;
 
 /// A set for usize elements.
 #[derive(Clone)]
-pub struct SetUsize(Internal);
+pub struct SetUsize(pub(crate) Internal);
 
 impl SetUsize {
     /// Create an empty set with capacity to hold the provided set.
@@ -167,103 +167,44 @@ impl Extend<usize> for SetUsize {
     }
 }
 #[cfg(feature = "serde")]
-mod serde {
-    use crate::SetUsize;
-    use serde::de::{Deserialize, Deserializer, SeqAccess, Visitor};
-    use serde::ser::{Serialize, SerializeSeq, Serializer};
+use serde::de::{Deserialize, Deserializer};
+#[cfg(feature = "serde")]
+use serde::ser::{Serialize, Serializer};
 
-    impl Serialize for SetUsize {
-        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
-        {
-            let mut seq = serializer.serialize_seq(Some(self.len()))?;
-            for e in self.iter() {
-                seq.serialize_element(&e)?;
-            }
-            seq.end()
-        }
+#[cfg(feature = "serde")]
+impl Serialize for SetUsize {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(serializer)
     }
+}
 
-    // A Visitor is a type that holds methods that a Deserializer can drive
-    // depending on what is contained in the input data.
-    //
-    // In the case of a map we need generic type parameters K and V to be
-    // able to set the output type correctly, but don't require any state.
-    // This is an example of a "zero sized type" in Rust. The PhantomData
-    // keeps the compiler from complaining about unused generic type
-    // parameters.
-    struct SetVisitor;
-
-    impl SetVisitor {
-        fn new() -> Self {
-            SetVisitor
-        }
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for SetUsize {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(SetUsize(Internal::deserialize(deserializer)?))
     }
+}
 
-    // This is the trait that Deserializers are going to be driving. There
-    // is one method for each type of data that our type knows how to
-    // deserialize from. There are many other methods that are not
-    // implemented here, for example deserializing from integers or strings.
-    // By default those methods will return an error, which makes sense
-    // because we cannot deserialize a MyMap from an integer or string.
-    impl<'de> Visitor<'de> for SetVisitor {
-        // The type that our Visitor is going to produce.
-        type Value = SetUsize;
+#[cfg(feature = "serde")]
+#[test]
+fn serialize_deserialize() {
+    use std::iter::FromIterator;
 
-        // Format a message stating what data this Visitor expects to receive.
-        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-            formatter.write_str("a set of usize")
-        }
+    let set = SetUsize::from_iter([0]);
+    let s = serde_json::to_string(&set).unwrap();
+    assert_eq!(set, serde_json::from_str(&s).unwrap());
 
-        fn visit_seq<M>(self, mut access: M) -> Result<Self::Value, M::Error>
-        where
-            M: SeqAccess<'de>,
-        {
-            let mut set = SetUsize::new();
+    let set = SetUsize::from_iter([]);
+    let s = serde_json::to_string(&set).unwrap();
+    assert_eq!(set, serde_json::from_str(&s).unwrap());
 
-            // While there are entries remaining in the input, add them
-            // into our map.
-            while let Some(elem) = access.next_element()? {
-                set.insert(elem);
-            }
+    let set = SetUsize::from_iter([usize::MAX, usize::MAX - 100]);
+    let s = serde_json::to_string(&set).unwrap();
+    assert_eq!(set, serde_json::from_str(&s).unwrap());
 
-            Ok(set)
-        }
-    }
-
-    // This is the trait that informs Serde how to deserialize MyMap.
-    impl<'de> Deserialize<'de> for SetUsize {
-        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
-            // Instantiate our Visitor and ask the Deserializer to drive
-            // it over the input data, resulting in an instance of MyMap.
-            deserializer.deserialize_seq(SetVisitor::new())
-        }
-    }
-
-    #[test]
-    fn serialize_deserialize() {
-        use std::iter::FromIterator;
-
-        let set = SetUsize::from_iter([0]);
-        let s = serde_json::to_string(&set).unwrap();
-        assert_eq!(set, serde_json::from_str(&s).unwrap());
-
-        let set = SetUsize::from_iter([]);
-        let s = serde_json::to_string(&set).unwrap();
-        assert_eq!(set, serde_json::from_str(&s).unwrap());
-
-        let set = SetUsize::from_iter([usize::MAX, usize::MAX - 100]);
-        let s = serde_json::to_string(&set).unwrap();
-        assert_eq!(set, serde_json::from_str(&s).unwrap());
-
-        let set = SetUsize::from_iter(0..10000);
-        let s = serde_json::to_string(&set).unwrap();
-        assert_eq!(set, serde_json::from_str(&s).unwrap());
-    }
+    let set = SetUsize::from_iter(0..10000);
+    let s = serde_json::to_string(&set).unwrap();
+    assert_eq!(set, serde_json::from_str(&s).unwrap());
 }
 
 impl crate::copyset::CopySet for SetUsize {
