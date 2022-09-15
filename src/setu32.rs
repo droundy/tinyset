@@ -952,8 +952,8 @@ impl Clone for SetU32 {
             let c = self.capacity();
             unsafe {
                 let ptr = std::alloc::alloc_zeroed(layout_for_capacity(c)) as *mut S;
-                if ptr == std::ptr::null_mut() {
-                    std::alloc::handle_alloc_error(layout_for_capacity(c));
+                if ptr.is_null() {
+                    panic!("memory allocation failed");
                 }
                 std::ptr::copy_nonoverlapping(
                     self.0 as *const u8,
@@ -990,8 +990,8 @@ impl SetU32 {
             let c = other.capacity();
             unsafe {
                 let ptr = std::alloc::alloc_zeroed(layout_for_capacity(c)) as *mut S;
-                if ptr == std::ptr::null_mut() {
-                    std::alloc::handle_alloc_error(layout_for_capacity(c));
+                if ptr.is_null() {
+                    panic!("memory allocation failed");
                 }
                 (*ptr).b.cap = (*other.0).b.cap;
                 (*ptr).b.bits = (*other.0).b.bits;
@@ -1089,8 +1089,8 @@ impl SetU32 {
             layout_for_capacity(oldcap as usize),
             bytes_for_capacity(cap as usize),
         ) as *mut S;
-        if self.0 as usize == 0 {
-            std::alloc::handle_alloc_error(layout_for_capacity(cap as usize));
+        if self.0.is_null() {
+            panic!("memory allocation failed");
         }
         (*self.0).b.cap = cap;
         (*self.0).b.sz += 1;
@@ -1109,7 +1109,11 @@ impl SetU32 {
         let cap = 1 + mx / 32 + mx / 128;
         // This should be stored in a dense bitset.
         unsafe {
-            let x = SetU32(std::alloc::alloc_zeroed(layout_for_capacity(cap as usize)) as *mut S);
+            let ptr = std::alloc::alloc_zeroed(layout_for_capacity(cap as usize)) as *mut S;
+            if ptr.is_null() {
+                panic!("memory allocation failed");
+            }
+            let x = SetU32(ptr);
             (*x.0).b.cap = cap;
             (*x.0).b.bits = 32;
             x
@@ -1128,7 +1132,11 @@ impl SetU32 {
     pub fn with_capacity_and_bits(cap: usize, bits: u32) -> SetU32 {
         if cap > 0 {
             unsafe {
-                let x = SetU32(std::alloc::alloc_zeroed(layout_for_capacity(cap)) as *mut S);
+                let ptr = std::alloc::alloc_zeroed(layout_for_capacity(cap)) as *mut S;
+                if ptr.is_null() {
+                    panic!("memory allocation failed");
+                }
+                let x = SetU32(ptr);
                 (*x.0).b.cap = cap as u32;
                 (*x.0).b.bits = if bits == 0 {
                     let mut b = 0;

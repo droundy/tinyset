@@ -707,8 +707,8 @@ impl Clone for SetU64 {
             let c = self.capacity();
             unsafe {
                 let ptr = std::alloc::alloc_zeroed(layout_for_capacity(c)) as *mut S;
-                if ptr == std::ptr::null_mut() {
-                    std::alloc::handle_alloc_error(layout_for_capacity(c));
+                if ptr.is_null() {
+                    panic!("memory allocation failed");
                 }
                 std::ptr::copy_nonoverlapping(
                     self.0 as *const u8,
@@ -743,8 +743,8 @@ impl SetU64 {
             let c = other.capacity();
             unsafe {
                 let ptr = std::alloc::alloc_zeroed(layout_for_capacity(c)) as *mut S;
-                if ptr == std::ptr::null_mut() {
-                    std::alloc::handle_alloc_error(layout_for_capacity(c));
+                if ptr.is_null() {
+                    panic!("memory allocation failed");
                 }
                 (*ptr).b.cap = (*other.0).b.cap;
                 (*ptr).b.bits = (*other.0).b.bits;
@@ -841,7 +841,11 @@ impl SetU64 {
         let cap = 1 + mx / 64 + mx / 256;
         // This should be stored in a dense bitset.
         unsafe {
-            let x = SetU64(std::alloc::alloc_zeroed(layout_for_capacity(cap as usize)) as *mut S);
+            let ptr = std::alloc::alloc_zeroed(layout_for_capacity(cap as usize)) as *mut S;
+            if ptr.is_null() {
+                panic!("memory allocation failed");
+            }
+            let x = SetU64(ptr);
             (*x.0).b.cap = cap as usize;
             (*x.0).b.bits = 64;
             x
@@ -860,7 +864,11 @@ impl SetU64 {
     pub fn with_capacity_and_bits(cap: usize, bits: u64) -> SetU64 {
         if cap > 0 {
             unsafe {
-                let x = SetU64(std::alloc::alloc_zeroed(layout_for_capacity(cap)) as *mut S);
+                let ptr = std::alloc::alloc_zeroed(layout_for_capacity(cap)) as *mut S;
+                if ptr.is_null() {
+                    panic!("memory allocation failed");
+                }
+                let x = SetU64(ptr);
                 (*x.0).b.cap = cap;
                 (*x.0).b.bits = if bits == 0 {
                     let mut b = 0;
