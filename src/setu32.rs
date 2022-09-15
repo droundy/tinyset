@@ -2161,3 +2161,9 @@ fn test_remove() {
 
     test_insert_remove(5, &mut [0, 0, 2]);
 }
+
+#[test]
+#[should_panic]
+fn test_alloc_failure() {
+    SetU32::with_capacity_and_bits(usize::MAX / 8 - 2, 0);
+}

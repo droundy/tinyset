@@ -1573,6 +1573,12 @@ fn test_a_collect(v: Vec<u64>) {
 }
 
 #[test]
+#[should_panic]
+fn test_alloc_failure() {
+    SetU64::with_capacity_and_bits(usize::MAX / 8 - 2, 0);
+}
+
+#[test]
 fn test_collect() {
     test_a_collect(vec![]);
     test_a_collect(vec![0]);
