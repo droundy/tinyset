@@ -125,7 +125,7 @@ define_ifits!(i64, u64, fits_i64);
 define_ifits!(isize, usize, fits_isize);
 
 /// A set type that can store any type that fits in a `u64`.
-/// 
+///
 /// This set
 /// type is very space-efficient in storing small or closely spaced
 /// integers, while not being bad at storing large integers.  The

@@ -56,28 +56,28 @@ fn unsplit_u64(k: u64, offset: u64, bits: u64) -> u64 {
 }
 
 /// A set of `u64`
-/// 
+///
 /// ## Implementation
-/// 
+///
 /// The implementation and size of a `SetU64` is an internal detail that
 /// is *not stable*, but may guide your use.  It is optimized for size,
 /// while maintaining the scaling of a hashmap.
-/// 
+///
 /// The implementation
 /// is designed for the use case of storing indexes into a `Vec`.  This use
 /// case tends to involve small integers (they must be less than its `len`),
 /// which could include any number of such integers.  They also have a greater
 /// than average likelihood of including sequential or close integers, particularly if
 /// values are pushed to the `Vec` while their indexes are added to sets.
-/// 
+///
 /// ### Small sets
-/// 
+///
 /// Very sets of up to seven small numbers are stored on the stack in a single
 ///  tagged pointer.
 /// This is 8 bytes on a 64-bit system, and 4 bytes on a 32-bit system.
 /// On a 32-bit system (which I won't discuss further here, look in the code!)
 /// the elemets must be smaller in order to be stored without allocation.
-/// 
+///
 /// Sets stored in a single word have 3 bits dedicated to the number of elements
 /// in the set, with the remaining bits used to represent the value of the
 /// smallest element in the set, followed by the differences between subsequent
@@ -85,7 +85,7 @@ fn unsplit_u64(k: u64, offset: u64, bits: u64) -> u64 {
 /// element as to the differences.
 ///  
 /// On a 64-bit system, this works out to...
-/// 
+///
 /// - We can store a set with a single integer less than about 10<sup>18</sup>.
 ///   Thus we should be able to store just about any zero-element or one-element
 ///   values on the stack.
@@ -100,15 +100,15 @@ fn unsplit_u64(k: u64, offset: u64, bits: u64) -> u64 {
 /// - To hold 7 values in 64 bits, we limit the first value to about 500 thousand,
 ///   and the following differences must be less than 128.  So your seven numbers
 ///   will seriously need to be either all quite small or quite closely packed.
-/// 
-/// ### Larger sets 
-/// 
+///
+/// ### Larger sets
+///
 /// Larger sets are stored on the heap.  We currently have three different heap formats,
 /// which will be chosen based on the distribution of your values.  The format is only
 /// changed when reallocation is required, so it may be challenging to predict the format
 /// of a given set, particularly as the reallocation size is randomized in order to
 /// mitigate the risk of hash collision attacks.  The three formats are:
-/// 
+///
 /// 1. *`Internal::Dense`* The set is stored as a bitmap up to a maximum value.
 ///    This format is chosen when the number of elements exceeds 1/127 of the maximum
 ///    value (see the implementation of [`SetU64::with_capacity_and_max`]), which means
@@ -118,7 +118,7 @@ fn unsplit_u64(k: u64, offset: u64, bits: u64) -> u64 {
 /// 3. *`Internal::Big`* An ordinary Robin Hood hash set (without hashing!), with a dynamic sentinal value
 ///    indicating that a bucket is empty.  This is used only when the maximum value in
 ///    the set is very large.
-/// 
+///
 /// #### `Internal::Heap` format
 ///
 /// I will describe here some details of the `Internal::Heap` format, which is likely the
@@ -128,7 +128,7 @@ fn unsplit_u64(k: u64, offset: u64, bits: u64) -> u64 {
 /// is a Robin Hood hashmap between keys and bitmaps.  The key
 /// represents the most significant value of the elements stored, and the bitmap stores the
 /// set of values which have that same most significant value.
-/// 
+///
 /// As an example, consider a set with a maximum of 5000.  This maximum requires 13
 /// bits to represent, but we don't *need* 13 bits to store the key, because that would leave 51 bits for
 /// the bitmap, so each bucket would hold 51 possible values, enabling us to store values of
@@ -137,7 +137,7 @@ fn unsplit_u64(k: u64, offset: u64, bits: u64) -> u64 {
 /// bucket size we use will depend on the order in which elements were added, since we only
 /// reallocate when needed either because we have an element that we cannot fit, or because our
 /// hashmap is too full.  When allocating, we tend to leave room for the maximum to increase.
-/// 
+///
 /// Assuming we use 13 bits per bucket, then let's talk through the process of inserting the
 /// value 137.  Since we have 51 elements per bucket, the key is found by dividing by 51,
 /// which gives us a key of 137/51 = 2.  We then look up the bucket with key 2 using a pretty
@@ -145,7 +145,7 @@ fn unsplit_u64(k: u64, offset: u64, bits: u64) -> u64 {
 /// that bucket, we will identify that the bit corresponding to our value is bit number `137 % 51`,
 /// which we will set (and also check the value of, to track the number of elements in the set)
 /// and determine the return value.
-/// 
+///
 /// This format allows us to efficiently store sets in which there are contiguous chunks of
 /// elements, and when the elements are widely spaced it at least takes no more than 64 bits
 /// per 64-bit value, plus hash-set overhead.  Its complexity also makes it significantly

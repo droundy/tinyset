@@ -18,7 +18,7 @@ type Item = u64;
 type Item = u32;
 
 /// A compact set for usize elements.
-/// 
+///
 /// A `SetUsize` is identical in implementation to either a
 /// [`SetU64`](crate::SetU64) or a [`SetU32`](crate::SetU64), depending on the platform.
 #[derive(Clone)]
