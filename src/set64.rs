@@ -124,9 +124,13 @@ define_ifits!(i32, u32, fits_i32);
 define_ifits!(i64, u64, fits_i64);
 define_ifits!(isize, usize, fits_isize);
 
-/// A set type that can store any type that fits in a `u64`.  This set
+/// A set type that can store any type that fits in a `u64`.
+/// 
+/// This set
 /// type is very space-efficient in storing small or closely spaced
-/// integers, while not being bad at storing large integers.
+/// integers, while not being bad at storing large integers.  The
+/// internal implementation for a `Set64` is a [`SetU64`](crate::SetU64), and you
+/// can read about the format and size in its documentation.
 ///
 /// **Major caveat** The `Set64` type defines iterators (`drain()` and
 /// `iter()`) that iterate over `T` rather than `&T`.  This is a break

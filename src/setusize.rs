@@ -17,7 +17,10 @@ type Item = u64;
 #[cfg(target_pointer_width = "32")]
 type Item = u32;
 
-/// A set for usize elements.
+/// A compact set for usize elements.
+/// 
+/// A `SetUsize` is identical in implementation to either a
+/// [`SetU64`](crate::SetU64) or a [`SetU32`](crate::SetU64), depending on the platform.
 #[derive(Clone)]
 pub struct SetUsize(pub(crate) Internal);
 

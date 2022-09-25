@@ -19,7 +19,7 @@ the size of one pointer, with no heap storage.
 2. [`SetU64`] just holds `u64` items, and is the internal storage
 of [`Set64`].
 
-3. [`SetU32`] just holds `u32` items, and uses a bit less memory
+3. [`SetU32`] just holds `u32` items, and can use a bit less memory
 than [`SetU64`].
 
 4. [`SetUsize`] holds `usize` items, and uses either [SetU64] or
@@ -28,7 +28,8 @@ than [`SetU64`].
 All of these set types will do no heap allocation for small sets of
 small elements.  On 64-bit systems, each set will store up to seven
 elements with no heap allocation, if the elements are small.  The
-more elements there are, the smaller they need to be.
+more elements there are, the smaller they need to be.  For details
+of implementation, see [`SetU64`].
 
 These sets all differ from the standard sets in that they iterate
 over items rather than references to items, because they do not
