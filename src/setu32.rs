@@ -953,6 +953,9 @@ impl Clone for SetU32 {
             unsafe {
                 let ptr = std::alloc::alloc_zeroed(layout_for_capacity(c)) as *mut S;
                 if ptr.is_null() {
+                    // It is safe to panic here rather than calling `alloc::handle_alloc_error`
+                    // because we haven't  even started creating this data structure, so
+                    // `catch_unwind` can't get us into trouble.
                     panic!("memory allocation failed");
                 }
                 std::ptr::copy_nonoverlapping(
@@ -991,6 +994,9 @@ impl SetU32 {
             unsafe {
                 let ptr = std::alloc::alloc_zeroed(layout_for_capacity(c)) as *mut S;
                 if ptr.is_null() {
+                    // It is safe to panic here rather than calling `alloc::handle_alloc_error`
+                    // because we haven't  even started creating this data structure, so
+                    // `catch_unwind` can't get us into trouble.
                     panic!("memory allocation failed");
                 }
                 (*ptr).b.cap = (*other.0).b.cap;
@@ -1090,7 +1096,9 @@ impl SetU32 {
             bytes_for_capacity(cap as usize),
         ) as *mut S;
         if self.0.is_null() {
-            panic!("memory allocation failed");
+            // We do not panic here, because that would leave us in a world of trouble
+            // if the panic were to be caught.
+            std::alloc::handle_alloc_error(layout_for_capacity(cap as usize));
         }
         (*self.0).b.cap = cap;
         (*self.0).b.sz += 1;
@@ -1111,6 +1119,9 @@ impl SetU32 {
         unsafe {
             let ptr = std::alloc::alloc_zeroed(layout_for_capacity(cap as usize)) as *mut S;
             if ptr.is_null() {
+                // It is safe to panic here rather than calling `alloc::handle_alloc_error`
+                // because we haven't  even started creating this data structure, so
+                // `catch_unwind` can't get us into trouble.
                 panic!("memory allocation failed");
             }
             let x = SetU32(ptr);
@@ -1134,6 +1145,9 @@ impl SetU32 {
             unsafe {
                 let ptr = std::alloc::alloc_zeroed(layout_for_capacity(cap)) as *mut S;
                 if ptr.is_null() {
+                    // It is safe to panic here rather than calling `alloc::handle_alloc_error`
+                    // because we haven't  even started creating this data structure, so
+                    // `catch_unwind` can't get us into trouble.
                     panic!("memory allocation failed");
                 }
                 let x = SetU32(ptr);

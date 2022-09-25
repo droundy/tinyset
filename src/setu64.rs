@@ -808,6 +808,9 @@ impl Clone for SetU64 {
             unsafe {
                 let ptr = std::alloc::alloc_zeroed(layout_for_capacity(c)) as *mut S;
                 if ptr.is_null() {
+                    // It is safe to panic here rather than calling `alloc::handle_alloc_error`
+                    // because we haven't  even started creating this data structure, so
+                    // `catch_unwind` can't get us into trouble.
                     panic!("memory allocation failed");
                 }
                 std::ptr::copy_nonoverlapping(
@@ -844,6 +847,9 @@ impl SetU64 {
             unsafe {
                 let ptr = std::alloc::alloc_zeroed(layout_for_capacity(c)) as *mut S;
                 if ptr.is_null() {
+                    // It is safe to panic here rather than calling `alloc::handle_alloc_error`
+                    // because we haven't  even started creating this data structure, so
+                    // `catch_unwind` can't get us into trouble.
                     panic!("memory allocation failed");
                 }
                 (*ptr).b.cap = (*other.0).b.cap;
@@ -943,6 +949,9 @@ impl SetU64 {
         unsafe {
             let ptr = std::alloc::alloc_zeroed(layout_for_capacity(cap as usize)) as *mut S;
             if ptr.is_null() {
+                // It is safe to panic here rather than calling `alloc::handle_alloc_error`
+                // because we haven't  even started creating this data structure, so
+                // `catch_unwind` can't get us into trouble.
                 panic!("memory allocation failed");
             }
             let x = SetU64(ptr);
@@ -966,6 +975,9 @@ impl SetU64 {
             unsafe {
                 let ptr = std::alloc::alloc_zeroed(layout_for_capacity(cap)) as *mut S;
                 if ptr.is_null() {
+                    // It is safe to panic here rather than calling `alloc::handle_alloc_error`
+                    // because we haven't  even started creating this data structure, so
+                    // `catch_unwind` can't get us into trouble.
                     panic!("memory allocation failed");
                 }
                 let x = SetU64(ptr);
