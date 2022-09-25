@@ -1354,7 +1354,16 @@ impl SetU64 {
         } else {
             let s = unsafe { &*self.0 };
             let b = &s.b;
-            let a = unsafe { std::slice::from_raw_parts(&s.array as *const u64, b.cap) };
+            let array = unsafe {
+                // Use the calculated offset to jump the pointer to where the array starts directly, keeping the permissions for the whole allocation intact.
+                self.0.cast::<u64>().offset(
+                    // get a raw pointer to the array field
+                    (&s.array as *const u64)
+                        // calculate the offset from `*mut S` to the array field
+                        .offset_from(self.0.cast()),
+                )
+            };
+            let a = unsafe { std::slice::from_raw_parts(array, b.cap as usize) };
             if b.bits == 0 || b.bits > 64 {
                 Internal::Big { s: b, a }
             } else if b.bits == 64 {
@@ -1373,7 +1382,16 @@ impl SetU64 {
         } else {
             let s = unsafe { &mut *self.0 };
             let b = &mut s.b;
-            let a = unsafe { std::slice::from_raw_parts_mut(&mut s.array as *mut u64, b.cap) };
+            let array = unsafe {
+                // Use the calculated offset to jump the pointer to where the array starts directly, keeping the permissions for the whole allocation intact.
+                self.0.cast::<u64>().offset(
+                    // get a raw pointer to the array field
+                    (&mut s.array as *mut u64)
+                        // calculate the offset from `*mut S` to the array field
+                        .offset_from(self.0.cast()),
+                )
+            };
+            let a = unsafe { std::slice::from_raw_parts_mut(array, b.cap as usize) };
             if b.bits == 0 || b.bits > 64 {
                 InternalMut::Big { s: b, a }
             } else if b.bits == 64 {
