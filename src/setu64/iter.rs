@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use super::{mask, unsplit_u64, Internal, SetU64};
 
 impl SetU64 {
@@ -21,6 +23,7 @@ impl SetU64 {
                 sz_left: s.sz,
                 bits: s.bits,
                 a,
+                start_at: 0,
             }),
             Internal::Dense { a, sz } => Iter::Dense(DenseIter {
                 sz_left: sz,
@@ -37,7 +40,7 @@ enum Iter<'a> {
     Empty,
     Stack(super::Tiny),
     Heap(HeapIter<'a>),
-    Big(BigIter<'a>),
+    Big(BigIter<&'a [u64]>),
     Dense(DenseIter<'a>),
 }
 
@@ -96,18 +99,19 @@ impl<'a> Iterator for Iter<'a> {
 }
 
 #[derive(Debug, Clone)]
-struct BigIter<'a> {
+struct BigIter<V> {
     sz_left: usize,
     bits: u64,
-    a: &'a [u64],
+    a: V,
+    start_at: usize,
 }
 
-impl<'a> Iterator for BigIter<'a> {
+impl<V: Deref<Target = [u64]>> Iterator for BigIter<V> {
     type Item = u64;
     #[inline]
     fn next(&mut self) -> Option<u64> {
-        while let Some((&x, rest)) = self.a.split_first() {
-            self.a = rest;
+        while let Some(&x) = self.a.get(self.start_at) {
+            self.start_at += 1;
             if x != 0 {
                 self.sz_left -= 1;
                 return Some(if x == self.bits { 0 } else { x });
