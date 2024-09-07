@@ -9,7 +9,7 @@ impl SetU64 {
         self.private_iter()
     }
 
-    fn private_iter<'a>(&'a self) -> Iter<'a> {
+    fn private_iter<'a>(&'a self) -> Iter<&'a [u64]> {
         match self.internal() {
             Internal::Empty => Iter::Empty,
             Internal::Stack(t) => Iter::Stack(t),
@@ -37,15 +37,15 @@ impl SetU64 {
 }
 
 #[derive(Debug, Clone)]
-enum Iter<'a> {
+enum Iter<V: Deref<Target = [u64]>> {
     Empty,
     Stack(super::Tiny),
-    Heap(HeapIter<&'a [u64]>),
-    Big(BigIter<&'a [u64]>),
-    Dense(DenseIter<&'a [u64]>),
+    Heap(HeapIter<V>),
+    Big(BigIter<V>),
+    Dense(DenseIter<V>),
 }
 
-impl<'a> Iterator for Iter<'a> {
+impl<V: Deref<Target = [u64]>> Iterator for Iter<V> {
     type Item = u64;
     #[inline]
     fn next(&mut self) -> Option<u64> {
@@ -325,7 +325,7 @@ impl IntoIterator for SetU64 {
 /// An iterator over a set of `u64`.
 #[derive(Debug, Clone)]
 pub struct IntoIter {
-    iter: Iter<'static>,
+    iter: Iter<&'static [u64]>,
     _set: SetU64,
 }
 
