@@ -7,7 +7,7 @@ impl SetU64 {
         self.private_iter()
     }
 
-    pub(crate) fn private_iter<'a>(&'a self) -> Iter<'a> {
+    fn private_iter<'a>(&'a self) -> Iter<'a> {
         match self.internal() {
             Internal::Empty => Iter::Empty,
             Internal::Stack(t) => Iter::Stack(t),
