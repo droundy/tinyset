@@ -2249,12 +2249,20 @@ fn test_lookfor() {
     assert_eq!(LookedUp::KeyFound(3), p_lookfor(7, &[0, 0, 0, 7], 0));
 }
 
+/// Remove value `k` from hashmap `a`, where we bit shift by `offset`
+/// 
+/// Returns true if the value was found.
 fn p_remove(k: u64, a: &mut [u64], offset: u64) -> bool {
     let n = a.len();
+    // Below `i` is the offset from the ideal location of our value, so we start
+    // with where it ought to be in the hashmap.
     for i in 0..n {
+        // `ii` is the index for the location that is `i` beyond the bucket
+        // where the value ought to be.
         let ii = (((k % n as u64) + i as u64) % n as u64) as usize;
         // println!("    looking to remove at distance {} slot {}", i, ii);
         if a[ii] == 0 {
+            // We use a `0` value to indicate an empty bucket.
             return false;
         }
         let ki = a[ii] >> offset;
@@ -2286,7 +2294,8 @@ fn p_remove(k: u64, a: &mut [u64], offset: u64) -> bool {
             return true;
         }
     }
-    panic!("bug: we should have had space in {:?} for {}", a, k)
+    // The array was entirely full and we didn't find the value, so it wasn't present.
+    false
 }
 
 #[cfg(test)]
@@ -2321,4 +2330,15 @@ fn test_remove() {
     test_insert_remove(2, &mut [0, 1, 5, 0]);
 
     test_insert_remove(5, &mut [0, 0, 2]);
+}
+
+#[test]
+fn p_remove_from_small_full() {
+    let mut a = [258, 260];
+    assert!(!p_remove(2, &mut a, 0));
+    assert_eq!(a[0], 258);
+    assert_eq!(a[1], 260);
+    assert!(p_remove(258, &mut a, 0));
+    assert_eq!(a[0], 260);
+    assert_eq!(a[1], 0);
 }
