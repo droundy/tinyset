@@ -17,13 +17,14 @@ impl SetU64 {
                 sz_left: s.sz,
                 bits: s.bits,
                 whichbit: 0,
+                index: 0,
                 array: a,
             }),
             Internal::Big { s, a } => Iter::Big(BigIter {
                 sz_left: s.sz,
                 bits: s.bits,
+                index: 0,
                 a,
-                start_at: 0,
             }),
             Internal::Dense { a, sz } => Iter::Dense(DenseIter {
                 sz_left: sz,
@@ -39,9 +40,9 @@ impl SetU64 {
 enum Iter<'a> {
     Empty,
     Stack(super::Tiny),
-    Heap(HeapIter<'a>),
+    Heap(HeapIter<&'a [u64]>),
     Big(BigIter<&'a [u64]>),
-    Dense(DenseIter<'a>),
+    Dense(DenseIter<&'a [u64]>),
 }
 
 impl<'a> Iterator for Iter<'a> {
@@ -102,16 +103,16 @@ impl<'a> Iterator for Iter<'a> {
 struct BigIter<V> {
     sz_left: usize,
     bits: u64,
+    index: usize,
     a: V,
-    start_at: usize,
 }
 
 impl<V: Deref<Target = [u64]>> Iterator for BigIter<V> {
     type Item = u64;
     #[inline]
     fn next(&mut self) -> Option<u64> {
-        while let Some(&x) = self.a.get(self.start_at) {
-            self.start_at += 1;
+        while let Some(&x) = self.a.get(self.index) {
+            self.index += 1;
             if x != 0 {
                 self.sz_left -= 1;
                 return Some(if x == self.bits { 0 } else { x });
@@ -153,19 +154,20 @@ impl<V: Deref<Target = [u64]>> Iterator for BigIter<V> {
 }
 
 #[derive(Debug, Clone)]
-struct HeapIter<'a> {
+struct HeapIter<a> {
     sz_left: usize,
     bits: u64,
     whichbit: u64,
-    array: &'a [u64],
+    index: usize,
+    array: a,
 }
 
-impl<'a> Iterator for HeapIter<'a> {
+impl<V: Deref<Target = [u64]>> Iterator for HeapIter<V> {
     type Item = u64;
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if self.bits > 0 {
-            while let Some(&x) = self.array.first() {
+            while let Some(&x) = self.array.get(self.index) {
                 while self.whichbit < self.bits {
                     let oldbit = self.whichbit;
                     self.whichbit += 1;
@@ -174,12 +176,12 @@ impl<'a> Iterator for HeapIter<'a> {
                         return Some(unsplit_u64(x >> self.bits, oldbit, self.bits));
                     }
                 }
-                self.array = self.array.split_first().unwrap().1;
+                self.index += 1;
                 self.whichbit = 0;
             }
         } else {
-            if let Some((&first, rest)) = self.array.split_first() {
-                self.array = rest;
+            if let Some(&first) = self.array.get(self.index) {
+                self.index += 1;
                 self.sz_left -= 1;
                 return Some(first);
             }
@@ -256,14 +258,14 @@ impl<'a> Iterator for HeapIter<'a> {
 }
 
 #[derive(Debug, Clone)]
-struct DenseIter<'a> {
+struct DenseIter<V> {
     sz_left: usize,
     whichword: usize,
     whichbit: u64,
-    a: &'a [u64],
+    a: V,
 }
 
-impl<'a> Iterator for DenseIter<'a> {
+impl<V: Deref<Target = [u64]>> Iterator for DenseIter<V> {
     type Item = u64;
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
