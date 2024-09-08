@@ -217,12 +217,8 @@ impl Iterator for Tiny {
     fn min(mut self) -> Option<u64> {
         self.next()
     }
-    fn max(mut self) -> Option<u64> {
-        let mut mx = None;
-        while let Some(x) = self.next() {
-            mx = Some(x);
-        }
-        mx
+    fn max(self) -> Option<u64> {
+        self.last()
     }
 }
 
@@ -1223,10 +1219,11 @@ impl SetU64 {
 
     /// Clears the set, returning all elements in an iterator.
     #[inline]
-    pub fn drain<'a>(&'a mut self) -> impl Iterator<Item = u64> + 'a {
+    pub fn drain<'a>(&mut self) -> impl Iterator<Item = u64> + 'static {
         std::mem::replace(self, SetU64::new()).into_iter()
     }
 
+    #[inline]
     fn internal<'a>(&'a self) -> Internal<'a> {
         if self.0 as usize == 0 {
             Internal::Empty
