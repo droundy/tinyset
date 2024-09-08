@@ -259,6 +259,7 @@ impl<T: Fits64> std::iter::FromIterator<T> for Set64<T> {
 }
 
 /// An iterator.
+#[derive(Clone)]
 pub struct IntoIter<T: Fits64>(crate::setu64::IntoIter, PhantomData<T>);
 
 impl<T: Fits64> Iterator for IntoIter<T> {
