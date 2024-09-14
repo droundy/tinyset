@@ -1809,7 +1809,7 @@ fn p_remove(k: u32, a: &mut [u32], offset: u32) -> bool {
             return true;
         }
     }
-    panic!("bug: we should have had space in {:?} for {}", a, k)
+    false
 }
 
 #[cfg(test)]
