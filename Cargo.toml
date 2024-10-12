@@ -1,6 +1,6 @@
 [package]
 name = "tinyset"
-version = "0.4.16"
+version = "0.5.0"
 authors = ["David Roundy <daveroundy@gmail.com>"]
 categories = ["data-structures"]
 keywords = ["set", "small", "compact"]
