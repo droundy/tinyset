@@ -210,6 +210,7 @@ fn serialize_deserialize() {
     assert_eq!(set, serde_json::from_str(&s).unwrap());
 }
 
+#[cfg(test)]
 impl crate::copyset::CopySet for SetUsize {
     type Item = usize;
     type Iter = IntoIter;

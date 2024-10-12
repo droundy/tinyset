@@ -492,6 +492,7 @@ impl<'a, 'b, T: Fits64> std::ops::BitOr<&'b Set64<T>> for &'a Set64<T> {
     }
 }
 
+#[cfg(test)]
 impl<T: Fits64 + Eq + Ord + std::fmt::Debug + std::fmt::Display> crate::copyset::CopySet
     for Set64<T>
 {

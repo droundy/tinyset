@@ -374,6 +374,7 @@ enum InternalMut<'a> {
     },
 }
 
+#[cfg(test)]
 impl crate::copyset::CopySet for SetU32 {
     type Item = u32;
     type Iter = iter::IntoIter;
@@ -1302,6 +1303,10 @@ fn bytes_for_capacity(sz: usize) -> usize {
     sz * 4 + std::mem::size_of::<S>() - 4
 }
 fn layout_for_capacity(sz: usize) -> std::alloc::Layout {
+    let size = bytes_for_capacity(sz);
+    if size >= usize::MAX / 2 {
+        panic!("tinyset size is too large: {}", sz);
+    }
     unsafe { std::alloc::Layout::from_size_align_unchecked(bytes_for_capacity(sz), 4) }
 }
 

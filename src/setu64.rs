@@ -1281,6 +1281,7 @@ impl SetU64 {
     }
 }
 
+#[cfg(test)]
 impl crate::copyset::CopySet for SetU64 {
     type Item = u64;
     type Iter = IntoIter;
@@ -1383,7 +1384,11 @@ fn bytes_for_capacity(sz: usize) -> usize {
     sz * 8 + std::mem::size_of::<S>() - 8
 }
 fn layout_for_capacity(sz: usize) -> std::alloc::Layout {
-    unsafe { std::alloc::Layout::from_size_align_unchecked(bytes_for_capacity(sz), 8) }
+    let size = bytes_for_capacity(sz);
+    if size >= usize::MAX / 2 {
+        panic!("tinyset size is too large: {}", sz);
+    }
+    unsafe { std::alloc::Layout::from_size_align_unchecked(size, 8) }
 }
 
 impl Drop for SetU64 {

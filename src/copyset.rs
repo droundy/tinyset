@@ -1,3 +1,4 @@
+#[cfg(test)]
 pub trait CopySet: Default + Clone {
     type Item: Copy + Eq + Ord + std::fmt::Display + std::fmt::Debug;
     type Iter: Iterator<Item = Self::Item>;
@@ -141,6 +142,7 @@ assert_eq!(a | &b, (1..6).collect());
 
 pub(crate) use impl_set_methods;
 
+#[cfg(test)]
 impl CopySet for std::collections::HashSet<u64> {
     type Item = u64;
     type Iter = std::collections::hash_set::IntoIter<u64>;
@@ -164,6 +166,7 @@ impl CopySet for std::collections::HashSet<u64> {
     }
 }
 
+#[cfg(test)]
 impl CopySet for std::collections::HashSet<u32> {
     type Item = u32;
     type Iter = std::collections::hash_set::IntoIter<u32>;
