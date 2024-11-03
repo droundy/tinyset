@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Build
       run: cargo build --verbose
     - name: Run tests
@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Build
       run: cargo build --verbose --no-default-features
     - name: Run tests
@@ -40,16 +40,25 @@ jobs:
           - stable
           - 1.61.0
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
-          override: true
-      - uses: actions-rs/cargo@v1
+      - run: cargo check
+  wasm-check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - 1.61.0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          command: check
-
+          toolchain: ${{ matrix.rust }}
+          targets: wasm32-unknown-unknown
+      - run: cargo check --target wasm32-unknown-unknown
   miri-test:
     runs-on: ubuntu-latest
     strategy:
@@ -57,12 +66,10 @@ jobs:
         rust:
           - nightly
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
-          override: true
           components: miri
       - name: miri test check_sets
         run: cargo miri test check_sets
@@ -80,7 +87,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Build
       run: cargo build --verbose
     - name: Run tests
@@ -94,15 +101,11 @@ jobs:
           - stable
           - 1.61.0
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
+      - run: cargo check --all-features
 
   macos-check:
     runs-on: macos-latest
@@ -112,12 +115,8 @@ jobs:
           - stable
           - 1.61.0
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
+      - run: cargo check --all-features
