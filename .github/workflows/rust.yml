@@ -58,7 +58,7 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
           targets: wasm32-unknown-unknown
-      - run: cargo check --target wasm32-unknown-unknown
+      - run: cargo check --target wasm32-unknown-unknown --no-default-features
   miri-test:
     runs-on: ubuntu-latest
     strategy:
