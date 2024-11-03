@@ -2,6 +2,7 @@
 //! This is a crate for the tiniest sets ever.
 
 mod iter;
+pub use iter::IntoIter;
 
 const fn num_bits<T>() -> u32 {
     std::mem::size_of::<T>() as u32 * 8
