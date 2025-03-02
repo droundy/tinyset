@@ -45,6 +45,7 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
       - run: cargo check
+      - run: cargo check --no-default-features
   wasm-check:
     runs-on: ubuntu-latest
     strategy:

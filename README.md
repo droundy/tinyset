@@ -47,7 +47,7 @@ which will result in using a very simple pseudorandom number generator
 seeded by the system time.
 
 There is a second optional dependency on `serde`, which serializes sets in
-non-compressed form.  You can use
+non-compressed form.
 ```
 tinyset = { version = "0.4.13", features = ["serde"] }
 ```
