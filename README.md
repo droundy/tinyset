@@ -44,7 +44,9 @@ You can speed up your compile by disabling this feature with
 tinyset = { version = "0.4", default-features = false }
 ```
 which will result in using a very simple pseudorandom number generator
-seeded by the system time.
+seeded by the system time.  When compailing without `rand` *and* for testing,
+the behavior will be deterministic, i.e. the order of iteration through a set
+will only depend on the sequence of insertions and deletions from that set.
 
 There is a second optional dependency on `serde`, which serializes sets in
 non-compressed form.
