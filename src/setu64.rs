@@ -878,7 +878,7 @@ impl SetU64 {
                 (*x.0).b.bits = if bits == 0 {
                     let mut b = 0;
                     while b <= 64 {
-                        b = crate::rand::rand64();
+                        b = crate::rand::rand64(cap, bits);
                     }
                     b
                 } else {
@@ -973,7 +973,7 @@ impl SetU64 {
             InternalMut::Heap { s, a } => {
                 if compute_array_bits(e) < s.bits {
                     let mut new = Self::with_capacity_and_bits(
-                        s.cap + 1 + 2 * (crate::rand::rand_usize() % s.cap),
+                        s.cap + 1 + 2 * (crate::rand::rand_usize(s.cap, s.bits) % s.cap),
                         compute_array_bits(e),
                     );
                     // new.debug_me("\n\nnew set");
@@ -1033,7 +1033,7 @@ impl SetU64 {
                 } else {
                     // Let's keep things sparse
                     // A dense set will cost us memory
-                    let newcap: usize = s.cap + 1 + (crate::rand::rand_usize() % s.cap);
+                    let newcap: usize = s.cap + 1 + (crate::rand::rand_usize(s.cap, s.bits) % s.cap);
                     let mut new = Self::with_capacity_and_bits(newcap, s.bits);
                     // new.debug_me("initial new");
                     for v in self.iter() {
@@ -1054,7 +1054,7 @@ impl SetU64 {
                     // a high O(1) cost to reduce collisions.
                     let had_zero = p_remove(s.bits, a, 0);
                     loop {
-                        let i: u64 = crate::rand::rand64();
+                        let i: u64 = crate::rand::rand64(s.cap, s.bits);
                         if i > 64 && !a.iter().any(|&v| v == i) {
                             s.bits = i;
                             break;
@@ -1084,7 +1084,7 @@ impl SetU64 {
                     return true;
                 }
                 // println!("no room in the set... {:?}", a);
-                let newcap: usize = s.cap + 1 + (crate::rand::rand_usize() % (2 * s.cap));
+                let newcap: usize = s.cap + 1 + (crate::rand::rand_usize(s.cap, s.bits) % (2 * s.cap));
                 let mut new = Self::with_capacity_and_bits(newcap, s.bits);
                 // new.debug_me("initial new");
                 match new.internal_mut() {
