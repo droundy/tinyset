@@ -37,7 +37,7 @@ pub fn rand64(cap: usize, bits: u64) -> u64 {
                 .unwrap()
                 .subsec_nanos();
             SEED.store(seed as u64, Ordering::Relaxed);
-            return rand64();
+            return rand64(cap, bits);
         }
         let z = (z ^ (z >> 30)) * Wrapping(0xbf58476d1ce4e5b9);
         let z = (z ^ (z >> 27)) * Wrapping(0x94d049bb133111eb);
