@@ -32,6 +32,7 @@ serde = { version = "1.0", optional = true }
 
 default = ["rand"]
 compactserde = ["serde"]
+deterministic_iteration = []
 
 [[bench]]
 name = "bench"

@@ -38,15 +38,19 @@ type-specific sets further differ in that `remove` and `contains`
 accept values rather than references.
 
 This crate has an optional dependency on the `rand` crate (enabled by default),
-used for randomization to avoid DOS collision attacks.
-You can speed up your compile by disabling this feature with
+used for randomization to avoid DOS collision attacks. You can speed up your
+compile (or use it on a platform unsupported by `rand`) by disabling this
+feature with
 ```
 tinyset = { version = "0.4", default-features = false }
 ```
 which will result in using a very simple pseudorandom number generator
-seeded by the system time.  When compailing without `rand` *and* for testing,
-the behavior will be deterministic, i.e. the order of iteration through a set
-will only depend on the sequence of insertions and deletions from that set.
+seeded by the system time.
+
+There is another feature `deterministic_ieration` which conflicts with `rand`,
+which causes the order of iteration to be deterministic, i.e. the order of
+iteration through a set will only depend on the sequence of insertions and
+deletions from that set.
 
 There is a second optional dependency on `serde`, which serializes sets in
 non-compressed form.

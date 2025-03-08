@@ -11,19 +11,21 @@ pub fn rand32(cap: u32, bits: u32) -> u32 {
 
 #[cfg(feature = "rand")]
 pub fn rand32(_cap: u32, _bits: u32) -> u32 {
+    #[cfg(feature = "deterministic_iteration")]
+    compile_error!("Feature rand and deterministic_iteration are mutually exclusive and cannot be enabled together");
     rand::random::<u32>()
 }
 
 #[cfg(not(feature = "rand"))]
 pub fn rand64(cap: usize, bits: u64) -> u64 {
-    #[cfg(test)]
+    #[cfg(feature = "deterministic_iteration")]
     {
         // Just multiply each by a large prime to very crudely hash
         let x = (cap as u64).wrapping_mul(9838956529666160483);
         let y = (bits).wrapping_mul(17253312864001072049);
         x ^ y
     }
-    #[cfg(not(test))]
+    #[cfg(not(feature = "deterministic_iteration"))]
     {
         use std::num::Wrapping;
         // This is the SplitMix64 algorithm.  It's pretty crude,
