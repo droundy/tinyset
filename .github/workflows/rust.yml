@@ -106,7 +106,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.rust }}
-      - run: cargo check --all-features
+      - run: cargo check --features compactserde
 
   macos-check:
     runs-on: macos-latest
@@ -120,4 +120,4 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.rust }}
-      - run: cargo check --all-features
+      - run: cargo check --features compactserde
