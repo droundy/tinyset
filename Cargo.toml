@@ -1,6 +1,6 @@
 [package]
 name = "tinyset"
-version = "0.5.1"
+version = "0.5.2"
 authors = ["David Roundy <daveroundy@gmail.com>"]
 categories = ["data-structures"]
 keywords = ["set", "small", "compact"]
@@ -9,6 +9,7 @@ description = "Size-optimized sets"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/droundy/tinyset"
 edition = "2018"
+rust-version = "1.63"
 
 readme = "README.md"
 
@@ -32,6 +33,7 @@ serde = { version = "1.0", optional = true }
 
 default = ["rand"]
 compactserde = ["serde"]
+deterministic_iteration = []
 
 [[bench]]
 name = "bench"

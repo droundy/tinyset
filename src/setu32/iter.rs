@@ -203,7 +203,9 @@ impl<T: Borrow<SetU32>> Iterator for Inner<T> {
                 .rev()
                 .cloned()
                 .filter(|&x| x != 0)
-                .map(|x| x >> self.bits as u32 + (x & mask(self.bits as usize)).leading_zeros() - 31)
+                .map(|x| {
+                    x >> self.bits as u32 + (x & mask(self.bits as usize)).leading_zeros() - 31
+                })
                 .next(),
             Internal::Big { a, .. } => a
                 .into_iter()
@@ -260,12 +262,7 @@ impl<T: Borrow<SetU32>> Iterator for Inner<T> {
             Internal::Stack(t) => t.max(),
             Internal::Heap { a, .. } => {
                 if self.whichbit == 0 {
-                    let x = a
-                        .into_iter()
-                        .cloned()
-                        .filter(|x| *x != 0)
-                        .max()
-                        .unwrap();
+                    let x = a.into_iter().cloned().filter(|x| *x != 0).max().unwrap();
                     let reference = (x >> self.bits) * self.bits as u32;
                     let m = mask(self.bits as usize);
                     let extra = 31 - (x & m).leading_zeros();

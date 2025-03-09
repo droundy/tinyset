@@ -38,20 +38,21 @@ jobs:
       matrix:
         rust:
           - stable
-          - 1.61.0
+          - 1.63.0
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.rust }}
       - run: cargo check
+      - run: cargo check --no-default-features
   wasm-check:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         rust:
           - stable
-          - 1.61.0
+          - 1.63.0
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -99,13 +100,13 @@ jobs:
       matrix:
         rust:
           - stable
-          - 1.61.0
+          - 1.63.0
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.rust }}
-      - run: cargo check --all-features
+      - run: cargo check --features compactserde
 
   macos-check:
     runs-on: macos-latest
@@ -113,10 +114,10 @@ jobs:
       matrix:
         rust:
           - stable
-          - 1.61.0
+          - 1.63.0
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.rust }}
-      - run: cargo check --all-features
+      - run: cargo check --features compactserde
