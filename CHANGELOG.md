@@ -1,6 +1,6 @@
-* 0.6.0 - Mar. 9, 2025
+* 0.5.2 - Mar. 9, 2025
 
-    - Increase MRSV to 1.63 due to libc dependency.
+    - Increase MRSV to 1.63 due to libc dependency.  Use `rust-version` to avoid a major version bump.
 
     - New feature `deterministic_iteration`.
 
