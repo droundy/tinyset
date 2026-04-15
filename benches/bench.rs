@@ -25,88 +25,88 @@ fn mem_used<T>(f: impl Fn() -> T) -> (T, usize) {
 fn bench_sets(density: f64, num_elements: usize) {
     assert!(density <= 1.0);
     let gen32 = move || {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mx = (num_elements as f64 / density) as u32 + 1;
         let mut set = tinyset::SetU32::new();
         while set.len() < num_elements {
-            set.insert(rng.gen_range(0..mx));
+            set.insert(rng.random_range(0..mx));
         }
-        let x = rng.gen_range(0..mx);
+        let x = rng.random_range(0..mx);
         set.insert(x);
         set.remove(x); // ensure there is room for one more
-        (rng.gen_range(0..mx), set)
+        (rng.random_range(0..mx), set)
     };
     let genroaring = move || {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mx = (num_elements as f64 / density) as u32 + 1;
         let mut set = roaring::RoaringBitmap::new();
         while set.len() < num_elements as u64 {
-            set.insert(rng.gen_range(0..mx));
+            set.insert(rng.random_range(0..mx));
         }
-        let x = rng.gen_range(0..mx);
+        let x = rng.random_range(0..mx);
         set.insert(x);
         set.remove(x); // ensure there is room for one more
-        (rng.gen_range(0..mx), set)
+        (rng.random_range(0..mx), set)
     };
     let genstd32 = move || {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mx = (num_elements as f64 / density) as u32 + 1;
         let mut set = std::collections::HashSet::new();
         while set.len() < num_elements {
-            set.insert(rng.gen_range(0..mx));
+            set.insert(rng.random_range(0..mx));
         }
-        let x = rng.gen_range(0..mx);
+        let x = rng.random_range(0..mx);
         set.insert(x);
         set.remove(&x); // ensure there is room for one more
-        (rng.gen_range(0..mx), set)
+        (rng.random_range(0..mx), set)
     };
     let gen = move || {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mx = (num_elements as f64 / density) as u64 + 1;
         let mut set = tinyset::SetU64::new();
         while set.len() < num_elements {
-            set.insert(rng.gen_range(0..mx));
+            set.insert(rng.random_range(0..mx));
         }
-        let x = rng.gen_range(0..mx);
+        let x = rng.random_range(0..mx);
         set.insert(x);
         set.remove(x); // ensure there is room for one more
-        (rng.gen_range(0..mx), set)
+        (rng.random_range(0..mx), set)
     };
     let gen_hashset = move || {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mx = (num_elements as f64 / density) as u64 + 1;
         let mut set = std::collections::HashSet::new();
         while set.len() < num_elements {
-            set.insert(rng.gen_range(0..mx));
+            set.insert(rng.random_range(0..mx));
         }
-        let x = rng.gen_range(0..mx);
+        let x = rng.random_range(0..mx);
         set.insert(x);
         set.remove(&x); // ensure there is room for one more
-        (rng.gen_range(0..mx), set)
+        (rng.random_range(0..mx), set)
     };
     let gen_tiny = move || {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mx = (num_elements as f64 / density) as u64 + 1;
         let mut set = tinyset::Set64::new();
         while set.len() < num_elements {
-            set.insert(rng.gen_range(0..mx));
+            set.insert(rng.random_range(0..mx));
         }
-        let x = rng.gen_range(0..mx);
+        let x = rng.random_range(0..mx);
         set.insert(x);
         set.remove(&x); // ensure there is room for one more
-        (rng.gen_range(0..mx), set)
+        (rng.random_range(0..mx), set)
     };
     let gen_idset = move || {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mx = (num_elements as f64 / density) as usize + 1;
         let mut set = id_set::IdSet::new();
         while set.len() < num_elements {
-            set.insert(rng.gen_range(0..mx));
+            set.insert(rng.random_range(0..mx));
         }
-        let x = rng.gen_range(0..mx);
+        let x = rng.random_range(0..mx);
         set.insert(x);
         set.remove(x); // ensure there is room for one more
-        (rng.gen_range(0..mx), set)
+        (rng.random_range(0..mx), set)
     };
 
     println!(
@@ -181,20 +181,20 @@ fn bench_collect(density: f64) {
     );
     for &sz in SIZES.iter() {
         let mut gen = move || {
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             let mx = (sz as f64 / density) as u64 + 1;
             let mut vec = Vec::new();
             while vec.iter().cloned().collect::<tinyset::SetU64>().len() < sz {
-                vec.push(rng.gen_range(0..mx));
+                vec.push(rng.random_range(0..mx));
             }
             vec
         };
         let mut gen32 = move || {
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             let mx = (sz as f64 / density) as u32 + 1;
             let mut vec = Vec::new();
             while vec.iter().cloned().collect::<tinyset::SetU32>().len() < sz {
-                vec.push(rng.gen_range(0..mx));
+                vec.push(rng.random_range(0..mx));
             }
             vec
         };
@@ -283,20 +283,20 @@ fn bench_collect(density: f64) {
         );
     }
     let mut gen = move |sz| {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mx = (sz as f64 / density) as u64 + 1;
         let mut vec = Vec::new();
         while vec.iter().cloned().collect::<tinyset::SetU64>().len() < sz {
-            vec.push(rng.gen_range(0..mx));
+            vec.push(rng.random_range(0..mx));
         }
         vec
     };
     let mut gen32 = move |sz| {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mx = (sz as f64 / density) as u32 + 1;
         let mut vec = Vec::new();
         while vec.iter().cloned().collect::<tinyset::SetU32>().len() < sz {
-            vec.push(rng.gen_range(0..mx));
+            vec.push(rng.random_range(0..mx));
         }
         vec
     };
@@ -379,29 +379,29 @@ fn bench_fill_with_inserts(density: f64) {
     );
     for &sz in SIZES.iter() {
         let mut gen = move || {
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             let mx = (sz as f64 / density) as u64 + 1;
             let mut vec = Vec::new();
             while vec.iter().cloned().collect::<tinyset::SetU64>().len() < sz {
-                vec.push(rng.gen_range(0..mx));
+                vec.push(rng.random_range(0..mx));
             }
             vec
         };
         let mut gen32 = move || {
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             let mx = (sz as f64 / density) as u32 + 1;
             let mut vec = Vec::new();
             while vec.iter().cloned().collect::<tinyset::SetU32>().len() < sz {
-                vec.push(rng.gen_range(0..mx));
+                vec.push(rng.random_range(0..mx));
             }
             vec
         };
         let mut genusize = move || {
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             let mx = (sz as f64 / density) as usize + 1;
             let mut vec = Vec::new();
             while vec.iter().cloned().collect::<tinyset::SetUsize>().len() < sz {
-                vec.push(rng.gen_range(0..mx));
+                vec.push(rng.random_range(0..mx));
             }
             vec
         };
@@ -572,29 +572,29 @@ fn bench_fill_with_inserts(density: f64) {
         );
     }
     let mut gen = move |sz| {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mx = (sz as f64 / density) as u64 + 1;
         let mut vec = Vec::new();
         while vec.iter().cloned().collect::<tinyset::SetU64>().len() < sz {
-            vec.push(rng.gen_range(0..mx));
+            vec.push(rng.random_range(0..mx));
         }
         vec
     };
     let mut gen32 = move |sz| {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mx = (sz as f64 / density) as u32 + 1;
         let mut vec = Vec::new();
         while vec.iter().cloned().collect::<tinyset::SetU32>().len() < sz {
-            vec.push(rng.gen_range(0..mx));
+            vec.push(rng.random_range(0..mx));
         }
         vec
     };
     let mut genusize = move |sz| {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mx = (sz as f64 / density) as usize + 1;
         let mut vec = Vec::new();
         while vec.iter().cloned().collect::<tinyset::SetUsize>().len() < sz {
-            vec.push(rng.gen_range(0..mx));
+            vec.push(rng.random_range(0..mx));
         }
         vec
     };
@@ -714,11 +714,11 @@ fn bench_funcs<O>(
     );
     for &sz in SIZES.iter() {
         let gen = move || {
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             let mx = (sz as f64 / density) as u64 + 1;
             let mut vec = Vec::new();
             while vec.iter().cloned().collect::<tinyset::SetU64>().len() < sz {
-                vec.push(rng.gen_range(0..mx));
+                vec.push(rng.random_range(0..mx));
             }
             vec
         };
@@ -772,11 +772,11 @@ fn bench_funcs<O>(
         );
     }
     let gen = move |sz| {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mx = (sz as f64 / density) as u64 + 1;
         let mut vec = Vec::new();
         while vec.iter().cloned().collect::<tinyset::SetU64>().len() < sz {
-            vec.push(rng.gen_range(0..mx));
+            vec.push(rng.random_range(0..mx));
         }
         vec
     };
@@ -901,31 +901,31 @@ fn bench_sum(density: f64) {
 fn bench_scaling(density: f64, min: usize) {
     assert!(density <= 1.0);
     let mut gen = move |num_elements| {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mx = (num_elements as f64 / density) as u64 + 1;
         let mut set = tinyset::SetU64::new();
         while set.len() < num_elements {
-            set.insert(rng.gen_range(0..mx));
+            set.insert(rng.random_range(0..mx));
         }
-        (rng.gen_range(0..mx), set)
+        (rng.random_range(0..mx), set)
     };
     let mut gen_hashset = move |num_elements| {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mx = (num_elements as f64 / density) as u64 + 1;
         let mut set = std::collections::HashSet::new();
         while set.len() < num_elements {
-            set.insert(rng.gen_range(0..mx));
+            set.insert(rng.random_range(0..mx));
         }
-        (rng.gen_range(0..mx), set)
+        (rng.random_range(0..mx), set)
     };
     let mut gen_tiny = move |num_elements| {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mx = (num_elements as f64 / density) as u64 + 1;
         let mut set = tinyset::Set64::new();
         while set.len() < num_elements {
-            set.insert(rng.gen_range(0..mx));
+            set.insert(rng.random_range(0..mx));
         }
-        (rng.gen_range(0..mx), set)
+        (rng.random_range(0..mx), set)
     };
 
     println!(

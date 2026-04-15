@@ -1,3 +1,7 @@
+* 0.5.3 - Apr. 15, 2026
+
+    - Bump version of rand for unsoundness fix.
+
 * 0.5.2 - Mar. 9, 2025
 
     - Increase MRSV to 1.63 due to libc dependency.  Use `rust-version` to avoid a major version bump.

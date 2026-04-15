@@ -57,5 +57,5 @@ pub fn rand_usize(cap: usize, bits: u64) -> usize {
 
 #[cfg(feature = "rand")]
 pub fn rand_usize(_cap: usize, _bits: u64) -> usize {
-    rand::random::<usize>()
+    rand::random::<u64>() as usize
 }
