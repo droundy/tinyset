@@ -1,3 +1,9 @@
+* 0.5.4 - Aug. 13, 2026
+
+    - Fix a bug in `SetU32` and align the tag check in `SetU32::clone`.
+
+    - Increase MSRV to 1.65 due to libc dependency.
+
 * 0.5.3 - Apr. 15, 2026
 
     - Bump version of rand for unsoundness fix.
