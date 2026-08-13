@@ -290,7 +290,7 @@ impl Tiny {
         }
     }
     fn contains(mut self, e: u32) -> bool {
-        if e > std::usize::MAX as u32 {
+        if e > usize::MAX as u32 {
             return false;
         }
         let mut e = e as usize;
@@ -411,7 +411,7 @@ impl Extend<u32> for SetU32 {
 impl SetU32 {
     fn to_array(&self) -> Vec<u32> {
         let mut out = Vec::new();
-        if self.0 as usize == 0 || self.0 as usize & 7 != 0 {
+        if self.0 as usize == 0 || self.0 as usize & 3 != 0 {
             out.push(self.0 as u32);
         } else {
             let s = unsafe { &*self.0 };
@@ -623,7 +623,7 @@ mod serde {
 
 impl Clone for SetU32 {
     fn clone(&self) -> Self {
-        if self.0 as usize & 7 == 0 && self.0 != std::ptr::null_mut() {
+        if self.0 as usize & 3 == 0 && self.0 != std::ptr::null_mut() {
             let c = self.capacity();
             unsafe {
                 let ptr = std::alloc::alloc_zeroed(layout_for_capacity(c)) as *mut S;
@@ -664,7 +664,7 @@ impl SetU32 {
     /// assert_eq!(b.len(), a.len());
     /// ```
     pub fn with_capacity_of(other: &Self) -> Self {
-        if other.0 as usize & 7 == 0 && other.0 != std::ptr::null_mut() {
+        if other.0 as usize & 3 == 0 && other.0 != std::ptr::null_mut() {
             let c = other.capacity();
             unsafe {
                 let ptr = std::alloc::alloc_zeroed(layout_for_capacity(c)) as *mut S;
@@ -1856,4 +1856,13 @@ fn test_remove() {
 #[should_panic]
 fn test_alloc_failure() {
     SetU32::with_capacity_and_bits(usize::MAX / 8 - 2, 0);
+}
+
+#[test]
+fn uaf_test() {
+    let a = SetU32::with_capacity_and_bits(1, 1);
+    let b = a.clone();
+    println!("a and b are {} and {}", a.0 as usize, b.0 as usize);
+    drop(a);
+    drop(b);
 }

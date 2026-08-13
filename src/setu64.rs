@@ -302,7 +302,7 @@ impl Tiny {
         })
     }
     fn insert(mut self, e: u64) -> Option<Self> {
-        if e > std::usize::MAX as u64 {
+        if e > usize::MAX as u64 {
             return None;
         }
         let mut e = e as usize;
@@ -386,7 +386,7 @@ impl Tiny {
         }
     }
     fn contains(mut self, e: u64) -> bool {
-        if e > std::usize::MAX as u64 {
+        if e > usize::MAX as u64 {
             return false;
         }
         let mut e = e as usize;
