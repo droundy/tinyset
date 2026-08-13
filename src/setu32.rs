@@ -623,7 +623,7 @@ mod serde {
 
 impl Clone for SetU32 {
     fn clone(&self) -> Self {
-        if self.0 as usize & 7 == 0 && self.0 != std::ptr::null_mut() {
+        if self.0 as usize & 3 == 0 && self.0 != std::ptr::null_mut() {
             let c = self.capacity();
             unsafe {
                 let ptr = std::alloc::alloc_zeroed(layout_for_capacity(c)) as *mut S;
