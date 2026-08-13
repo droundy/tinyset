@@ -1,0 +1,284 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, labeled]
+
+jobs:
+  # Phase 1: the batching delay. This is the only phase a superseding
+  # push may cancel — once a review is actually running its cost is spent
+  # either way, and cancelling it would also lose the cost accounting.
+  wait:
+    runs-on: ubuntu-latest
+    # The labeled trigger exists only for review-now; other labels don't
+    # start a review. While the avoid-review label is on the PR, pushes
+    # trigger no reviews at all (to conserve session credits) — except
+    # that explicitly adding review-now is an unambiguous request and
+    # overrides it for one review. Removing avoid-review does not itself
+    # trigger a review; the next push (or review-now) resumes reviews,
+    # incrementally covering everything since the last one.
+    if: >-
+      github.event.action == 'labeled'
+      && github.event.label.name == 'review-now'
+      || github.event.action != 'labeled'
+      && !contains(github.event.pull_request.labels.*.name, 'avoid-review')
+    concurrency:
+      group: claude-review-wait-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      # Batches bursts of pushes into a single review (each push cancels
+      # the sleeping run via this job's concurrency group) and gives the
+      # Claude session allotment time to reset. While the review-now
+      # label is on the PR, every push is reviewed immediately; the label
+      # is removed automatically once a review completes, restoring the
+      # batching delay (so a stale label can't silently make every push
+      # a full-price immediate review).
+      - name: Wait for the dust to settle
+        if: github.event.action != 'labeled' && !contains(github.event.pull_request.labels.*.name, 'review-now')
+        run: sleep 14400
+
+  # Phase 2: the review itself. cancel-in-progress is off: a newer run
+  # queues behind a running review (GitHub keeps one running plus the
+  # newest pending run per group) and then reviews incrementally, instead
+  # of killing it mid-flight.
+  review:
+    needs: wait
+    runs-on: ubuntu-latest
+    concurrency:
+      group: claude-review-run-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      # After a 4-hour sleep (or a queue behind another review) this run
+      # may have nothing left to do: the PR may be closed, avoid-review
+      # may have been added while this run slept, a newer push may have
+      # its own queued run, or this exact head may already have been
+      # reviewed (e.g. a review-now run raced a sleeping one). Skip the
+      # expensive part rather than asking the model to figure it out.
+      # (A run from the review-now labeled event ignores avoid-review:
+      # an explicit request overrides the standing suppression.)
+      - name: Decide whether this review is still needed
+        id: pre
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          proceed=true
+          pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/${{ github.event.pull_request.number }}")
+          state=$(jq -r .state <<<"$pr")
+          head=$(jq -r .head.sha <<<"$pr")
+          avoid=$(jq -r '[.labels[].name] | contains(["avoid-review"])' <<<"$pr")
+          if [ "$state" != "open" ]; then
+            echo "PR is $state; nothing to review"
+            proceed=false
+          elif [ "$avoid" = "true" ] && [ '${{ github.event.action }}' != 'labeled' ]; then
+            echo "avoid-review label is set; skipping to conserve credits"
+            proceed=false
+          elif [ "$head" != "${{ github.event.pull_request.head.sha }}" ]; then
+            echo "Head moved on to $head; the newer push's run will review it"
+            proceed=false
+          else
+            marker=$(gh api "repos/$GITHUB_REPOSITORY/issues/${{ github.event.pull_request.number }}/comments" \
+              --paginate \
+              --jq '[.[] | select(.user.login == "claude[bot]" and (.body | contains("last-reviewed-commit")))] | last | .body // ""' \
+              | grep -o 'last-reviewed-commit: [0-9a-f]*' | grep -o '[0-9a-f]*$' || true)
+            if [ -n "$marker" ] && [ "$marker" = "$head" ]; then
+              echo "Head $head is already reviewed; nothing to do"
+              proceed=false
+            fi
+          fi
+          echo "proceed=$proceed" >> "$GITHUB_OUTPUT"
+
+      # Visibility only — mutual exclusion comes from the concurrency
+      # group above, so a stale label (e.g. after a manual cancellation)
+      # never blocks anything.
+      - name: Add the review-in-progress label
+        if: steps.pre.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method POST \
+            "repos/$GITHUB_REPOSITORY/issues/${{ github.event.pull_request.number }}/labels" \
+            -f "labels[]=review-in-progress"
+
+      # Check out the PR head rather than the default merge ref: after the
+      # sleep, the merge commit recorded in the event payload may have been
+      # regenerated and garbage-collected. The head SHA always persists —
+      # the preflight above confirmed it is still the PR's current head.
+      - uses: actions/checkout@v4
+        if: steps.pre.outputs.proceed == 'true'
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      # claude-code-action is called directly (rather than via the
+      # drillan/claude-pr-reviewer wrapper) so we control the whole prompt
+      # and its inputs — e.g. set show_full_output: true here when the
+      # review misbehaves, to get the full transcript in the run log. In CI
+      # every tool call not matched by --allowedTools is silently denied,
+      # so the tool list must cover everything the prompt asks for: Task
+      # for the pr-review-toolkit agents, git/cargo/python3 so the reviewer
+      # can read history and empirically verify findings, Write so the
+      # comment body can go through --body-file instead of shell quoting
+      # (command substitution in --body "$(...)" is auto-denied), and the
+      # mcp__github_inline_comment tool, which claude-code-action only
+      # installs when it appears in allowedTools.
+      - uses: anthropics/claude-code-action@v1
+        id: review
+        if: steps.pre.outputs.proceed == 'true'
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: |
+            https://github.com/anthropics/claude-code.git
+          plugins: |
+            pr-review-toolkit@claude-code-plugins
+          claude_args: |
+            --model claude-sonnet-5
+            --allowedTools "Task,Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git fetch:*),Bash(git cat-file:*),Bash(cargo check:*),Bash(cargo build:*),Bash(cargo test:*),Bash(python3:*),Bash(cat:*),Bash(wc:*),Read,Grep,Glob,Write,TodoWrite,mcp__github_inline_comment__create_inline_comment"
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            PR HEAD COMMIT: ${{ github.event.pull_request.head.sha }}
+
+            Please review this PR.
+            Use the pr-review-toolkit agents to check:
+            - Code quality and style (code-reviewer)
+            - Test coverage (pr-test-analyzer)
+            - Error handling (silent-failure-hunter)
+            - Type design (type-design-analyzer)
+            - Comment accuracy (comment-analyzer)
+
+            This is a headless one-shot run: the process exits the moment
+            you end your turn, killing any background work. Launch every
+            agent with run_in_background: false and wait for its result.
+            Never end your turn before the summary comment below has been
+            posted — if agents fail or time out, post the summary anyway
+            with whatever findings you have.
+
+            You may run cargo (check/build/test) and python3 to verify
+            findings empirically. Put any scratch files inside the repo
+            checkout (writes elsewhere are blocked) and leave them there:
+            the runner is ephemeral and deleting files is blocked, so
+            cleanup attempts only waste turns.
+
+            Review incrementally when possible. Your previous summary
+            comment (if any) contains a marker
+            `<!-- last-reviewed-commit: SHA -->`:
+            - If the marker exists and its SHA is still reachable
+              (`git cat-file -e SHA`), review only the work done since
+              then: `git log -p --no-merges SHA..HEAD`. Merges from the
+              main branch bring in code that was already reviewed
+              elsewhere — never re-review it.
+              - If there are no non-merge commits since that SHA, do not
+                launch any agents: just do the review-thread follow-ups
+                below and refresh the summary comment.
+              - Otherwise launch only the agents relevant to what changed,
+                and point them at that commit range instead of the whole
+                PR diff.
+            - If the marker is missing or its SHA is unreachable (e.g.
+              after a force push), review the PR's full diff.
+
+            Before reviewing, list this PR's review threads:
+
+            gh api graphql -f query='
+              query {
+                repository(owner: "${{ github.repository_owner }}", name: "${{ github.event.repository.name }}") {
+                  pullRequest(number: ${{ github.event.pull_request.number }}) {
+                    reviewThreads(first: 100) {
+                      nodes { id path line isResolved isOutdated
+                        comments(last: 10) { nodes { body createdAt author { login } } }
+                      }
+                    }
+                  }
+                }
+              }'
+
+            For each unresolved thread authored by any bot account
+            (login ending in "[bot]" — treat all of these as this bot's
+            own threads): if its last bot reply starts with "✅ Fixed", or
+            no commit since that thread's last comment touched the
+            relevant part of its file, skip it. Otherwise reply once,
+            stating whether the flagged issue is now fixed (start with
+            "✅ Fixed —" and cite the commit), partially fixed, or still
+            present despite the changes.
+
+            Never resolve threads. Read human-authored threads for
+            context only. Then review the new/changed code as usual,
+            without opening new threads for issues already tracked in
+            existing ones.
+
+            Give every finding a permanent ID: R1, R2, … Collect the IDs
+            already used on this PR (in the summary comment and review
+            threads) and continue numbering after the highest one — never
+            renumber or reuse an ID, even after its finding is fixed.
+
+            Post each new finding on a specific code line with the
+            mcp__github_inline_comment__create_inline_comment tool,
+            starting the comment with its ID in bold, e.g.
+            "**R3 — precision loss (medium):** …".
+
+            Finish with a summary comment. Write the comment body to a
+            file and post it with
+            `gh pr comment --edit-last --create-if-none --body-file <file>`
+            so there is only ever one summary, updated in place on each
+            push, and no shell-quoting problems. It must contain:
+
+            1. A short summary of what the PR does, plus a risk level
+               (low / medium / high) with a one-line justification.
+            2. "Remaining issues": a checkbox list with one item per
+               finding — "- [ ]" while open, "- [x]" once fixed —
+               covering both existing review threads and this review's
+               new findings. Start each item with its finding's bolded
+               ID, e.g. "- [ ] **R3** — …". If nothing is open, say so.
+            3. The marker `<!-- last-reviewed-commit: SHA -->` where SHA
+               is the PR HEAD COMMIT given above.
+
+            Write all reviews in English.
+
+      # The reviewer can't know its own final cost mid-session, so append
+      # it afterwards from the action's execution log. total_cost_usd is
+      # notional API pricing (the run actually draws on the subscription's
+      # session allotment), hence "approximate". This step must never fail
+      # the workflow.
+      - name: Append review cost to the summary comment
+        if: steps.pre.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          file='${{ steps.review.outputs.execution_file }}'
+          [ -s "$file" ] || exit 0
+          cost=$(jq -r 'last | .total_cost_usd // empty' "$file")
+          [ -n "$cost" ] || exit 0
+          comment=$(gh api "repos/$GITHUB_REPOSITORY/issues/${{ github.event.pull_request.number }}/comments" \
+            --paginate --jq '[.[] | select(.user.login == "claude[bot]" and (.body | contains("last-reviewed-commit")))] | last')
+          [ -n "$comment" ] && [ "$comment" != "null" ] || exit 0
+          id=$(jq -r '.id' <<<"$comment")
+          jq -r '.body' <<<"$comment" | {
+            cat
+            printf '\n_Approximate review cost: $%.2f_\n' "$cost"
+          } | gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@-
+
+      # review-now is a one-shot switch: leaving it on would silently turn
+      # every push into a full-price immediate review, so drop it once a
+      # review has completed (but keep it if the review failed, so the
+      # next push retries immediately). Removing an absent label 404s —
+      # ignore it.
+      - name: Remove the review-now label
+        if: steps.pre.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method DELETE \
+            "repos/$GITHUB_REPOSITORY/issues/${{ github.event.pull_request.number }}/labels/review-now" \
+            2>/dev/null || true
+
+      - name: Remove the review-in-progress label
+        if: always() && steps.pre.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method DELETE \
+            "repos/$GITHUB_REPOSITORY/issues/${{ github.event.pull_request.number }}/labels/review-in-progress" \
+            2>/dev/null || true
