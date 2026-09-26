@@ -816,6 +816,11 @@ impl SetU32 {
     }
     /// Create a set with the given capacity and bits
     pub fn with_capacity_and_bits(cap: usize, bits: u32) -> SetU32 {
+        if cap > u32::MAX as usize {
+            // The capacity is stored as a u32, so a larger one would be truncated
+            // and we would later deallocate with the wrong layout.
+            panic!("tinyset size is too large: {}", cap);
+        }
         if cap > 0 {
             unsafe {
                 let ptr = std::alloc::alloc_zeroed(layout_for_capacity(cap)) as *mut S;
@@ -1300,15 +1305,23 @@ fn test_collect() {
     test_a_collect((0..1024).collect());
 }
 
+/// Returns the number of bytes needed for a set with capacity `sz`.
+///
+/// Panics if that size overflows or exceeds `isize::MAX`, since in release
+/// mode wrapping arithmetic would otherwise produce a bogus (possibly zero)
+/// allocation size.
 fn bytes_for_capacity(sz: usize) -> usize {
-    sz * 4 + std::mem::size_of::<S>() - 4
+    match sz
+        .checked_mul(4)
+        .and_then(|b| b.checked_add(std::mem::size_of::<S>() - 4))
+    {
+        Some(size) if size <= isize::MAX as usize => size,
+        _ => panic!("tinyset size is too large: {}", sz),
+    }
 }
 fn layout_for_capacity(sz: usize) -> std::alloc::Layout {
-    let size = bytes_for_capacity(sz);
-    if size >= usize::MAX / 2 {
-        panic!("tinyset size is too large: {}", sz);
-    }
-    unsafe { std::alloc::Layout::from_size_align_unchecked(bytes_for_capacity(sz), 4) }
+    std::alloc::Layout::from_size_align(bytes_for_capacity(sz), 4)
+        .unwrap_or_else(|_| panic!("tinyset size is too large: {}", sz))
 }
 
 impl Drop for SetU32 {
@@ -1853,9 +1866,16 @@ fn test_remove() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "too large")]
 fn test_alloc_failure() {
     SetU32::with_capacity_and_bits(usize::MAX / 8 - 2, 0);
+}
+
+#[test]
+#[cfg(target_pointer_width = "64")]
+#[should_panic(expected = "too large")]
+fn test_capacity_exceeds_u32() {
+    SetU32::with_capacity_and_bits(u32::MAX as usize + 1, 0);
 }
 
 #[test]
