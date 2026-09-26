@@ -102,6 +102,13 @@ impl SetUsize {
     pub fn drain<'a>(&'a mut self) -> impl Iterator<Item = usize> + 'a {
         self.0.drain().map(|x| x as usize)
     }
+    
+    /// Tally up how much memory is in use.
+    #[inline]
+    pub fn mem_used(&self) -> usize {
+      // subtract Internal since Internal::mem_used already count that
+      std::mem::size_of::<Self>() - std::mem::size_of::<Internal>() + self.0.mem_used()
+    }
 }
 
 impl std::iter::FromIterator<usize> for SetUsize {
