@@ -38,7 +38,7 @@ jobs:
       matrix:
         rust:
           - stable
-          - 1.63.0
+          - 1.65.0
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -52,7 +52,7 @@ jobs:
       matrix:
         rust:
           - stable
-          - 1.63.0
+          - 1.65.0
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

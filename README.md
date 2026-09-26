@@ -47,10 +47,14 @@ tinyset = { version = "0.4", default-features = false }
 which will result in using a very simple pseudorandom number generator
 seeded by the system time.
 
-There is another feature `deterministic_ieration` which conflicts with `rand`,
-which causes the order of iteration to be deterministic, i.e. the order of
-iteration through a set will only depend on the sequence of insertions and
-deletions from that set.
+There is another feature `deterministic_iteration`, which causes the order of
+iteration to be deterministic, i.e. the order of iteration through a set will
+only depend on the sequence of insertions and deletions from that set.  This
+feature cannot be combined with `rand`, so you must also disable default
+features to use it:
+```
+tinyset = { version = "0.5", default-features = false, features = ["deterministic_iteration"] }
+```
 
 There is a second optional dependency on `serde`, which serializes sets in
 non-compressed form.
