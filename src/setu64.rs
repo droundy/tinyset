@@ -1366,7 +1366,7 @@ fn test_a_collect(v: Vec<u64>) {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "too large")]
 fn test_alloc_failure() {
     SetU64::with_capacity_and_bits(usize::MAX / 8 - 2, 0);
 }
@@ -1380,15 +1380,23 @@ fn test_collect() {
     test_a_collect((0..1024).collect());
 }
 
+/// Returns the number of bytes needed for a set with capacity `sz`.
+///
+/// Panics if that size overflows or exceeds `isize::MAX`, since in release
+/// mode wrapping arithmetic would otherwise produce a bogus (possibly zero)
+/// allocation size.
 fn bytes_for_capacity(sz: usize) -> usize {
-    sz * 8 + std::mem::size_of::<S>() - 8
+    match sz
+        .checked_mul(8)
+        .and_then(|b| b.checked_add(std::mem::size_of::<S>() - 8))
+    {
+        Some(size) if size <= isize::MAX as usize => size,
+        _ => panic!("tinyset size is too large: {}", sz),
+    }
 }
 fn layout_for_capacity(sz: usize) -> std::alloc::Layout {
-    let size = bytes_for_capacity(sz);
-    if size >= usize::MAX / 2 {
-        panic!("tinyset size is too large: {}", sz);
-    }
-    unsafe { std::alloc::Layout::from_size_align_unchecked(size, 8) }
+    std::alloc::Layout::from_size_align(bytes_for_capacity(sz), 8)
+        .unwrap_or_else(|_| panic!("tinyset size is too large: {}", sz))
 }
 
 impl Drop for SetU64 {
