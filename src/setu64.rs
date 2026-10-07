@@ -836,8 +836,12 @@ impl SetU64 {
             Internal::Big { s, .. } => std::mem::size_of::<Self>() + s.cap * 8 - 8,
         }
     }
+    /// The number of words a dense set with maximum `mx` has.
+    fn dense_capacity(mx: u64) -> u64 {
+        1 + mx / 64 + mx / 256
+    }
     fn dense_with_max(mx: u64) -> SetU64 {
-        let cap = 1 + mx / 64 + mx / 256;
+        let cap = SetU64::dense_capacity(mx);
         // This should be stored in a dense bitset.
         unsafe {
             let ptr = std::alloc::alloc_zeroed(layout_for_capacity(cap as usize)) as *mut S;
@@ -1317,41 +1321,49 @@ impl std::iter::FromIterator<u64> for SetU64 {
         T: IntoIterator<Item = u64>,
     {
         let mut v: Vec<_> = iter.into_iter().collect();
+        let mx = if let Some(mx) = v.iter().cloned().max() {
+            mx
+        } else {
+            return SetU64(0 as *mut S);
+        };
+        if v.len() < BITSPLITS.len() {
+            // A few small elements might fit in a single word.
+            v.sort();
+            v.dedup();
+            if let Some(t) = Tiny::new_sorted_deduped(&v) {
+                return SetU64(t.to_usize() as *mut S);
+            }
+        }
+        if SetU64::dense_capacity(mx) <= v.len() as u64 * 11 / 10 {
+            // A bitmap takes no more memory than a table would (and a table this
+            // full of keys that are this close together is slow), and needs no
+            // sorting to fill.
+            let mut s = SetU64::dense_with_max(mx);
+            for value in v.into_iter() {
+                s.insert(value);
+            }
+            return s;
+        }
+        // Sorting lets us insert in increasing order.
         v.sort();
         v.dedup();
-        if let Some(mx) = v.iter().cloned().max() {
-            if let Some(t) = Tiny::new_sorted_deduped(&v) {
-                SetU64(t.to_usize() as *mut S)
-            } else {
-                if v.len() as u64 > mx >> 4 {
-                    // This should be stored in a dense bitset.
-                    let mut s = SetU64::with_capacity_and_max(v.len(), mx);
-                    for value in v.into_iter() {
-                        s.insert(value);
-                    }
-                    return s;
-                }
-                let bits = compute_array_bits(mx);
-                if bits == 0 {
-                    let mut s = SetU64::with_capacity_and_bits(v.len(), bits);
-                    for value in v.into_iter() {
-                        s.insert(value);
-                    }
-                    s
-                } else {
-                    let mut keys: Vec<_> = v.iter().map(|&x| x / bits).collect();
-                    keys.sort();
-                    keys.dedup();
-                    let sz = (keys.len() + 1) * 11 / 10;
-                    let mut s = SetU64::with_capacity_and_bits(sz, bits);
-                    for value in v.into_iter() {
-                        s.insert(value);
-                    }
-                    s
-                }
+        let bits = compute_array_bits(mx);
+        if bits == 0 {
+            let mut s = SetU64::with_capacity_and_bits(v.len(), bits);
+            for value in v.into_iter() {
+                s.insert(value);
             }
+            s
         } else {
-            SetU64(0 as *mut S)
+            let mut keys: Vec<_> = v.iter().map(|&x| x / bits).collect();
+            keys.sort();
+            keys.dedup();
+            let sz = (keys.len() + 1) * 11 / 10;
+            let mut s = SetU64::with_capacity_and_bits(sz, bits);
+            for value in v.into_iter() {
+                s.insert(value);
+            }
+            s
         }
     }
 }

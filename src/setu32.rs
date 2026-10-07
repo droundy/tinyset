@@ -789,8 +789,12 @@ impl SetU32 {
         }
     }
 
+    /// The number of words a dense set with maximum `mx` has.
+    fn dense_capacity(mx: u32) -> u32 {
+        1 + mx / 32 + mx / 128
+    }
     fn dense_with_max(mx: u32) -> SetU32 {
-        let cap = 1 + mx / 32 + mx / 128;
+        let cap = SetU32::dense_capacity(mx);
         // This should be stored in a dense bitset.
         unsafe {
             let ptr = std::alloc::alloc_zeroed(layout_for_capacity(cap as usize)) as *mut S;
@@ -1250,40 +1254,50 @@ impl std::iter::FromIterator<u32> for SetU32 {
     where
         T: IntoIterator<Item = u32>,
     {
-        let v: Vec<_> = iter.into_iter().collect();
-        if let Some(mx) = v.iter().cloned().max() {
-            if let Some(t) = Tiny::new(v.clone()) {
-                SetU32(t.to_usize() as *mut S)
-            } else {
-                if v.len() as u32 > mx >> 4 {
-                    // This should be stored in a dense bitset.
-                    let mut s = SetU32::with_capacity_and_max(v.len(), mx);
-                    for value in v.into_iter() {
-                        s.insert(value);
-                    }
-                    return s;
-                }
-                let bits = compute_array_bits(mx);
-                if bits == 0 {
-                    let mut s = SetU32::with_capacity_and_bits(v.len(), bits);
-                    for value in v.into_iter() {
-                        s.insert(value);
-                    }
-                    s
-                } else {
-                    let mut keys: Vec<_> = v.iter().map(|&x| x / bits).collect();
-                    keys.sort();
-                    keys.dedup();
-                    let sz = (keys.len() + 1) * 11 / 10;
-                    let mut s = SetU32::with_capacity_and_bits(sz, bits);
-                    for value in v.into_iter() {
-                        s.insert(value);
-                    }
-                    s
-                }
-            }
+        let mut v: Vec<_> = iter.into_iter().collect();
+        let mx = if let Some(mx) = v.iter().cloned().max() {
+            mx
         } else {
-            SetU32(0 as *mut S)
+            return SetU32(0 as *mut S);
+        };
+        if v.len() < BITSPLITS.len() {
+            // A few small elements might fit in a single word.
+            v.sort();
+            v.dedup();
+            if let Some(t) = Tiny::new(v.clone()) {
+                return SetU32(t.to_usize() as *mut S);
+            }
+        }
+        if SetU32::dense_capacity(mx) as usize <= v.len() * 11 / 10 {
+            // A bitmap takes no more memory than a table would (and a table this
+            // full of keys that are this close together is slow), and needs no
+            // sorting to fill.
+            let mut s = SetU32::dense_with_max(mx);
+            for value in v.into_iter() {
+                s.insert(value);
+            }
+            return s;
+        }
+        // Sorting lets us insert in increasing order.
+        v.sort();
+        v.dedup();
+        let bits = compute_array_bits(mx);
+        if bits == 0 {
+            let mut s = SetU32::with_capacity_and_bits(v.len(), bits);
+            for value in v.into_iter() {
+                s.insert(value);
+            }
+            s
+        } else {
+            let mut keys: Vec<_> = v.iter().map(|&x| x / bits).collect();
+            keys.sort();
+            keys.dedup();
+            let sz = (keys.len() + 1) * 11 / 10;
+            let mut s = SetU32::with_capacity_and_bits(sz, bits);
+            for value in v.into_iter() {
+                s.insert(value);
+            }
+            s
         }
     }
 }
