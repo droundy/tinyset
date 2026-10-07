@@ -248,13 +248,10 @@ impl<T: Fits64> std::hash::Hash for Set64<T> {
 
 impl<T: Fits64> std::iter::FromIterator<T> for Set64<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let iter = iter.into_iter();
-        let (sz, _) = iter.size_hint();
-        let mut c = Set64::with_capacity(sz);
-        for i in iter {
-            c.insert(i);
-        }
-        c
+        // Collecting into a `SetU64` sorts the elements first, so that it can
+        // choose the right format and size up front, rather than growing a
+        // set one insertion at a time as `insert` has to.
+        Set64(iter.into_iter().map(|x| x.to_u64()).collect(), PhantomData)
     }
 }
 
