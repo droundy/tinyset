@@ -127,7 +127,7 @@ impl<T: Borrow<SetU32>> Inner<T> {
     /// The rest of `next`: moves on to the next word or bucket, or returns the
     /// next element of one of the other formats.  Kept out of line so that
     /// `next` itself is small enough to be inlined into the loop that calls it.
-    #[inline(never)]
+    #[inline]
     fn next_slow(&mut self) -> Option<u32> {
         match self.set.borrow().internal() {
             Internal::Empty => None,
@@ -204,6 +204,9 @@ impl<T: Borrow<SetU32>> Iterator for Inner<T> {
             self.cur &= self.cur - 1;
             self.sz_left -= 1;
             Some(self.base + bit)
+        } else if self.sz_left == 0 {
+            // Nothing is left, so there is no need to look any further.
+            None
         } else {
             self.next_slow()
         }
