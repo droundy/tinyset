@@ -1831,13 +1831,28 @@ mod tests {
     }
 }
 
+/// The slot of a table of `n` slots where the key `k` belongs.
+///
+/// The key is scrambled by a multiplication before it is scaled to the size of the
+/// table, so that keys that are close together, or that differ by a multiple of the
+/// size of the table, do not pile up in the same place.  Without that, a table with
+/// a few times as many possible keys as slots (a set at about 1% density, say) can
+/// get long runs of keys that every lookup has to walk along.  Scaling is by another
+/// multiplication rather than the division that `%` costs.  The scrambling depends
+/// on `n`, which is random.
+#[inline]
+fn home(k: u64, n: usize) -> usize {
+    let h = (k ^ (n as u64).wrapping_mul(0xD6E8_FEB8_6659_FD93)).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    ((h as u128 * n as u128) >> 64) as usize
+}
+
 fn p_poverty(k: u64, idx: usize, n: usize) -> usize {
     // How far `idx` is beyond the slot where `k` would ideally be, going round the table.
-    let home = (k % n as u64) as usize;
-    if idx >= home {
-        idx - home
+    let h = home(k, n);
+    if idx >= h {
+        idx - h
     } else {
-        idx + n - home
+        idx + n - h
     }
 }
 
@@ -1849,7 +1864,7 @@ fn p_insert(k: u64, a: &mut [u64], offset: u64) -> usize {
         unreachable!()
     }
     // `ii` is the slot `pov` beyond where `k` ought to be.
-    let mut ii = (k % n as u64) as usize;
+    let mut ii = home(k, n);
     for pov in 0..n {
         if a[ii] == 0 || a[ii] >> offset == k {
             // println!("already got a spot");
@@ -1897,27 +1912,58 @@ fn p_insert(k: u64, a: &mut [u64], offset: u64) -> usize {
     unreachable!()
 }
 
+/// Checks that `a` is a valid Robin Hood table: each entry can be reached from the slot it
+/// belongs in without crossing an empty slot, and sits no further from it than the entry
+/// before it, plus one.
+#[cfg(test)]
+fn check_table(a: &[u64]) {
+    let n = a.len();
+    for (i, &x) in a.iter().enumerate() {
+        if x == 0 {
+            continue;
+        }
+        let pov = p_poverty(x, i, n);
+        for d in 1..=pov {
+            assert_ne!(a[(i + n - d) % n], 0, "a gap before {} in {:?}", x, a);
+        }
+        let prev = (i + n - 1) % n;
+        if a[prev] != 0 && pov > 0 {
+            assert!(pov <= p_poverty(a[prev], prev, n) + 1, "{:?}", a);
+        }
+    }
+}
+
 #[test]
 fn test_insert() {
-    let mut a = [0, 0, 0, 0];
-    assert_eq!(2, p_insert(2, &mut a, 0));
+    // In an empty table the key goes where it belongs, and nothing moves.
+    let mut a = [0 as u64; 4];
+    assert_eq!(home(2, 4), p_insert(2, &mut a, 0));
     assert_eq!(&a, &[0, 0, 0, 0]);
     for i in 0..10 {
         assert_eq!(0, a[p_insert(i, &mut a, 0)]);
     }
 
-    let mut a = [0, 0, 6, 0];
-    assert_eq!(3, p_insert(2, &mut a, 0));
-    assert_eq!(&a, &[0, 0, 6, 0]);
+    // A key that belongs where another one already is goes in the next slot.
+    let other = (7 as u64..).find(|&k| home(k, 4) == home(6, 4)).unwrap();
+    let mut a = [0 as u64; 4];
+    a[home(6, 4)] = 6;
+    assert_eq!((home(6, 4) + 1) % 4, p_insert(other, &mut a, 0));
+    assert_eq!(a[home(6, 4)], 6);
     for i in 0..10 {
         assert!([0, i].contains(&a[p_insert(i, &mut a, 0)]));
     }
 
-    let mut a = [0, 0, 6, 3];
-    assert_eq!(3, p_insert(2, &mut a, 0));
-    assert_eq!(&a, &[3, 0, 6, 0]);
-    for i in 0..10 {
-        assert!([0, i].contains(&a[p_insert(i, &mut a, 0)]));
+    // Tables of every small size can be filled, and each key can then be found.
+    for n in 1..12usize {
+        let mut a = vec![0 as u64; n];
+        for k in 1..=n as u64 {
+            let i = p_insert(k * 7, &mut a, 0);
+            a[i] = k * 7;
+            check_table(&a);
+        }
+        for k in 1..=n as u64 {
+            assert!(p_lookfor(k * 7, &a, 0).key_found());
+        }
     }
 }
 
@@ -1959,7 +2005,7 @@ fn p_lookfor(k: u64, a: &[u64], offset: u64) -> LookedUp {
         return LookedUp::NeedInsert;
     }
     // `ii` is the slot `pov` beyond where `k` ought to be.
-    let mut ii = (k % n as u64) as usize;
+    let mut ii = home(k, n);
     for pov in 0..n {
         // println!("looking in spot ii = {} with pov={}", ii, pov);
         if a[ii] == 0 {
@@ -1984,9 +2030,13 @@ fn p_lookfor(k: u64, a: &[u64], offset: u64) -> LookedUp {
 
 #[test]
 fn test_lookfor() {
+    // A full table without the key says to make room.
     assert_eq!(LookedUp::NeedInsert, p_lookfor(5, &[3, 1, 2], 0));
-    assert_eq!(LookedUp::NeedInsert, p_lookfor(5, &[3, 0, 2], 0));
-    assert_eq!(LookedUp::KeyFound(3), p_lookfor(7, &[0, 0, 0, 7], 0));
+    // A key that is not there is never reported as found.
+    assert!(!p_lookfor(5, &[3, 0, 2], 0).key_found());
+    let mut a = [0 as u64; 4];
+    a[home(7, 4)] = 7;
+    assert_eq!(LookedUp::KeyFound(home(7, 4)), p_lookfor(7, &a, 0));
 }
 
 /// Remove value `k` from hashmap `a`, where we bit shift by `offset`
@@ -1999,7 +2049,7 @@ fn p_remove(k: u64, a: &mut [u64], offset: u64) -> bool {
     }
     // `ii` is the slot `i` beyond the bucket where the value ought to be, so we
     // start with where it ought to be in the hashmap.
-    let mut ii = (k % n as u64) as usize;
+    let mut ii = home(k, n);
     for i in 0..n {
         // println!("    looking to remove at distance {} slot {}", i, ii);
         if a[ii] == 0 {
@@ -2059,33 +2109,87 @@ fn test_insert_remove(x: u64, a: &mut [u64]) {
     assert_eq!(x, a[p_lookfor(x, a, 0).unwrap()]);
     assert!(p_remove(x, a, 0));
     println!("  after remove of {} a is {:?}", x, a);
-    assert_eq!(a, &v[..]);
+    // The entries may have been rearranged, but they are the same ones, and the table is still valid.
+    check_table(a);
+    let mut now: Vec<_> = a.iter().cloned().collect();
+    let mut before = v.clone();
+    now.sort();
+    before.sort();
+    assert_eq!(now, before);
 }
 
 #[test]
 fn test_remove() {
-    let mut a = [0, 0, 2];
-    a[p_insert(5, &mut a, 0)] = 5;
-    assert_eq!(&[5, 0, 2], &a);
-    p_remove(2, &mut a, 0);
-    println!("after removal {:?}", a);
-    assert!(p_lookfor(5, &a, 0).key_found());
-    assert_eq!(&[0, 0, 5], &a);
-
-    test_insert_remove(7, &mut [0, 0, 0, 0]);
-
-    test_insert_remove(2, &mut [0, 1, 5, 0]);
-
-    test_insert_remove(5, &mut [0, 0, 2]);
+    for n in 3..9usize {
+        for count in 0..n {
+            let mut a = vec![0 as u64; n];
+            for k in 1..=count as u64 {
+                let i = p_insert(k * 11, &mut a, 0);
+                a[i] = k * 11;
+            }
+            check_table(&a);
+            // Inserting a key that is not there and removing it again changes nothing.
+            test_insert_remove(1000, &mut a);
+            // Removing any key leaves the others to be found.
+            for k in 1..=count as u64 {
+                let mut b = a.clone();
+                assert!(p_remove(k * 11, &mut b, 0));
+                check_table(&b);
+                assert!(!p_lookfor(k * 11, &b, 0).key_found());
+                for j in 1..=count as u64 {
+                    if j != k {
+                        assert!(p_lookfor(j * 11, &b, 0).key_found());
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[test]
 fn p_remove_from_small_full() {
-    let mut a = [258, 260];
+    let (x, y) = (258 as u64, 260 as u64);
+    let mut a = [0 as u64; 2];
+    let i = p_insert(x, &mut a, 0);
+    a[i] = x;
+    let i = p_insert(y, &mut a, 0);
+    a[i] = y;
     assert!(!p_remove(2, &mut a, 0));
-    assert_eq!(a[0], 258);
-    assert_eq!(a[1], 260);
-    assert!(p_remove(258, &mut a, 0));
-    assert_eq!(a[0], 260);
-    assert_eq!(a[1], 0);
+    assert_eq!(2, a.iter().filter(|&&v| v != 0).count());
+    assert!(p_remove(x, &mut a, 0));
+    assert!(p_lookfor(y, &a, 0).key_found());
+    assert_eq!(1, a.iter().filter(|&&v| v != 0).count());
+}
+
+// Too slow to run under Miri.
+#[test]
+#[cfg_attr(miri, ignore)]
+fn test_keys_do_not_cluster() {
+    // About 1% of the numbers below two million: the table has a few times as many
+    // possible keys as slots.  When a key's slot was its remainder modulo the number of
+    // slots, keys wrapped round onto one another and entries were about 30 slots from
+    // where they belong on average; scrambled, it is about 3.
+    let mut x: u64 = 1;
+    let mut s = SetU64::new();
+    while s.len() < 20_000 {
+        x = x
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        s.insert(((x >> 33) % 2_000_000) as u64);
+    }
+    match s.internal() {
+        Internal::Heap { s: header, a } => {
+            let n = a.len();
+            let occupied = a.iter().filter(|&&v| v != 0).count();
+            let total: usize = a
+                .iter()
+                .enumerate()
+                .filter(|(_, &v)| v != 0)
+                .map(|(i, &v)| p_poverty(v >> header.bits, i, n))
+                .sum();
+            let mean = total as f64 / occupied as f64;
+            assert!(mean < 8.0, "mean distance from home is {}", mean);
+        }
+        _ => panic!("this should be a set stored as a hash table"),
+    }
 }
