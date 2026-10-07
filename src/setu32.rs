@@ -1726,24 +1726,32 @@ mod tests {
 }
 
 fn p_poverty(k: u32, idx: usize, n: usize) -> usize {
-    ((idx % n) + n - (k % n as u32) as usize) % n
+    // How far `idx` is beyond the slot where `k` would ideally be, going round the table.
+    let home = (k as u64 % n as u64) as usize;
+    if idx >= home {
+        idx - home
+    } else {
+        idx + n - home
+    }
 }
 
 /// This inserts k into the array, and requires that there be room for
 /// one more element.  Otherwise, things will be sad.
 fn p_insert(k: u32, a: &mut [u32], offset: u32) -> usize {
     let n = a.len();
+    if n == 0 {
+        unreachable!()
+    }
+    // `ii` is the slot `pov` beyond where `k` ought to be.
+    let mut ii = (k as u64 % n as u64) as usize;
     for pov in 0..n {
-        // The cast to u64 below avoids overflow issues when `k` is close
-        // to `u32::MAX`.  It should cost nothing on 64-bit machines, and
-        // shouldn't be much worse than an extra `%` on 32-bit machines.
-        let ii = ((k as u64 + pov as u64) % n as u64) as usize;
-        let ki = a[ii] >> offset;
-        let pov_ki = p_poverty(ki, ii, n);
-        if a[ii] == 0 || ki == k {
+        if a[ii] == 0 || a[ii] >> offset == k {
             // println!("already got a spot");
             return ii;
-        } else if pov_ki < pov {
+        }
+        let ki = a[ii] >> offset;
+        let pov_ki = p_poverty(ki, ii, n);
+        if pov_ki < pov {
             // println!("need to steal from {} < {} at spot {}", pov_ki, pov, ii);
             // need to steal
             let stolen = ii;
@@ -1752,17 +1760,21 @@ fn p_insert(k: u32, a: &mut [u32], offset: u32) -> usize {
             let mut pov_displaced = pov_ki;
             a[stolen] = 0;
 
-            for j in 1..n {
+            let mut jj = stolen;
+            for _ in 1..n {
                 pov_displaced += 1;
-                let jj = (stolen + j) % n;
-                let kj = a[jj] >> offset;
-                let pov_kj = p_poverty(kj, jj, n);
+                jj += 1;
+                if jj == n {
+                    jj = 0;
+                }
                 if a[jj] == 0 {
                     // We finally found an unoccupied spot!
                     // println!("put the displaced at {}", jj);
                     a[jj] = displaced;
                     return stolen;
                 }
+                let kj = a[jj] >> offset;
+                let pov_kj = p_poverty(kj, jj, n);
                 if pov_kj < pov_displaced {
                     // need to steal again!
                     std::mem::swap(&mut a[jj], &mut displaced);
@@ -1770,6 +1782,10 @@ fn p_insert(k: u32, a: &mut [u32], offset: u32) -> usize {
                 }
             }
             panic!("p_insert was called when there was no room!")
+        }
+        ii += 1;
+        if ii == n {
+            ii = 0;
         }
     }
     unreachable!()
@@ -1833,24 +1849,28 @@ impl LookedUp {
 
 fn p_lookfor(k: u32, a: &[u32], offset: u32) -> LookedUp {
     let n = a.len();
+    if n == 0 {
+        return LookedUp::NeedInsert;
+    }
+    // `ii` is the slot `pov` beyond where `k` ought to be.
+    let mut ii = (k as u64 % n as u64) as usize;
     for pov in 0..n {
-        // The cast to u64 below avoids overflow issues when `k` is close
-        // to `u32::MAX`.  It should cost nothing on 64-bit machines, and
-        // shouldn't be much worse than an extra `%` on 32-bit machines.
-        let ii = ((k as u64 + pov as u64) % n as u64) as usize;
         // println!("looking in spot ii = {} with pov={}", ii, pov);
         if a[ii] == 0 {
             // println!("got empty spot at {} for key {}", ii, k);
             return LookedUp::EmptySpot(ii);
         }
         let ki = a[ii] >> offset;
-        let pov_ki = p_poverty(ki, ii, n);
         if ki == k {
             // println!("lookfor already got a spot");
             return LookedUp::KeyFound(ii);
-        } else if pov_ki < pov {
+        } else if p_poverty(ki, ii, n) < pov {
             // println!("at index {} we have {} > {}", ii, pov, pov_ki);
             return LookedUp::NeedInsert;
+        }
+        ii += 1;
+        if ii == n {
+            ii = 0;
         }
     }
     LookedUp::NeedInsert
@@ -1865,31 +1885,31 @@ fn test_lookfor() {
 
 fn p_remove(k: u32, a: &mut [u32], offset: u32) -> bool {
     let n = a.len();
+    if n == 0 {
+        return false;
+    }
+    // `ii` is the slot `i` beyond where the value ought to be.
+    let mut ii = (k as u64 % n as u64) as usize;
     for i in 0..n {
-        // The cast to u64 below avoids overflow issues when `k` is close
-        // to `u32::MAX`.  It should cost nothing on 64-bit machines, and
-        // shouldn't be much worse than an extra `%` on 32-bit machines.
-        let ii = ((k as u64 + i as u64) % n as u64) as usize;
         // println!("    looking to remove at distance {} slot {}", i, ii);
         if a[ii] == 0 {
             return false;
         }
         let ki = a[ii] >> offset;
-        let iki = (((ii + n) as u32 - (ki % n as u32)) % n as u32) as usize;
-        if i > iki {
-            return false;
-        } else if ki == k {
+        if ki == k {
             // println!("found {} at location {}", k, ii);
             a[ii] = 0;
             // Now we need to return anything that might have been
             // stolen from... to massacre my grammar.
             let mut previous = ii;
-            for j in 1..n {
-                let jj = (ii + j) % n;
-                // println!("looking at removing offset {} at location {}", j, jj);
-                let kj = a[jj] >> offset;
-                let pov_kj = p_poverty(kj, jj, n);
-                if a[jj] == 0 || pov_kj == 0 {
+            let mut jj = ii;
+            for _ in 1..n {
+                jj += 1;
+                if jj == n {
+                    jj = 0;
+                }
+                // println!("looking at removing location {}", jj);
+                if a[jj] == 0 || p_poverty(a[jj] >> offset, jj, n) == 0 {
                     // We found an unoccupied spot or a perfectly
                     // happy customer, so nothing else could have been
                     // bumped.
@@ -1901,6 +1921,13 @@ fn p_remove(k: u32, a: &mut [u32], offset: u32) -> bool {
                 previous = jj;
             }
             return true;
+        } else if i > p_poverty(ki, ii, n) {
+            // The value we want would have displaced this one.
+            return false;
+        }
+        ii += 1;
+        if ii == n {
+            ii = 0;
         }
     }
     false
