@@ -185,9 +185,10 @@ impl Tiny {
         } else if v.len() > BITSPLITS.len() - 1 {
             return None;
         }
-        let sz = v.len() as u8;
         v.sort();
         v.dedup();
+        // The size is that of the set, so it must be counted after removing duplicates.
+        let sz = v.len() as u8;
         let mut last = 0;
         let mut offset = 0;
         let mut bits: usize = 0;
@@ -1294,6 +1295,66 @@ fn test_a_collect(v: Vec<u32>) {
     let ss: SetU32 = vv.iter().cloned().collect();
     let vvv: Vec<_> = ss.iter().collect();
     assert_eq!(vv, vvv);
+}
+
+#[test]
+fn test_collect_with_duplicates() {
+    // Collecting must not count a repeated element more than once.
+    for v in [
+        vec![1u32, 1],
+        vec![5, 5, 5],
+        vec![1, 2, 2, 3],
+        vec![0, 0],
+        vec![7, 3, 7, 3, 7],
+        vec![u32::MAX, u32::MAX],
+    ] {
+        let s: SetU32 = v.iter().cloned().collect();
+        let mut expected = v.clone();
+        expected.sort();
+        expected.dedup();
+        assert_eq!(s.len(), expected.len(), "{:?}", v);
+        assert_eq!(s.iter().collect::<Vec<_>>(), expected, "{:?}", v);
+    }
+    // And the same for sets too big to be stored in a single word.
+    let v: Vec<u32> = (0..100).chain(0..100).chain(50..150).collect();
+    let s: SetU32 = v.iter().cloned().collect();
+    assert_eq!(s.len(), 150);
+    assert_eq!(s.iter().collect::<Vec<_>>(), (0..150).collect::<Vec<_>>());
+}
+
+#[test]
+fn test_last_is_last_element() {
+    // `last` has its own implementation for each format of set, and it must agree
+    // with the last element that iterating yields.  It once returned a value that
+    // was not even in the set.
+    for (n, max) in [
+        (5usize, 5_000u32),
+        (10, 10_000),
+        (100, 2_000),
+        (100, 1_000_000),
+        (1000, 20_000),
+        (1000, 1_000_000),
+    ] {
+        let mut x: u64 = 12345;
+        let mut v = Vec::new();
+        for _ in 0..n {
+            x = x
+                .wrapping_mul(6364136223846793005u64)
+                .wrapping_add(1442695040888963407u64);
+            v.push(((x >> 33) as u32) % max);
+        }
+        let collected: SetU32 = v.iter().cloned().collect();
+        let mut inserted = SetU32::new();
+        for &e in &v {
+            inserted.insert(e);
+        }
+        for s in [&collected, &inserted] {
+            let all: Vec<u32> = s.iter().collect();
+            assert_eq!(s.iter().last(), all.last().cloned(), "n={} max={}", n, max);
+            assert_eq!(s.iter().max(), all.iter().cloned().max());
+            assert_eq!(s.iter().min(), all.iter().cloned().min());
+        }
+    }
 }
 
 #[test]
