@@ -72,9 +72,17 @@ besides just triggering incorrect and confusing behavior.
 
 # Benchmarks
 
-To run the benchmark suite, run
+There are two benchmarks, which use the [`scaling`](https://github.com/droundy/scaling)
+crate (so they need a recent Rust, 1.81 or later).  To compare tinyset with
+`HashSet`, `roaring` and `id-set`, run
 
-    cargo bench
+    cargo bench --bench libraries
 
-This will give you loads of timings and storage requirements for a
-wide variety of set types.
+This gives timings, and how much memory is used, for a wide variety of set types.
+To check a change against the previous release, run
+
+    RUSTFLAGS="-C llvm-args=-align-all-functions=6" \
+      cargo bench --bench versions --no-default-features --features deterministic_iteration
+
+which needs that flag and that feature: without them, identical code differs by tens of
+percent depending on where the compiler happens to put it.  See `AGENTS.md` for the details.
