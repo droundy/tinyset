@@ -198,7 +198,9 @@ impl<T: Borrow<SetU64>> Iterator for Inner<T> {
                 .cloned()
                 .filter(|&x| x != 0)
                 .map(|x| {
-                    x >> self.bits + (x & mask(self.bits as usize)).leading_zeros() as u64 - 63
+                    // The highest element in the bucket.
+                    let highest = 63 - (x & mask(self.bits as usize)).leading_zeros() as u64;
+                    unsplit_u64(x >> self.bits, highest, self.bits)
                 })
                 .next(),
             Internal::Big { a, .. } => a

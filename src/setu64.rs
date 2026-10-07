@@ -1372,6 +1372,41 @@ fn test_alloc_failure() {
 }
 
 #[test]
+fn test_last_is_last_element() {
+    // `last` has its own implementation for each format of set, and it must agree
+    // with the last element that iterating yields.  It once returned a value that
+    // was not even in the set.
+    for (n, max) in [
+        (5usize, 5_000u64),
+        (10, 10_000),
+        (100, 2_000),
+        (100, 1_000_000),
+        (1000, 20_000),
+        (1000, 1_000_000),
+    ] {
+        let mut x: u64 = 12345;
+        let mut v = Vec::new();
+        for _ in 0..n {
+            x = x
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            v.push((x >> 33) % max);
+        }
+        let collected: SetU64 = v.iter().cloned().collect();
+        let mut inserted = SetU64::new();
+        for &e in &v {
+            inserted.insert(e);
+        }
+        for s in [&collected, &inserted] {
+            let all: Vec<u64> = s.iter().collect();
+            assert_eq!(s.iter().last(), all.last().cloned(), "n={} max={}", n, max);
+            assert_eq!(s.iter().max(), all.iter().cloned().max());
+            assert_eq!(s.iter().min(), all.iter().cloned().min());
+        }
+    }
+}
+
+#[test]
 fn test_collect() {
     test_a_collect(vec![]);
     test_a_collect(vec![0]);

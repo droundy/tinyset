@@ -204,7 +204,9 @@ impl<T: Borrow<SetU32>> Iterator for Inner<T> {
                 .cloned()
                 .filter(|&x| x != 0)
                 .map(|x| {
-                    x >> self.bits as u32 + (x & mask(self.bits as usize)).leading_zeros() - 31
+                    // The highest element in the bucket.
+                    let highest = 31 - (x & mask(self.bits as usize)).leading_zeros();
+                    unsplit_u32(x >> self.bits, highest, self.bits as u32)
                 })
                 .next(),
             Internal::Big { a, .. } => a
