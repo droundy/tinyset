@@ -902,6 +902,13 @@ impl SetU64 {
 
     /// Insert and return true if it was not present.
     pub fn insert(&mut self, e: u64) -> bool {
+        self.insert_inner(e, false)
+    }
+
+    /// Insert, and return true if it was not present.  If `reserved`, the caller guarantees that
+    /// the table, if it is one, has room for every element it is going to insert, so there is no
+    /// need to check that it has, or to grow it.
+    fn insert_inner(&mut self, e: u64, reserved: bool) -> bool {
         match self.internal_mut() {
             InternalMut::Empty => {
                 if let Some(t) = Tiny::from_singleton(e) {
@@ -1009,7 +1016,7 @@ impl SetU64 {
                     LookedUp::NeedInsert => {}
                 }
                 // println!("looking for space in sparse... {:?}", a);
-                if a.iter().cloned().any(|x| x == 0) {
+                if reserved || p_has_room(key, a) {
                     let idx = p_insert(key, a, s.bits);
                     // println!("about to insert key {} with elem {} at {}",
                     //          key, e, idx);
@@ -1037,7 +1044,7 @@ impl SetU64 {
                 } else {
                     // Let's keep things sparse
                     // A dense set will cost us memory
-                    let newcap: usize = s.cap + 1 + (crate::rand::rand_usize(s.cap, s.bits) % s.cap);
+                    let newcap = grown_capacity(s.cap, s.bits);
                     let mut new = Self::with_capacity_and_bits(newcap, s.bits);
                     // new.debug_me("initial new");
                     for v in self.iter() {
@@ -1081,14 +1088,14 @@ impl SetU64 {
                     LookedUp::NeedInsert => (),
                 }
                 // println!("looking for space in... {:?}", a);
-                if a.iter().cloned().any(|x| x == 0) {
+                if reserved || p_has_room(e, a) {
                     // println!("about to insert at {}", p_insert(e, a, 0));
                     a[p_insert(e, a, 0)] = e;
                     s.sz += 1;
                     return true;
                 }
                 // println!("no room in the set... {:?}", a);
-                let newcap: usize = s.cap + 1 + (crate::rand::rand_usize(s.cap, s.bits) % (2 * s.cap));
+                let newcap = grown_capacity(s.cap, s.bits);
                 let mut new = Self::with_capacity_and_bits(newcap, s.bits);
                 // new.debug_me("initial new");
                 match new.internal_mut() {
@@ -1351,7 +1358,7 @@ impl std::iter::FromIterator<u64> for SetU64 {
         if bits == 0 {
             let mut s = SetU64::with_capacity_and_bits(v.len(), bits);
             for value in v.into_iter() {
-                s.insert(value);
+                s.insert_inner(value, true);
             }
             s
         } else {
@@ -1361,7 +1368,7 @@ impl std::iter::FromIterator<u64> for SetU64 {
             let sz = (keys.len() + 1) * 11 / 10;
             let mut s = SetU64::with_capacity_and_bits(sz, bits);
             for value in v.into_iter() {
-                s.insert(value);
+                s.insert_inner(value, true);
             }
             s
         }
@@ -1846,6 +1853,52 @@ fn home(k: u64, n: usize) -> usize {
     ((h as u128 * n as u128) >> 64) as usize
 }
 
+/// The most slots we will push entries along to make room for another.  A table that is
+/// so full that making room takes more is grown instead.  Without a limit a table is only
+/// grown when it is completely full (or, for a `SetU32`, nearly so, but finding that out
+/// meant counting its empty slots on every insertion), and the last insertions before
+/// that each have to push a very long run of entries along.
+const MAX_CHAIN: usize = 256;
+
+/// The most slots to push entries along in a table of `n` slots: a small table must not
+/// be allowed to get nearly full either.
+fn max_chain(n: usize) -> usize {
+    (n / 16 + 16).min(MAX_CHAIN)
+}
+
+/// Whether there is an empty slot within `MAX_CHAIN` slots after where the key `k` belongs,
+/// which is as far as we would have to push entries to make room for it.
+fn p_has_room(k: u64, a: &[u64]) -> bool {
+    let n = a.len();
+    let start = home(k, n);
+    let end = start + max_chain(n).min(n);
+    if end <= n {
+        a[start..end].iter().any(|&x| x == 0)
+    } else {
+        a[start..].iter().any(|&x| x == 0) || a[..end - n].iter().any(|&x| x == 0)
+    }
+}
+
+/// How much bigger, in percent, a table that has run out of room becomes: at least `GROW_MIN`
+/// and less than `GROW_MAX`.  The choice is random, which makes it harder to arrange for many
+/// keys to collide.  Growing by a lot leaves a table with a lot of room to spare, which costs
+/// memory, and growing by only a little means growing again soon, which costs time.
+const GROW_MIN: usize = 20;
+const GROW_MAX: usize = 50;
+
+/// A table of up to this many slots grows by between 1 and 2 times its size instead, which
+/// costs little memory and saves rebuilding it many times on the way up.
+const GROW_SMALL: usize = 128;
+
+/// The capacity to grow a table of capacity `cap` to.
+fn grown_capacity(cap: usize, bits: u64) -> usize {
+    if cap <= GROW_SMALL {
+        return cap + 1 + crate::rand::rand_usize(cap, bits) % cap;
+    }
+    let span = cap * (GROW_MAX - GROW_MIN) / 100 + 1;
+    cap + cap * GROW_MIN / 100 + 1 + crate::rand::rand_usize(cap, bits) % span
+}
+
 fn p_poverty(k: u64, idx: usize, n: usize) -> usize {
     // How far `idx` is beyond the slot where `k` would ideally be, going round the table.
     let h = home(k, n);
@@ -2192,4 +2245,58 @@ fn test_keys_do_not_cluster() {
         }
         _ => panic!("this should be a set stored as a hash table"),
     }
+}
+
+/// The mean distance of the entries of a set stored as a hash table from the slot they belong in.
+#[cfg(test)]
+fn mean_distance_from_home(s: &SetU64) -> Option<f64> {
+    let entries: Vec<(u64, usize)>;
+    let n;
+    match s.internal() {
+        Internal::Heap { s: header, a } => {
+            n = a.len();
+            entries = a
+                .iter()
+                .enumerate()
+                .filter(|(_, &x)| x != 0)
+                .map(|(i, &x)| (x >> header.bits, i))
+                .collect();
+        }
+        Internal::Big { a, .. } => {
+            n = a.len();
+            entries = a
+                .iter()
+                .enumerate()
+                .filter(|(_, &x)| x != 0)
+                .map(|(i, &x)| (x, i))
+                .collect();
+        }
+        _ => return None,
+    }
+    let total: usize = entries.iter().map(|&(k, i)| p_poverty(k, i, n)).sum();
+    Some(total as f64 / entries.len().max(1) as f64)
+}
+
+// Too slow to run under Miri.
+#[test]
+#[cfg_attr(miri, ignore)]
+fn test_tables_do_not_get_crowded() {
+    // Insert one element at a time.  A table used to be grown only when it was completely
+    // full, so much of the time it was nearly full, and the entries were pushed a long way
+    // from the slots they belong in, which made each insertion slower than the one before.
+    let mut x: u64 = 1;
+    let mut s = SetU64::new();
+    let mut worst = 0.0f64;
+    for i in 0..30_000usize {
+        x = x
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        s.insert(((x >> 33) % 50_000_000) as u64);
+        if i % 97 == 0 {
+            if let Some(mean) = mean_distance_from_home(&s) {
+                worst = worst.max(mean);
+            }
+        }
+    }
+    assert!(worst < 12.0, "worst mean distance from home was {}", worst);
 }
