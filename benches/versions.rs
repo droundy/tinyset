@@ -18,11 +18,9 @@
 // bench with
 //
 //     cargo bench --bench versions --no-default-features --features deterministic_iteration
-#[cfg(feature = "rand")]
-compile_error!(
-    "versions.rs compares tables that must be laid out alike: run it with \
-     --no-default-features --features deterministic_iteration"
-);
+//
+// (`required-features` in Cargo.toml keeps it out of a plain `cargo bench`; the
+// crate itself refuses to combine that feature with `rand`.)
 
 use rand::Rng;
 use std::cell::RefCell;
@@ -563,7 +561,7 @@ mod fits64 {
 
 /// Like `scaling::main!()`, but asking for 1% precision (the default, written
 /// out so it stays that way). Placement still limits what the old and current
-/// types can be told apart by to about 8-9%: see AGENTS.md.
+/// types can be told apart by to about 10%: see AGENTS.md.
 ///
 /// A quicker, rougher run (5% takes a couple of minutes on a quiet machine) can be had by
 /// setting `TINYSET_BENCH_PRECISION=0.05`.

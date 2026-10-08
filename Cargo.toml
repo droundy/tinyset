@@ -45,6 +45,7 @@ deterministic_iteration = []
 [[bench]]
 name = "versions"
 harness = false
+required-features = ["deterministic_iteration"]
 
 [[bench]]
 name = "libraries"
