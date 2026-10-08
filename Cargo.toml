@@ -18,9 +18,16 @@ readme = "README.md"
 quickcheck = "0.9"
 heapsize = "0.4.2"
 proptest = "0.10"
-scaling = "0.1.3"
-stats_alloc = "0.1.8"
+# The benchmarks use scaling's `laps` branch (an open pull request there).  It needs Rust 1.81, which
+# only matters when running the tests or benchmarks, not for using the crate.
+scaling = { git = "https://github.com/droundy/scaling", branch = "laps" }
 
+# The previous release, to benchmark the current code against in the same run.  Built without
+# the default features, so that its tables lay out the same way as the current crate's when that
+# is built with `deterministic_iteration` (see benches/versions.rs).
+tinyset_old = { package = "tinyset", version = "=0.5.4", default-features = false, features = ["deterministic_iteration"] }
+# The benchmarks need it whichever features the crate itself is built with.
+rand = "0.9.3"
 roaring = "0.6.0"
 id-set = "0.2.2"
 serde_json = "1.0"
@@ -36,5 +43,11 @@ compactserde = ["serde"]
 deterministic_iteration = []
 
 [[bench]]
-name = "bench"
+name = "versions"
 harness = false
+required-features = ["deterministic_iteration"]
+
+[[bench]]
+name = "libraries"
+harness = false
+required-features = ["rand"]
