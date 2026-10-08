@@ -294,6 +294,21 @@ fn very_sparse_elements(n: usize) -> Elements {
     Elements(random_elements(0.001, n))
 }
 
+/// A metrics function reporting how much memory a set of type `$ty` holds once built.
+/// Metrics pair with candidates by return type, so each set type needs a function of its
+/// own. A set that fits in its own pointer holds no heap memory.
+macro_rules! memory {
+    ($name:ident, $ty:ty, $groups:tt) => {
+        #[scaling::metrics(group $groups, allocation)]
+        fn $name(_set: $ty) -> scaling::Metrics {
+            scaling::Metrics::new()
+                .net_allocated_bytes()
+                .peak_allocated_bytes()
+                .allocation_count()
+        }
+    };
+}
+
 /// Registers one candidate per set type in each of `$groups`, each building a set of
 /// its type from the elements with `$build` and returning it, so that the metrics
 /// function can report how much memory the set holds when it is built.
@@ -307,79 +322,37 @@ macro_rules! builders {
         fn setu32(e: &mut Elements) -> SetU32 {
             $build::<SetU32, u32>(&e.0, |x| x as u32, |s, x| s.insert(x))
         }
-        #[scaling::metrics(group $groups, allocation)]
-        fn setu32_memory(_set: SetU32) -> scaling::Metrics {
-            scaling::Metrics::new()
-                .net_allocated_bytes()
-                .peak_allocated_bytes()
-                .allocation_count()
-        }
+        memory!(setu32_memory, SetU32, $groups);
         #[scaling::bench(group $groups, uninteresting)]
         fn roaring(e: &mut Elements) -> roaring::RoaringBitmap {
             $build::<roaring::RoaringBitmap, u32>(&e.0, |x| x as u32, |s, x| s.insert(x))
         }
-        #[scaling::metrics(group $groups, allocation)]
-        fn roaring_memory(_set: roaring::RoaringBitmap) -> scaling::Metrics {
-            scaling::Metrics::new()
-                .net_allocated_bytes()
-                .peak_allocated_bytes()
-                .allocation_count()
-        }
+        memory!(roaring_memory, roaring::RoaringBitmap, $groups);
         #[scaling::bench(group $groups, uninteresting)]
         fn std32(e: &mut Elements) -> HashSet<u32> {
             $build::<HashSet<u32>, u32>(&e.0, |x| x as u32, |s, x| s.insert(x))
         }
-        #[scaling::metrics(group $groups, allocation)]
-        fn std32_memory(_set: HashSet<u32>) -> scaling::Metrics {
-            scaling::Metrics::new()
-                .net_allocated_bytes()
-                .peak_allocated_bytes()
-                .allocation_count()
-        }
+        memory!(std32_memory, HashSet<u32>, $groups);
         #[scaling::bench(group $groups, uninteresting)]
         fn setu64(e: &mut Elements) -> SetU64 {
             $build::<SetU64, u64>(&e.0, |x| x, |s, x| s.insert(x))
         }
-        #[scaling::metrics(group $groups, allocation)]
-        fn setu64_memory(_set: SetU64) -> scaling::Metrics {
-            scaling::Metrics::new()
-                .net_allocated_bytes()
-                .peak_allocated_bytes()
-                .allocation_count()
-        }
+        memory!(setu64_memory, SetU64, $groups);
         #[scaling::bench(group $groups, uninteresting)]
         fn set64(e: &mut Elements) -> Set64<u64> {
             $build::<Set64<u64>, u64>(&e.0, |x| x, |s, x| s.insert(x))
         }
-        #[scaling::metrics(group $groups, allocation)]
-        fn set64_memory(_set: Set64<u64>) -> scaling::Metrics {
-            scaling::Metrics::new()
-                .net_allocated_bytes()
-                .peak_allocated_bytes()
-                .allocation_count()
-        }
+        memory!(set64_memory, Set64<u64>, $groups);
         #[scaling::bench(group $groups, baseline)]
         fn std64(e: &mut Elements) -> HashSet<u64> {
             $build::<HashSet<u64>, u64>(&e.0, |x| x, |s, x| s.insert(x))
         }
-        #[scaling::metrics(group $groups, allocation)]
-        fn std64_memory(_set: HashSet<u64>) -> scaling::Metrics {
-            scaling::Metrics::new()
-                .net_allocated_bytes()
-                .peak_allocated_bytes()
-                .allocation_count()
-        }
+        memory!(std64_memory, HashSet<u64>, $groups);
         #[scaling::bench(group $groups, uninteresting)]
         fn idset(e: &mut Elements) -> id_set::IdSet {
             $build::<id_set::IdSet, usize>(&e.0, |x| x as usize, |s, x| s.insert(x))
         }
-        #[scaling::metrics(group $groups, allocation)]
-        fn idset_memory(_set: id_set::IdSet) -> scaling::Metrics {
-            scaling::Metrics::new()
-                .net_allocated_bytes()
-                .peak_allocated_bytes()
-                .allocation_count()
-        }
+        memory!(idset_memory, id_set::IdSet, $groups);
     };
 }
 

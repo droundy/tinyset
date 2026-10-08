@@ -14,13 +14,12 @@
 // grows, so two types holding the same elements can be laid out differently,
 // and then differ in speed without any difference in code. With
 // `deterministic_iteration` those choices depend only on the history of
-// inserts and removes, which the old and current types share, so run this
-// bench with
+// inserts and removes, which the old and current types share, so this bench
+// requires that feature (see `required-features` in Cargo.toml, which also
+// leaves it out of a plain `cargo bench`), and must be built without the
+// default `rand` feature, which the feature excludes:
 //
 //     cargo bench --bench versions --no-default-features --features deterministic_iteration
-//
-// (`required-features` in Cargo.toml keeps it out of a plain `cargo bench`; the
-// crate itself refuses to combine that feature with `rand`.)
 
 use rand::Rng;
 use std::cell::RefCell;
@@ -534,29 +533,51 @@ mod memory {
     );
 }
 
-// Round trips through the `Fits64` conversions that `Set64` stores with.
+// Round trips through the `Fits64` conversions that `Set64` stores with, for the
+// previous release (the baseline) and the current one.
 mod fits64 {
     use super::*;
+    use tinyset_old::Fits64 as OldFits64;
 
-    #[scaling::bench(make_input = || rand::random::<i64>())]
-    fn i64_round_trip(x: &mut i64) -> i64 {
-        unsafe { i64::from_u64(x.to_u64()) }
+    macro_rules! round_trip {
+        ($group:literal, $input:ident, $old:ident, $new:ident, $ty:ty) => {
+            #[scaling::input(group = $group)]
+            fn $input() -> $ty {
+                rand::random()
+            }
+            #[scaling::bench(group = $group, baseline)]
+            fn $old(x: &mut $ty) -> $ty {
+                unsafe { <$ty as OldFits64>::from_u64(<$ty as OldFits64>::to_u64(*x)) }
+            }
+            #[scaling::bench(group = $group)]
+            fn $new(x: &mut $ty) -> $ty {
+                unsafe { <$ty as Fits64>::from_u64(<$ty as Fits64>::to_u64(*x)) }
+            }
+        };
     }
 
-    #[scaling::bench(make_input = || rand::random::<i32>())]
-    fn i32_round_trip(x: &mut i32) -> i32 {
-        unsafe { i32::from_u64(x.to_u64()) }
-    }
-
-    #[scaling::bench(make_input = || rand::random::<i16>())]
-    fn i16_round_trip(x: &mut i16) -> i16 {
-        unsafe { i16::from_u64(x.to_u64()) }
-    }
-
-    #[scaling::bench(make_input = || rand::random::<i8>())]
-    fn i8_round_trip(x: &mut i8) -> i8 {
-        unsafe { i8::from_u64(x.to_u64()) }
-    }
+    round_trip!(
+        "fits64_i64",
+        i64_input,
+        old_i64_round_trip,
+        i64_round_trip,
+        i64
+    );
+    round_trip!(
+        "fits64_i32",
+        i32_input,
+        old_i32_round_trip,
+        i32_round_trip,
+        i32
+    );
+    round_trip!(
+        "fits64_i16",
+        i16_input,
+        old_i16_round_trip,
+        i16_round_trip,
+        i16
+    );
+    round_trip!("fits64_i8", i8_input, old_i8_round_trip, i8_round_trip, i8);
 }
 
 /// Like `scaling::main!()`, but asking for 1% precision (the default, written
