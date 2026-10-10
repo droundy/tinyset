@@ -51,7 +51,8 @@ impl IntoIterator for SetU64 {
             sz: x.sz,
             sz_left: x.sz_left,
             bits: x.bits,
-            whichbit: x.whichbit,
+            cur: x.cur,
+            base: x.base,
             last: x.last,
             index: x.index,
             set: self,
@@ -93,7 +94,12 @@ struct Inner<T: Borrow<SetU64>> {
     sz: usize,
     sz_left: usize,
     bits: u64,
-    whichbit: u64,
+    /// The elements of the current word or bucket that have not been returned
+    /// yet, as a bitmap.  Only the `Dense` and `Heap` formats use this.
+    cur: u64,
+    /// What to add to the number of a bit in `cur` to get its element.
+    base: u64,
+    /// The next word or bucket to load into `cur`, or the next slot of a `Big` set.
     index: usize,
     last: usize,
     set: T,
@@ -105,7 +111,8 @@ impl<T: Borrow<SetU64>> Inner<T> {
             sz: 0,
             sz_left: 0,
             bits: 0,
-            whichbit: 0,
+            cur: 0,
+            base: 0,
             index: 0,
             last: 0,
             set,
@@ -113,10 +120,12 @@ impl<T: Borrow<SetU64>> Inner<T> {
     }
 }
 
-impl<T: Borrow<SetU64>> Iterator for Inner<T> {
-    type Item = u64;
+impl<T: Borrow<SetU64>> Inner<T> {
+    /// The rest of `next`: moves on to the next word or bucket, or returns the
+    /// next element of one of the other formats.  Kept out of line so that
+    /// `next` itself is small enough to be inlined into the loop that calls it.
     #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next_slow(&mut self) -> Option<u64> {
         match self.set.borrow().internal() {
             Internal::Empty => None,
             Internal::Stack(_) => {
@@ -138,17 +147,15 @@ impl<T: Borrow<SetU64>> Iterator for Inner<T> {
             }
             Internal::Heap { a, .. } => {
                 if self.bits > 0 {
+                    // The bitmap is in the low `bits` bits and the key above it.
+                    let m = mask(self.bits as usize);
                     while let Some(&x) = a.get(self.index) {
-                        while self.whichbit < self.bits {
-                            let oldbit = self.whichbit;
-                            self.whichbit += 1;
-                            if (x & (1 << oldbit)) != 0 {
-                                self.sz_left -= 1;
-                                return Some(unsplit_u64(x >> self.bits, oldbit, self.bits));
-                            }
-                        }
                         self.index += 1;
-                        self.whichbit = 0;
+                        if x & m != 0 {
+                            self.cur = x & m;
+                            self.base = unsplit_u64(x >> self.bits, 0, self.bits);
+                            return self.next();
+                        }
                     }
                 } else {
                     if let Some(&first) = a.get(self.index) {
@@ -169,22 +176,36 @@ impl<T: Borrow<SetU64>> Iterator for Inner<T> {
                 }
                 None
             }
-            Internal::Dense { a, .. } => loop {
-                if let Some(word) = a.get(self.index) {
-                    while self.whichbit < 64 {
-                        let bit = self.whichbit;
-                        self.whichbit = 1 + bit;
-                        if word & (1 << bit) != 0 {
-                            self.sz_left -= 1;
-                            return Some(((self.index as u64) << 6) + bit as u64);
-                        }
-                    }
-                    self.whichbit = 0;
+            Internal::Dense { a, .. } => {
+                while let Some(&word) = a.get(self.index) {
                     self.index += 1;
-                } else {
-                    return None;
+                    if word != 0 {
+                        self.cur = word;
+                        self.base = (self.index as u64 - 1) << 6;
+                        return self.next();
+                    }
                 }
-            },
+                None
+            }
+        }
+    }
+}
+
+impl<T: Borrow<SetU64>> Iterator for Inner<T> {
+    type Item = u64;
+    #[inline(always)]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cur != 0 {
+            // Return the lowest element left in the current word or bucket.
+            let bit = self.cur.trailing_zeros() as u64;
+            self.cur &= self.cur - 1;
+            self.sz_left -= 1;
+            Some(self.base + bit)
+        } else if self.sz_left == 0 {
+            // Nothing is left, so there is no need to look any further.
+            None
+        } else {
+            self.next_slow()
         }
     }
     #[inline]
@@ -192,13 +213,14 @@ impl<T: Borrow<SetU64>> Iterator for Inner<T> {
         match self.set.borrow().internal() {
             Internal::Empty => None,
             Internal::Stack(t) => t.max(),
+            // The last element is the highest bit of the last occupied bucket, which
+            // is where iterating over the set ends.
             Internal::Heap { a, .. } => a
                 .into_iter()
                 .rev()
                 .cloned()
                 .filter(|&x| x != 0)
                 .map(|x| {
-                    // The highest element in the bucket.
                     let highest = 63 - (x & mask(self.bits as usize)).leading_zeros() as u64;
                     unsplit_u64(x >> self.bits, highest, self.bits)
                 })
@@ -229,7 +251,7 @@ impl<T: Borrow<SetU64>> Iterator for Inner<T> {
             Internal::Empty => None,
             Internal::Stack(t) => t.min(),
             Internal::Heap { a, .. } => {
-                if self.whichbit == 0 {
+                if self.index == 0 && self.cur == 0 {
                     let x = a.into_iter().cloned().filter(|x| *x != 0).min().unwrap();
                     Some((x >> self.bits) * self.bits + x.trailing_zeros() as u64)
                 } else {
@@ -260,7 +282,7 @@ impl<T: Borrow<SetU64>> Iterator for Inner<T> {
             Internal::Empty => None,
             Internal::Stack(t) => t.max(),
             Internal::Heap { a, .. } => {
-                if self.whichbit == 0 {
+                if self.index == 0 && self.cur == 0 {
                     let x = a.iter().cloned().filter(|x| *x != 0).max().unwrap();
                     let reference = (x >> self.bits) * self.bits;
                     let m = mask(self.bits as usize);
