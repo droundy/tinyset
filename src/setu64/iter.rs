@@ -122,8 +122,10 @@ impl<T: Borrow<SetU64>> Inner<T> {
 
 impl<T: Borrow<SetU64>> Inner<T> {
     /// The rest of `next`: moves on to the next word or bucket, or returns the
-    /// next element of one of the other formats.  Kept out of line so that
-    /// `next` itself is small enough to be inlined into the loop that calls it.
+    /// next element of one of the other formats.  It is only a hint to inline, not
+    /// a promise: forcing it out of line made iterating over sets of one to seven
+    /// elements, which come through here for every element, measurably slower,
+    /// while the common case in `next` stays small either way.
     #[inline]
     fn next_slow(&mut self) -> Option<u64> {
         match self.set.borrow().internal() {
