@@ -1326,10 +1326,13 @@ impl std::iter::FromIterator<u64> for SetU64 {
         } else {
             return SetU64(0 as *mut S);
         };
+        // Whether `v` is sorted, without duplicates.
+        let mut distinct = false;
         if v.len() < BITSPLITS.len() {
             // A few small elements might fit in a single word.
             v.sort();
             v.dedup();
+            distinct = true;
             if let Some(t) = Tiny::new_sorted_deduped(&v) {
                 return SetU64(t.to_usize() as *mut S);
             }
@@ -1339,14 +1342,28 @@ impl std::iter::FromIterator<u64> for SetU64 {
             // full of keys that are this close together is slow), and needs no
             // sorting to fill.
             let mut s = SetU64::dense_with_max(mx);
-            for value in v.into_iter() {
+            for &value in v.iter() {
                 s.insert(value);
             }
-            return s;
+            let n = s.len();
+            if distinct
+                || (n >= BITSPLITS.len() && SetU64::dense_capacity(mx) <= n as u64 * 11 / 10)
+            {
+                return s;
+            }
+            // Repeated elements made the set look bigger than it is.  Start again,
+            // from the elements it has, which come out in order.
+            v = s.iter().collect();
+            distinct = true;
+            if let Some(t) = Tiny::new_sorted_deduped(&v) {
+                return SetU64(t.to_usize() as *mut S);
+            }
         }
         // Sorting lets us insert in increasing order.
-        v.sort();
-        v.dedup();
+        if !distinct {
+            v.sort();
+            v.dedup();
+        }
         let bits = compute_array_bits(mx);
         if bits == 0 {
             let mut s = SetU64::with_capacity_and_bits(v.len(), bits);
@@ -2088,4 +2105,27 @@ fn p_remove_from_small_full() {
     assert!(p_remove(258, &mut a, 0));
     assert_eq!(a[0], 260);
     assert_eq!(a[1], 0);
+}
+
+#[test]
+fn test_collect_duplicates_do_not_make_a_bigger_set() {
+    // Repeating the elements of a set must not change how it is stored: once the
+    // duplicates are removed it is the same set.
+    let once: Vec<u64> = (0..900).map(|i| i * 111 + 7).collect();
+    let mut twice = once.clone();
+    twice.extend(once.iter().cloned());
+    let a: SetU64 = once.iter().cloned().collect();
+    let b: SetU64 = twice.iter().cloned().collect();
+    assert_eq!(a.len(), b.len());
+    assert_eq!(a.mem_used(), b.mem_used());
+    // A few elements, repeated, still fit in the pointer itself.
+    let tiny: SetU64 = [1 as u64; 8].iter().cloned().collect();
+    assert_eq!(tiny.len(), 1);
+    assert_eq!(tiny.mem_used(), std::mem::size_of::<SetU64>());
+    let few: SetU64 = [3 as u64, 3, 3, 4, 4, 4, 5, 5, 5, 5]
+        .iter()
+        .cloned()
+        .collect();
+    assert_eq!(few.len(), 3);
+    assert_eq!(few.mem_used(), std::mem::size_of::<SetU64>());
 }
