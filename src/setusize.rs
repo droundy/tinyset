@@ -113,14 +113,9 @@ impl SetUsize {
 
 impl std::iter::FromIterator<usize> for SetUsize {
     fn from_iter<I: IntoIterator<Item = usize>>(iter: I) -> Self {
-        let iter = iter.into_iter();
-        // FIXME: It would be nice to cleverly allocate with the right capacity.
-        // let (sz,_) = iter.size_hint();
-        let mut c = SetUsize::new();
-        for i in iter {
-            c.insert(i);
-        }
-        c
+        // The underlying set collects in bulk, choosing its layout from all of the
+        // elements at once, which is much faster than inserting them one at a time.
+        SetUsize(iter.into_iter().map(|x| x as Item).collect())
     }
 }
 
