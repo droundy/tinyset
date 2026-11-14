@@ -257,4 +257,47 @@ proptest! {
     fn copycheck_big_sets(slice: Vec<usize>) {
         crate::copyset::check_set::<SetUsize>(&slice);
     }
+    #[test]
+    fn collect_random_sets_match_insert(slice in prop::collection::vec(any::<usize>(), 0usize..200)) {
+        check_collect_matches_insert(&slice);
+    }
+    #[test]
+    fn collect_dense_sets_match_insert(slice in prop::collection::vec(0usize..500, 0usize..300)) {
+        check_collect_matches_insert(&slice);
+    }
+}
+
+#[test]
+fn collect_matches_insert_specific() {
+    let sets: Vec<Vec<usize>> = vec![
+        vec![],
+        vec![0],
+        vec![5, 5, 5],
+        (0..1000).collect(),
+        (0..1000).map(|x| x * 1000).collect(),
+        vec![usize::MAX, usize::MAX - 100, 0, 1 << 30],
+        (0..200).map(|x| (x * 7919) % 1000003).collect(),
+    ];
+    for v in sets {
+        check_collect_matches_insert(&v);
+    }
+}
+
+/// Collecting may pick a different layout than inserting one at a time,
+/// but it must hold exactly the same elements.
+#[cfg(test)]
+fn check_collect_matches_insert(v: &[usize]) {
+    let collected: SetUsize = v.iter().cloned().collect();
+    let mut inserted = SetUsize::new();
+    for &x in v {
+        inserted.insert(x);
+    }
+    let mut expected = v.to_vec();
+    expected.sort();
+    expected.dedup();
+    let mut elements: Vec<usize> = collected.iter().collect();
+    elements.sort();
+    assert_eq!(elements, expected);
+    assert_eq!(collected.len(), expected.len());
+    assert_eq!(collected, inserted);
 }
