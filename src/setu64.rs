@@ -489,7 +489,14 @@ impl SetU64 {
         } else {
             let s = unsafe { &*self.0 };
             let b = &s.b;
-            let a = unsafe { std::slice::from_raw_parts(&s.array as *const u64, b.cap) };
+            // `internal` gives the array with the provenance of the whole allocation.  A slice
+            // built from a reference to `s.array` would only cover that one element.
+            let a = match self.internal() {
+                Internal::Heap { a, .. }
+                | Internal::Big { a, .. }
+                | Internal::Dense { a, .. } => a,
+                Internal::Empty | Internal::Stack(_) => unreachable!(),
+            };
             out.push(b.sz as u64);
             out.push(b.bits as u64);
             out.extend(a);
