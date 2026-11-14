@@ -417,7 +417,14 @@ impl SetU32 {
         } else {
             let s = unsafe { &*self.0 };
             let b = &s.b;
-            let a = unsafe { std::slice::from_raw_parts(&s.array as *const u32, b.cap as usize) };
+            // `internal` gives the array with the provenance of the whole allocation.  A slice
+            // built from a reference to `s.array` would only cover that one element.
+            let a = match self.internal() {
+                Internal::Heap { a, .. }
+                | Internal::Big { a, .. }
+                | Internal::Dense { a, .. } => a,
+                Internal::Empty | Internal::Stack(_) => unreachable!(),
+            };
             out.push(b.sz as u32);
             out.push(b.bits as u32);
             out.extend(a);
@@ -753,9 +760,13 @@ impl SetU32 {
         match self.internal() {
             Internal::Empty => std::mem::size_of::<Self>(),
             Internal::Stack(_) => std::mem::size_of::<Self>(),
-            Internal::Heap { s, .. } => std::mem::size_of::<Self>() + s.cap as usize * 4 - 4,
-            Internal::Dense { a, .. } => std::mem::size_of::<Self>() + a.len() * 4 - 4,
-            Internal::Big { s, .. } => std::mem::size_of::<Self>() + s.cap as usize * 4 - 4,
+            Internal::Heap { s, .. } => {
+                std::mem::size_of::<Self>() + bytes_for_capacity(s.cap as usize)
+            }
+            Internal::Dense { a, .. } => std::mem::size_of::<Self>() + bytes_for_capacity(a.len()),
+            Internal::Big { s, .. } => {
+                std::mem::size_of::<Self>() + bytes_for_capacity(s.cap as usize)
+            }
         }
     }
     /// This requires that we currently be a dense! It also requires
@@ -1668,6 +1679,22 @@ mod tests {
         incremental_size_le(&(1..160).collect::<Vec<_>>(), 84);
 
         incremental_size_le(&(0..100).map(|x| x * 10).collect::<Vec<_>>(), 400);
+    }
+
+    #[test]
+    fn mem_used_counts_every_format() {
+        // The allocation of a heap set includes its header, so `mem_used` must
+        // agree with the size that `heapsize` reports for every format.
+        let sets = [
+            SetU32::new(),
+            [1u32, 2, 3].iter().cloned().collect::<SetU32>(),
+            SetU32::with_capacity_and_bits(4, 29),
+            SetU32::with_capacity_and_max(100, 1000),
+            SetU32::with_capacity_and_bits(4, 0),
+        ];
+        for s in &sets {
+            assert_eq!(s.mem_used(), total_size_of(s));
+        }
     }
 
     fn check_set_primitives(elems: &[u32]) {
